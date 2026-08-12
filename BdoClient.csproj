@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>BdoClient</RootNamespace>
+    <AssemblyName>BdoClient</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="BdoClient.Tests\**" />
+    <EmbeddedResource Remove="BdoClient.Tests\**" />
+    <None Remove="BdoClient.Tests\**" />
+  </ItemGroup>
+
+</Project>

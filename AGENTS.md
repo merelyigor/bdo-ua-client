@@ -481,7 +481,7 @@ BDO-UA-Client/
 
 §28.2 TLS verification ніколи не вимикати.
 
-§28.3 Не запускати executable отриманий з сервера (окрім whitelist операцій: copy/replace/delete localization file/create dir/restore backup). Повернення до стану без української для основного game file виконується через `Restore Original`, а не фізичне видалення. Temporary/cache файли клієнта можуть видалятися під час cleanup.
+§28.3 Не запускати executable отриманий з сервера (окрім whitelist операцій: copy/replace localization file/create directory/restore backup/delete temporary/cache files). Основний `languagedata_en.loc` не видаляється фізично як uninstall. Повернення до стану без української виконується через `Restore Original`.
 
 §28.4 Невідомі operation відхиляти.
 
