@@ -24,7 +24,7 @@
 | [§16](#16--захист-шляхів) | 🛡️ Захист шляхів | Path traversal |
 | [§17](#17--download) | ⬇️ Download | Завантаження файлів |
 | [§18](#18--стани-та-оновлення) | 🔄 Стани та оновлення | LocalizationState / OperationState |
-| [§19](#19--видалення) | 🗑️ Видалення | Uninstall |
+| [§19](#19--відновлення-та-повернення-до-оригіналу) | 🗑️ Відновлення та повернення до оригіналу | Uninstall |
 | [§20](#20--windows) | 🪟 Windows | Платформа |
 | [§21](#21--ux) | 🎨 UX | Інтерфейс |
 | [§22](#22--логування-та-exceptions) | 📝 Логування та exceptions | Обробка помилок |
@@ -370,7 +370,7 @@ API надає release metadata через `GET /releases`. Клієнт вик�
 
 ---
 
-## §19 🗑️ Видалення
+## §19 🗑️ Відновлення та повернення до оригіналу
 
 §19.1 **Розділення backup:**
 - **Original snapshot** — незмінна копія `languagedata_en.loc`, яка існувала перед першою модифікацією клієнтом. Не перезаписувати. Не трактувати як гарантовано актуальний original після майбутніх патчів гри.
@@ -477,11 +477,11 @@ BDO-UA-Client/
 
 ## §28 🔒 Security
 
-§28.1 Усе зовнішнє — недовірене: API responses, filenames, URLs, manifests.
+§28.1 Усе зовнішнє — недовірене: API responses, filenames, URLs, API release metadata.
 
 §28.2 TLS verification ніколи не вимикати.
 
-§28.3 Не запускати executable отриманий з сервера (окрім whitelist операцій: copy/replace/delete localization file/create dir/restore backup).
+§28.3 Не запускати executable отриманий з сервера (окрім whitelist операцій: copy/replace/delete localization file/create dir/restore backup). Повернення до стану без української для основного game file виконується через `Restore Original`, а не фізичне видалення. Temporary/cache файли клієнта можуть видалятися під час cleanup.
 
 §28.4 Невідомі operation відхиляти.
 
