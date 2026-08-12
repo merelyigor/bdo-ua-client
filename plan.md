@@ -123,6 +123,9 @@ bdo-ua-client/
 - [ ] Моделі містять всі поля з API (включно з `official_source_url`, `install_path_patterns`, `game_tested_at`)
 - [ ] API client повертає `null` або `ApiResult<T>` замість виключення при помилці мережі
 - [ ] SHA-256 НЕ використовується для official source (лише для release downloads)
+- [ ] Async service methods приймають `CancellationToken` де це доречно
+- [ ] Помилки не ковтаються (немає порожніх catch/pass)
+- [ ] Мінімальний logger contract з моменту створення
 
 **Файли:** `BdoClient.csproj`, `Models/*.cs`, `Api/BdoUaApiClient.cs`
 
@@ -184,46 +187,53 @@ bdo-ua-client/
 
 ---
 
-### Етап 5: Backup + restore logic
+### Етап 5: Backup/snapshot/restore
 
 **Що реалізовано:**
-- Original backup: ОДИН РАЗ перед першою модифікацією
-- Restore points: кожна нова встановлена локалізація
-- Restore original: download з `official_source_url` + заміна
+- Original snapshot: ОДИН РАЗ перед першою модифікацією (не перезаписувати)
+- Restore points: створюються ПЕРЕД replace game file
+- Restore original: download з `official_source_url`; локальний snapshot — fallback
 
 **Acceptance criteria:**
-- [ ] Original: `%LocalAppData%\BDO-UA-Client\backups\original\`
-- [ ] Original НЕ перезаписується
+- [ ] Original snapshot: `%LocalAppData%\BDO-UA-Client\backups\original\`
+- [ ] Original snapshot НЕ перезаписується
+- [ ] Metadata original snapshot: `created_at`, `game_patch` (якщо достовірно), `sha256` (локально), `size_bytes`
+- [ ] Локальний SHA-256 — НЕ checksum від API
 - [ ] Restore points: `%LocalAppData%\BDO-UA-Client\backups\restore-points\{timestamp}\`
+- [ ] Restore point створюється ПЕРЕД заміною (pre-operation snapshot)
 - [ ] Кожен restore point: `languagedata_en.loc` + `metadata.json`
-- [ ] Restore original: download → replace → metadata `source: "official"`
+- [ ] Restore original: download з `official_source_url` → replace → metadata `source: "official"`
+- [ ] Fallback: якщо official source недоступний → використати original snapshot
 - [ ] При відсутності original + official → помилка
 
 **Файли:** `Services/LocalizationInstaller.cs`
 
 ---
 
-### Етап 6: Safe installation transaction
+### Етап 6: Transactional install + rollback
 
 **Що реалізовано:**
-- Повний workflow: download → verify → backup → replace → verify → save state → cleanup
+- Повний workflow з rollback
+- pre-operation snapshot перед replace
 
 **Acceptance criteria:**
+- [ ] Кроки: release → download → HTTP check → size check → SHA-256 → pre-operation snapshot → replace → verify installed file → save state → cleanup → commit success
 - [ ] Ніколи не завантажувати поверх game file
-- [ ] Кроки: release → download → HTTP check → size check → SHA-256 → backup → replace → verify → save state → cleanup
-- [ ] При помилці — файл гри НЕ змінено
+- [ ] При помилці до replace — файл гри НЕ змінено, metadata НЕ стверджує install
+- [ ] При помилці після replace — rollback до pre-operation snapshot
+- [ ] Якщо rollback не вдався: стан `Corrupted`, критична помилка в UI, деталі в log
 - [ ] Metadata ТІЛЬКИ після успіху
-- [ ] При помилці metadata НЕ стверджує install
 
 **Файли:** `Services/LocalizationInstaller.cs`
 
 ---
 
-### Етап 7: Localization state/update detection
+### Етап 7: Localization state/update detection + compatibility
 
 **Що реалізовано:**
 - Порівняння `installed.public_id` з `current.public_id`
 - Визначення LocalizationState
+- Перевірка `compatible_with_official_patch`
 
 **Acceptance criteria:**
 - [ ] `NotInstalled`: metadata відсутня
@@ -232,6 +242,9 @@ bdo-ua-client/
 - [ ] `WaitingForRelease`: встановлено, `current` відсутній
 - [ ] `InstalledVersionUnknown`: metadata нечитабельна
 - [ ] `Corrupted`: hash не збігається
+- [ ] `compatible_with_official_patch == false` → Install та Update заборонені
+- [ ] Download не починається при несумісності
+- [ ] Користувачу показується причина блокування
 - [ ] Не використовувати лише `patch`/`version`
 
 **Файли:** `Services/LocalizationStateService.cs`
@@ -273,33 +286,32 @@ bdo-ua-client/
 
 ---
 
-### Етап 10: Progress + cancellation + error handling
+### Етап 10: Progress + cancellation UX
 
 **Що реалізовано:**
-- Progress reporting для download
-- Cancellation token
-- Error handling без `catch/pass`
+- UI progress bar для download
+- UI cancellation button
+- Інтеграція з `CancellationToken` з Етапу 1
 
 **Acceptance criteria:**
 - [ ] Progress bar: % download
-- [ ] `CancellationToken` в усіх async операціях
-- [ ] "Скасувати" → cancellation → файл не змінено
-- [ ] Кожна помилка логується + показується
-- [ ] Немає порожніх `catch/pass`
+- [ ] "Скасувати" → cancellation → файл не змінено (до replace)
+- [ ] OperationState оновлює UI
 
 **Файли:** `MainForm.cs`, `Services/*.cs`
 
 ---
 
-### Етап 11: Logging
+### Етап 11: Logging finalization
 
 **Що реалізовано:**
-- File-based logging в `%LocalAppData%\BDO-UA-Client\logs\`
+- Повноцінне persistent file logging в `%LocalAppData%\BDO-UA-Client\logs\`
 
 **Acceptance criteria:**
-- [ ] Логи: запуск, detection, API calls, download, install, errors
+- [ ] Логи: запуск, detection, API calls, download, install, errors, rollback
 - [ ] Формат: `{timestamp} [{level}] {message}`
 - [ ] Ротація: по днях
+- [ ] Logger contract визначено в Етапі 1, тут — реалізація
 
 **Файли:** новий клас або `Program.cs`
 
@@ -336,7 +348,7 @@ bdo-ua-client/
 | 6 | API змінив формат | Defensive parsing, null checks |
 | 7 | Official source недоступний | Попередити, запропонувати backup |
 | 8 | Hash mismatch | Не встановлювати, видалити temp |
-| 9 | Несумісність патчу | Попередити, але дозволити |
+| 9 | Несумісність патчу | Install/Update заборонені, download не починається |
 | 10 | Concurrent access | File lock на metadata |
 
 ---

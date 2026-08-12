@@ -196,22 +196,28 @@ Base URL: `https://bdo-ua.com.ua/api/public/v1`
 - Перевірка hash (SHA-256) при наявності від сервера.
 
 **Розділення backup:**
-- **Original backup** — оригінальний `languagedata_en.loc` до першої модифікації. Не перезаписувати.
-- **Restore points** — попередні встановлені локалізації. Не вважати їх оригінальним game file.
+- **Original snapshot** — незмінна копія `languagedata_en.loc`, яка існувала перед першою модифікацією клієнтом. Не перезаписувати. Не трактувати як гарантовано актуальний original після майбутніх патчів гри.
+- **Restore points** — попередні встановлені локалізації. Створюються ПЕРЕД заміною game file (pre-operation snapshot). Не вважати їх оригінальним game file.
+
+**Metadata original snapshot:**
+- `created_at` — час створення
+- `game_patch` — якщо його можливо достовірно визначити
+- `sha256` — обчислений локально (не з API)
+- `size_bytes`
 
 **Чотири операції:**
 1. `Встановити` — перша установка
 2. `Оновити` — заміна на новіший release
-3. `Відновити оригінал` — завантаження з `official_source_url` + заміна
+3. `Відновити оригінал` — у першу чергу завантаження з `official_source_url`; локальний original snapshot — fallback
 4. `Відновити backup` — повернення до попереднього restore point
 
 Не видаляти `languagedata_en.loc` фізично як спосіб uninstall. Повернення до стану без української = відновлення official/original `.loc`.
 
 ---
 
-## 24. Manifest
+## 24. API Release Metadata
 
-Server manifest описує: id, version, game version, files, URLs, checksums, actions. Клієнт виконує валідовані операції.
+API надає release metadata через `GET /releases`. Клієнт виконує валідовані операції.
 
 **Installation Safety Workflow:**
 1. Отримати release з API
@@ -219,14 +225,21 @@ Server manifest описує: id, version, game version, files, URLs, checksums,
 3. Перевірити HTTP result
 4. Перевірити `size_bytes` (якщо доступний)
 5. Перевірити SHA-256 (для release files; для official source — ні)
-6. Створити/перевірити backup
+6. Створити pre-operation snapshot/restore point
 7. Підготувати заміну
 8. Замінити game file
-9. Перевірити результат
+9. Перевірити встановлений файл
 10. Записати installation state ТІЛЬКИ після успіху
 11. Видалити temporary file
+12. Commit success
 
-Якщо помилка на будь-якому кроці — файл гри НЕ змінено, metadata НЕ стверджує, що release встановлено.
+Якщо помилка на будь-якому кроці до replace — файл гри НЕ змінено, metadata НЕ стверджує, що release встановлено.
+
+Якщо помилка сталася після replace — клієнт повинен спробувати rollback до pre-operation snapshot. Якщо rollback не вдався:
+- не заявляти успішну установку;
+- стан вважати пошкодженим (`Corrupted`);
+- показати користувачу критичну помилку;
+- записати деталі в log.
 
 ---
 
@@ -245,10 +258,9 @@ Server manifest описує: id, version, game version, files, URLs, checksums,
 
 ## 30-32. Стани та оновлення
 
-- Стани: `NotInstalled` / `Installed` / `UpdateAvailable` / `Corrupted` / `Unknown`.
 - Перевіряти фактичний стан файлів, а не лише config flag.
 - Перед update: поточна версія, серверна версія, сумісність.
-- Несумісність → не встановлювати, повідомити користувача.
+- `compatible_with_official_patch == false` → Install та Update заборонені, download не починається.
 
 **LocalizationState (постійний стан файлу):**
 - `NotInstalled` — файл не встановлено
@@ -337,7 +349,7 @@ BDO-UA-Client/
 
 ## 50-52. Тести
 
-- Тестувати без UI: path validation, manifest parsing, checksum, game detection, version comparison.
+- Тестувати без UI: path validation, release metadata parsing, checksum, game detection, version comparison.
 - Тests використовують temp directories, не працюють з реальними game files.
 - Edge cases: гра не знайдена, кілька копій, Unicode/пробіли, locked files, переповнений диск, перерваний download, пошкоджені файли.
 
@@ -354,7 +366,7 @@ BDO-UA-Client/
 
 ## 57. Сумісність
 
-Manifest повинен містити compatibility info: `supportedGameVersions`, `minimumGameVersion`, `maximumGameVersion`.
+`compatible_with_official_patch == false` → Install та Update заборонені. Download не починається. Користувачу показується причина. Ніякого override в MVP.
 
 ---
 
