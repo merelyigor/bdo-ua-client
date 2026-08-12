@@ -459,6 +459,12 @@ BDO-UA-Client/
 
 §26.2 Пакетований `.exe` може відрізнятися від dev mode (working directory, bundled resources).
 
+§26.3 **GitHub Actions CI:**
+- Локальні build/tests перед commit залишаються обов'язковими.
+- GitHub Actions є незалежною remote-перевіркою.
+- Не заявляти, що CI успішний, якщо результат реально не перевірено.
+- Failure CI не ігнорувати перед переходом до наступного етапу.
+
 ---
 
 ## §27 🧪 Тести
