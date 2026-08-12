@@ -108,7 +108,7 @@ UI показує інформацію та викликає service-метод�
 
 Base URL: `https://bdo-ua.com.ua/api/public/v1`
 
-**GET /releases** — основний endpoint для отримання локалізацій.
+**GET /releases** — єдиний endpoint. Клієнт не повинен сам вирішувати, яка локалізація актуальна.
 
 Структура відповіді:
 ```json
@@ -118,17 +118,21 @@ Base URL: `https://bdo-ua.com.ua/api/public/v1`
   "data": {
     "official_patch": int,
     "official_patch_checked_at": "ISO datetime",
+    "official_source_url": "https://naeu-o-dn.playblackdesert.com/.../languagedata_en.loc",
     "filename": "languagedata_en.loc",
-    "install_path": "C:\\...\\",
-    "progress": { "total_rows", "translated_percent", ... },
+    "install_path_patterns": [
+      { "pattern": "{drive}:\\...\\Black Desert Online\\ads\\", "launcher": "steam|official", "description": "..." }
+    ],
+    "install_guide_url": "https://bdo-ua.com.ua/download",
+    "progress": { "total_rows", "translated_percent", "manual_rows", "manual_percent", "machine_rows", "machine_percent" },
     "modes": [
       {
-        "slug": "full-ukrainian",
+        "slug": "full-ukrainian|full-ukrainian-bosia|english-items",
         "public_name": "...",
         "description": "...",
         "audience": "...",
         "current": {
-          "public_id": "ULID",
+          "public_id": "ULID (26 chars)",
           "version": int,
           "filename": "languagedata_en.loc",
           "download_url": "https://bdo-ua.com.ua/download/releases/{public_id}",
@@ -137,9 +141,10 @@ Base URL: `https://bdo-ua.com.ua/api/public/v1`
           "patch": int,
           "compatible_with_official_patch": bool,
           "published_at": "ISO datetime",
-          "game_test": { "state", "label", "note" },
+          "game_tested_at": "ISO datetime",
+          "game_test": { "state": "known_issues|ok|...", "label": "...", "note": "string|null" },
           "stats": { "rows_in_file": int },
-          "announcements": { "discord_releases", "telegram_main" }
+          "announcements": { "discord_releases": {"sent": bool, "sent_at": str|null}, "telegram_main": {"sent": bool, "sent_at": str|null} }
         },
         "history": [ { "public_id", "version", "patch", "status", "published_at", "retired_at" } ]
       }
@@ -148,12 +153,20 @@ Base URL: `https://bdo-ua.com.ua/api/public/v1`
 }
 ```
 
+Ключові правила:
+- `current` відсутній для режиму — нормальний стан (актуальний release ще не опубліковано)
+- `history` використовувати лише для інформації. Завантажувати старі версії ЗАБОРОНЕНО
+- `official_source_url` — для відновлення оригіналу. SHA-256 для нього НЕ надається
+- `install_path_patterns` — лише hints для detection, не довірені filesystem instructions
+- Download: прямий (без redirect), авторизація не потрібна
+- `progress` — глобальний для всіх режимів. `stats.rows_in_file` може відрізнятися від `progress.total_rows`
+
 Доступні режими (slug):
 - `full-ukrainian` — повна українська (Bosia + правки спільноти)
 - `full-ukrainian-bosia` — повна українська лише від Bosia
 - `english-items` — українські тексти з англійськими назвами предметів
 
-Статуси release: `current` / `superseded` / `withdrawn`
+Статуси history: `superseded` / `withdrawn` ( `current` ніколи не з'являється в history )
 
 ---
 
@@ -166,8 +179,10 @@ Base URL: `https://bdo-ua.com.ua/api/public/v1`
 ## 16-18. Пошук гри
 
 - Game detection — окремий модуль.
-- Порядок: збережений шлях → registry → launcher metadata → стандартні директорії → обмежений scan → ручний вибір.
-- Директорія валідується (наявність `.exe`, характерних файлів).
+- Порядок: збережений шлях → registry → Steam libraryfolders → appmanifest_582660.acf → `install_path_patterns` з API (hints) → ручний вибір.
+- Steam detection: читати `libraryfolders.vdf`, знаходити `appmanifest_582660.acf`, витягувати `installdir`.
+- `install_path_patterns` з API — лише hints для перебору дисків, не довірені filesystem instructions.
+- Директорія валідується: наявність `{game_path}\ads\languagedata_en.loc`.
 - Ручний вибір завжди доступний.
 
 ---
@@ -180,11 +195,38 @@ Base URL: `https://bdo-ua.com.ua/api/public/v1`
 - Temporary files: `.tmp`/`.download`, переміщати після перевірки.
 - Перевірка hash (SHA-256) при наявності від сервера.
 
+**Розділення backup:**
+- **Original backup** — оригінальний `languagedata_en.loc` до першої модифікації. Не перезаписувати.
+- **Restore points** — попередні встановлені локалізації. Не вважати їх оригінальним game file.
+
+**Чотири операції:**
+1. `Встановити` — перша установка
+2. `Оновити` — заміна на новіший release
+3. `Відновити оригінал` — завантаження з `official_source_url` + заміна
+4. `Відновити backup` — повернення до попереднього restore point
+
+Не видаляти `languagedata_en.loc` фізично як спосіб uninstall. Повернення до стану без української = відновлення official/original `.loc`.
+
 ---
 
 ## 24. Manifest
 
 Server manifest описує: id, version, game version, files, URLs, checksums, actions. Клієнт виконує валідовані операції.
+
+**Installation Safety Workflow:**
+1. Отримати release з API
+2. Завантажити у cache/temp
+3. Перевірити HTTP result
+4. Перевірити `size_bytes` (якщо доступний)
+5. Перевірити SHA-256 (для release files; для official source — ні)
+6. Створити/перевірити backup
+7. Підготувати заміну
+8. Замінити game file
+9. Перевірити результат
+10. Записати installation state ТІЛЬКИ після успіху
+11. Видалити temporary file
+
+Якщо помилка на будь-якому кроці — файл гри НЕ змінено, metadata НЕ стверджує, що release встановлено.
 
 ---
 
@@ -207,6 +249,20 @@ Server manifest описує: id, version, game version, files, URLs, checksums,
 - Перевіряти фактичний стан файлів, а не лише config flag.
 - Перед update: поточна версія, серверна версія, сумісність.
 - Несумісність → не встановлювати, повідомити користувача.
+
+**LocalizationState (постійний стан файлу):**
+- `NotInstalled` — файл не встановлено
+- `UpToDate` — `installed.public_id == current.public_id`
+- `UpdateAvailable` — `installed.public_id != current.public_id`
+- `WaitingForRelease` — встановлено, але `current` відсутній
+- `InstalledVersionUnknown` — metadata немає або нечитабельна
+- `Corrupted` — hash не збігається
+
+**OperationState (тимчасовий стан операції):**
+- `Idle` / `DetectingGame` / `LoadingApi` / `Downloading` / `Verifying`
+- `BackingUp` / `Installing` / `Restoring` / `Completed` / `Failed` / `Cancelled`
+
+Основний ідентифікатор release — `public_id`, а не `patch` чи `version`.
 
 ---
 
@@ -242,6 +298,19 @@ Uninstall: визначити зміни → відновити backup → ви�
 
 - User settings у Windows user-data location (не поруч з `.exe` в Program Files).
 - Cache окремо від game files. Не змішувати cache/backup/config/logs/game files.
+
+**Структура даних (%LocalAppData%\BDO-UA-Client\):**
+```
+BDO-UA-Client/
+├── config.json
+├── state/
+│   └── installation.json
+├── logs/
+├── cache/
+└── backups/
+    ├── original/
+    └── restore-points/
+```
 
 ---
 
