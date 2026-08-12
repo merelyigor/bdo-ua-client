@@ -7,66 +7,129 @@ namespace BdoClient.Tests.Api;
 
 public class BdoUaApiClientTests
 {
-    private readonly ILogger _logger;
-    private readonly BdoUaApiClient _client;
+    private readonly NullLogger _logger = new();
 
-    public BdoUaApiClientTests()
-    {
-        _logger = new NullLogger();
-        _client = CreateClientWithResponse(
-            """{"success":true,"data":{"modes":[]}}""",
-            HttpStatusCode.OK);
-    }
-
-    private static BdoUaApiClient CreateClientWithResponse(string response, HttpStatusCode statusCode)
+    private static BdoUaApiClient CreateClientWithResponse(string response, HttpStatusCode statusCode, int timeoutSeconds = 30)
     {
         var handler = new MockHttpMessageHandler(response, statusCode);
         var httpClient = new HttpClient(handler);
-        return new BdoUaApiClient(httpClient, new NullLogger());
+        return new BdoUaApiClient(httpClient, new NullLogger(), timeoutSeconds);
+    }
+
+    private static BdoUaApiClient CreateClientThatDelays(int delayMs, HttpStatusCode statusCode = HttpStatusCode.OK, string response = "")
+    {
+        var handler = new DelayingHttpMessageHandler(delayMs, statusCode, response);
+        var httpClient = new HttpClient(handler);
+        return new BdoUaApiClient(httpClient, new NullLogger(), timeoutSeconds: 1);
     }
 
     [Fact]
     public async Task GetReleasesAsync_Success_ReturnsSuccess()
     {
-        var result = await _client.GetReleasesAsync();
+        var client = CreateClientWithResponse(
+            """{"success":true,"data":{"modes":[]}}""",
+            HttpStatusCode.OK);
+        var result = await client.GetReleasesAsync();
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        Assert.Equal(ApiErrorKind.None, result.ErrorKind);
+    }
+
+    [Fact]
+    public async Task GetReleasesAsync_ServerError_ReturnsHttpError()
+    {
+        var client = CreateClientWithResponse("", HttpStatusCode.InternalServerError);
+        var result = await client.GetReleasesAsync();
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ApiErrorKind.Http, result.ErrorKind);
+        Assert.Contains("500", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task GetReleasesAsync_EmptyResponse_ReturnsInvalidResponse()
+    {
+        var client = CreateClientWithResponse("", HttpStatusCode.OK);
+        var result = await client.GetReleasesAsync();
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ApiErrorKind.InvalidResponse, result.ErrorKind);
+        Assert.Contains("Empty", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task GetReleasesAsync_MalformedJson_ReturnsInvalidResponse()
+    {
+        var client = CreateClientWithResponse("not json", HttpStatusCode.OK);
+        var result = await client.GetReleasesAsync();
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ApiErrorKind.InvalidResponse, result.ErrorKind);
+    }
+
+    [Fact]
+    public async Task GetReleasesAsync_SuccessFalse_ReturnsInvalidResponse()
+    {
+        var client = CreateClientWithResponse(
+            """{"success":false,"data":null}""",
+            HttpStatusCode.OK);
+        var result = await client.GetReleasesAsync();
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ApiErrorKind.InvalidResponse, result.ErrorKind);
+        Assert.Contains("success=false", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task GetReleasesAsync_DataNull_ReturnsInvalidResponse()
+    {
+        var client = CreateClientWithResponse(
+            """{"success":true,"data":null}""",
+            HttpStatusCode.OK);
+        var result = await client.GetReleasesAsync();
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ApiErrorKind.InvalidResponse, result.ErrorKind);
+        Assert.Contains("data=null", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task GetReleasesAsync_CurrentNull_ReturnsSuccess()
+    {
+        var client = CreateClientWithResponse(
+            """{"success":true,"data":{"modes":[{"slug":"test","current":null}]}}""",
+            HttpStatusCode.OK);
+        var result = await client.GetReleasesAsync();
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Value);
     }
 
     [Fact]
-    public async Task GetReleasesAsync_ServerError_ReturnsFailure()
+    public async Task GetReleasesAsync_UserCancellation_ReturnsCancelled()
     {
-        var client = CreateClientWithResponse("", HttpStatusCode.InternalServerError);
-        var result = await client.GetReleasesAsync();
-        Assert.False(result.IsSuccess);
-        Assert.Contains("500", result.ErrorMessage);
-    }
-
-    [Fact]
-    public async Task GetReleasesAsync_EmptyResponse_ReturnsFailure()
-    {
-        var client = CreateClientWithResponse("", HttpStatusCode.OK);
-        var result = await client.GetReleasesAsync();
-        Assert.False(result.IsSuccess);
-        Assert.Contains("Empty", result.ErrorMessage);
-    }
-
-    [Fact]
-    public async Task GetReleasesAsync_MalformedJson_ReturnsFailure()
-    {
-        var client = CreateClientWithResponse("not json", HttpStatusCode.OK);
-        var result = await client.GetReleasesAsync();
-        Assert.False(result.IsSuccess);
-    }
-
-    [Fact]
-    public async Task GetReleasesAsync_Cancellation_Throws()
-    {
+        var client = CreateClientWithResponse(
+            """{"success":true,"data":{}}""",
+            HttpStatusCode.OK);
         var cts = new CancellationTokenSource();
         await cts.CancelAsync();
-        var result = await _client.GetReleasesAsync(cts.Token);
+        var result = await client.GetReleasesAsync(cts.Token);
         Assert.False(result.IsSuccess);
-        Assert.Contains("cancelled", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ApiErrorKind.Cancelled, result.ErrorKind);
+    }
+
+    [Fact]
+    public async Task GetReleasesAsync_Timeout_ReturnsTimeout()
+    {
+        var client = CreateClientThatDelays(delayMs: 3000);
+        var result = await client.GetReleasesAsync();
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ApiErrorKind.Timeout, result.ErrorKind);
+    }
+
+    [Fact]
+    public async Task GetReleasesAsync_NetworkError_ReturnsNetwork()
+    {
+        var handler = new NetworkErrorHttpMessageHandler();
+        var httpClient = new HttpClient(handler);
+        var client = new BdoUaApiClient(httpClient, new NullLogger());
+        var result = await client.GetReleasesAsync();
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ApiErrorKind.Network, result.ErrorKind);
     }
 
     private class MockHttpMessageHandler : HttpMessageHandler
@@ -87,6 +150,37 @@ public class BdoUaApiClientTests
                 Content = new StringContent(_response, Encoding.UTF8, "application/json")
             };
             return Task.FromResult(response);
+        }
+    }
+
+    private class DelayingHttpMessageHandler : HttpMessageHandler
+    {
+        private readonly int _delayMs;
+        private readonly HttpStatusCode _statusCode;
+        private readonly string _response;
+
+        public DelayingHttpMessageHandler(int delayMs, HttpStatusCode statusCode, string response)
+        {
+            _delayMs = delayMs;
+            _statusCode = statusCode;
+            _response = response;
+        }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            await Task.Delay(_delayMs, cancellationToken);
+            return new HttpResponseMessage(_statusCode)
+            {
+                Content = new StringContent(_response, Encoding.UTF8, "application/json")
+            };
+        }
+    }
+
+    private class NetworkErrorHttpMessageHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            throw new HttpRequestException("Connection refused");
         }
     }
 
