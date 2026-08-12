@@ -1,0 +1,34 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Build
+publish/
+*.nupkg
+*.snupkg
+
+## Visual Studio
+.vs/
+*.dbmdl
+*.jfm
+
+## Rider
+.idea/
+
+## Secrets
+.env
+*.pem
+*.key
+*.pfx
+*.p12
+
+## OS
+.DS_Store
+Thumbs.db
+
+## User-specific
+appsettings.Local.json

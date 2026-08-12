@@ -461,6 +461,31 @@ v1.1 — API error handling + CancellationToken
 6. **Не комітити** — build errors, placeholder, broken code
 7. **Перед комітом** — `dotnet build` має пройти
 8. **Push** — після кожного коміту одразу push
+9. **Звіт** — після кожного коміту/пушу ОБОВ'ЯЗКОВО повідомити: що закомічено, який message, які файли, hash, branch
+
+### Звіт після коміту (обов'язковий формат)
+
+```
+✅ Коміт створено та запушено.
+
+📝 Commit message: v1.0 — project skeleton + API models
+
+📁 Змінені файли:
+- BdoClient.csproj
+- Models/ReleasesResponse.cs
+- Api/BdoUaApiClient.cs
+
+🔖 Hash: a1b2c3d
+🌿 Branch: main → origin/main
+```
+
+### Публічний репозиторій
+
+Репозиторій **публічний**. Перед кожним комітом перевіряти:
+- Немає API keys, tokens, secrets
+- Немає паролів, credentials
+- Немає приватних ключів
+- `.gitignore` містить виключення для секретів та .NET build artifacts
 
 ### Версіонування етапів
 
