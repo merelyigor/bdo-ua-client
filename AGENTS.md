@@ -554,11 +554,10 @@ BDO-UA-Client/
 §34.1 Коротко: що змінено, ключові файли, що перевірено, build/tests, обмеження. Не заявляти "все працює" без перевірки.
 
 §34.2 **Правила комітів:**
-- Формат: `v{ЕТАП}.{ПІДЕТАП} — {короткий опис}`
+- Формат першого рядка: `v{ЕТАП}.{ПІДЕТАП} — {короткий опис}`
+- Після першого рядка — порожній рядок, потім **детальний опис** того, що зроблено
+- Опис містить: що реалізовано, що змінено, що оновлено, чому саме так (якщо неочевидно)
 - Кожен завершений етап/підетап — окремий коміт
-- Опис українською + список змінених файлів
-- Перед комітом: `dotnet build` без помилок
-- Після коміту: одразу push
 - Деталі в `plan.md` (розділ "Правила комітів та версійності")
 
 §34.3 **Звіт після коміту/пушу — ОБОВ'ЯЗКОВИЙ.** Після кожного коміту та пушу агент повинен чітко повідомити:
@@ -573,16 +572,35 @@ BDO-UA-Client/
 ```
 ✅ Коміт створено та запушено.
 
-📝 Commit message: v1.0 — project skeleton + API models
+📝 Commit message: v1.0 — project skeleton + API models + API client + tests
+
+Створено проект з нуля:
+- BdoUaClient.sln з двома проектами (BdoClient.csproj + BdoClient.Tests.csproj)
+- WinForms skeleton (Program.cs, MainForm.cs, MainForm.Designer.cs)
+- API models на основі фактичного /releases endpoint (ReleasesResponse, LocalizationMode, CurrentRelease тощо)
+- ApiResult<T> — простий Result pattern без зовнішніх залежностей
+- BdoUaApiClient — HttpClient + base URL + CancellationToken + timeout + error handling
+- ILogger contract — мінімальний logging interface
+- 14 unit tests (JSON deserialization, null current, malformed JSON, empty response, HTTP errors)
+
+Виправлено §28.3 — прибрано "delete localization file" з whitelist.
 
 📁 Змінені файли:
+- AGENTS.md
+- BdoUaClient.sln
 - BdoClient.csproj
-- Models/ReleasesResponse.cs
-- Models/LocalizationMode.cs
-- Api/BdoUaApiClient.cs
+- BdoClient.Tests/BdoClient.Tests.csproj
+- BdoClient.Tests/GlobalUsings.cs
+- BdoClient.Tests/Api/ApiResultTests.cs
+- BdoClient.Tests/Api/BdoUaApiClientTests.cs
+- BdoClient.Tests/Models/ReleasesResponseTests.cs
 - Api/ApiResult.cs
+- Api/BdoUaApiClient.cs
+- Models/ReleasesResponse.cs, ReleaseData.cs, LocalizationMode.cs, CurrentRelease.cs, ReleaseHistoryItem.cs, InstallPathPattern.cs, GameTestInfo.cs, ProgressInfo.cs, StatsInfo.cs, AnnouncementsInfo.cs
+- Logging/ILogger.cs
+- Program.cs, MainForm.cs, MainForm.Designer.cs
 
-🔖 Hash: a1b2c3d
+🔖 Hash: 1bd50b6
 🌿 Branch: main → origin/main
 ```
 

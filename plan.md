@@ -428,7 +428,7 @@ bdo-ua-client/
 ```
 v{ЕТАП}.{ПІДЕТАП} — {короткий опис українською}
 
-{детальний опис змін}
+{детальний опис того, що зроблено, що змінено, що оновлено}
 
 Змінені файли:
 - file1.cs
@@ -438,18 +438,28 @@ v{ЕТАП}.{ПІДЕТАП} — {короткий опис українсько
 ### Приклади
 
 ```
-v1.0 — project skeleton + API models
+v1.0 — project skeleton + API models + API client + tests
 
-- Створено .csproj з .NET 8, WinForms
-- Додано моделі для API response
-- Реалізовано BdoUaApiClient.GetReleasesAsync()
+Створено проект з нуля:
+- BdoUaClient.sln з двома проектами (BdoClient.csproj + BdoClient.Tests.csproj)
+- WinForms skeleton (Program.cs, MainForm.cs, MainForm.Designer.cs)
+- API models на основі фактичного /releases endpoint (ReleasesResponse, LocalizationMode, CurrentRelease тощо)
+- ApiResult<T> — простий Result pattern без зовнішніх залежностей
+- BdoUaApiClient — HttpClient + base URL + CancellationToken + timeout + error handling
+- ILogger contract — мінімальний logging interface
+- 14 unit tests (JSON deserialization, null current, malformed JSON, empty response, HTTP errors)
+
+Виправлено §28.3 — прибрано "delete localization file" з whitelist.
 
 Змінені файли:
+- AGENTS.md
+- BdoUaClient.sln
 - BdoClient.csproj
-- Models/ReleasesResponse.cs
-- Models/ReleaseData.cs
-- Models/LocalizationMode.cs
-- Api/BdoUaApiClient.cs
+- BdoClient.Tests/BdoClient.Tests.csproj
+- Api/ApiResult.cs, BdoUaApiClient.cs
+- Models/ (10 файлів)
+- Logging/ILogger.cs
+- Program.cs, MainForm.cs, MainForm.Designer.cs
 ```
 
 ```
