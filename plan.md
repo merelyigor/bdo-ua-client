@@ -9,6 +9,7 @@
 | HTTP | `HttpClient` (built-in) | Стандартна бібліотека |
 | Serialization | `System.Text.Json` | Вбудований, швидкий |
 | Hash | `System.Security.Cryptography` | SHA-256 вбудований |
+| Tests | xUnit (built-in for .NET 8) | Стандартний test framework |
 | Side dependencies | **Немає** | Все з .NET 8 SDK |
 
 ---
@@ -22,7 +23,8 @@ bdo-ua-client/
 ├── MainForm.Designer.cs
 │
 ├── Api/
-│   └── BdoUaApiClient.cs
+│   ├── BdoUaApiClient.cs
+│   └── ApiResult.cs
 │
 ├── Models/
 │   ├── ReleasesResponse.cs
@@ -43,7 +45,22 @@ bdo-ua-client/
 │   ├── ConfigStore.cs
 │   └── InstallationStateStore.cs
 │
+├── Logging/
+│   └── ILogger.cs (мінімальний contract)
+│
 └── app.manifest
+
+BdoClient.Tests/
+├── Api/
+│   └── BdoUaApiClientTests.cs
+├── Models/
+│   └── LocalizationModeTests.cs
+├── Services/
+│   ├── LocalizationInstallerTests.cs
+│   ├── LocalizationStateServiceTests.cs
+│   └── GameDetectorTests.cs
+└── Storage/
+    └── ConfigStoreTests.cs
 ```
 
 ## Архітектура (runtime data)
@@ -121,13 +138,21 @@ bdo-ua-client/
 **Acceptance criteria:**
 - [ ] `dotnet build` проходить без помилок
 - [ ] Моделі містять всі поля з API (включно з `official_source_url`, `install_path_patterns`, `game_tested_at`)
-- [ ] API client повертає `null` або `ApiResult<T>` замість виключення при помилці мережі
+- [ ] `LocalizationMode.Current` є nullable (`CurrentRelease?`). `current == null` — валідний бізнес-стан, не deserialization error
+- [ ] API client повертає `ApiResult<T>` (власна проста обгортка). `null` НЕ використовується як generic signal failure
+- [ ] Network error, timeout, DNS, 4xx/5xx, malformed JSON, empty response — все через `ApiResult<T>.Failure`
 - [ ] SHA-256 НЕ використовується для official source (лише для release downloads)
 - [ ] Async service methods приймають `CancellationToken` де це доречно
 - [ ] Помилки не ковтаються (немає порожніх catch/pass)
-- [ ] Мінімальний logger contract з моменту створення
+- [ ] Мінімальний logger contract: можливість передавати/викликати logging без прив'язки до UI. Без DI container. Без `Microsoft.Extensions.*`. Без складної abstraction. Persistent file logging — на Етапі 11
 
-**Файли:** `BdoClient.csproj`, `Models/*.cs`, `Api/BdoUaApiClient.cs`
+**Файли:** `BdoClient.csproj`, `Models/*.cs`, `Api/BdoUaApiClient.cs`, `Api/ApiResult.cs`, `Logging/ILogger.cs`, `BdoClient.Tests/`
+
+**Тести (v1.x):**
+- [ ] JSON deserialization успішного response
+- [ ] JSON deserialization з `current: null` (nullable)
+- [ ] Malformed JSON → `ApiResult.Failure`
+- [ ] Empty response → `ApiResult.Failure`
 
 ---
 
@@ -147,6 +172,11 @@ bdo-ua-client/
 
 **Файли:** `Storage/AppPaths.cs`, `Storage/ConfigStore.cs`, `Storage/InstallationStateStore.cs`
 
+**Тести (v2.x):**
+- [ ] Config serialization/deserialization
+- [ ] Installation metadata serialization/deserialization
+- [ ] При відсутності файлів — дефолтні значення
+
 ---
 
 ### Етап 3: Game detection + validation
@@ -164,6 +194,11 @@ bdo-ua-client/
 - [ ] Знайдений шлях зберігається в `config.json`
 
 **Файли:** `Services/GameDetector.cs`
+
+**Тести (v3.x):**
+- [ ] Path validation: валідна директорія
+- [ ] Path validation: відсутній `ads\languagedata_en.loc`
+- [ ] Path validation: Unicode/пробіли у шляху
 
 ---
 
@@ -185,6 +220,11 @@ bdo-ua-client/
 
 **Файли:** `Services/LocalizationInstaller.cs`
 
+**Тести (v4.x):**
+- [ ] SHA-256 verification: hash збігається
+- [ ] SHA-256 verification: hash не збігається → помилка
+- [ ] Size validation при наявності `size_bytes`
+
 ---
 
 ### Етап 5: Backup/snapshot/restore
@@ -203,10 +243,16 @@ bdo-ua-client/
 - [ ] Restore point створюється ПЕРЕД заміною (pre-operation snapshot)
 - [ ] Кожен restore point: `languagedata_en.loc` + `metadata.json`
 - [ ] Restore original: download з `official_source_url` → replace → metadata `source: "official"`
-- [ ] Fallback: якщо official source недоступний → використати original snapshot
-- [ ] При відсутності original + official → помилка
+- [ ] Fallback: original snapshot використовується автоматично ТІЛЬКИ якщо достовірно встановлено, що `snapshot.game_patch == current.official_patch`. Якщо patch snapshot невідомий або не збігається — автоматичний restore заборонений, показати помилку
+- [ ] При відсутності official source + неможливості fallback → помилка
 
 **Файли:** `Services/LocalizationInstaller.cs`
+
+**Тести (v5.x):**
+- [ ] Original snapshot створюється один раз
+- [ ] Original snapshot НЕ перезаписується
+- [ ] Restore point створюється перед replace
+- [ ] Fallback: patch mismatch → помилка
 
 ---
 
@@ -217,14 +263,20 @@ bdo-ua-client/
 - pre-operation snapshot перед replace
 
 **Acceptance criteria:**
-- [ ] Кроки: release → download → HTTP check → size check → SHA-256 → pre-operation snapshot → replace → verify installed file → save state → cleanup → commit success
+- [ ] Кроки: release → download → HTTP check → size check → SHA-256 → pre-operation snapshot (game file + installation state) → replace → verify installed file → save state → cleanup → commit success
 - [ ] Ніколи не завантажувати поверх game file
 - [ ] При помилці до replace — файл гри НЕ змінено, metadata НЕ стверджує install
-- [ ] При помилці після replace — rollback до pre-operation snapshot
+- [ ] При помилці після replace — rollback відновлює game file + installation state до pre-operation стану
 - [ ] Якщо rollback не вдався: стан `Corrupted`, критична помилка в UI, деталі в log
+- [ ] Після невдалого rollback не записувати неправдивий successful state
 - [ ] Metadata ТІЛЬКИ після успіху
 
 **Файли:** `Services/LocalizationInstaller.cs`
+
+**Тести (v6.x):**
+- [ ] Transaction: replace + save state → rollback відновлює обидва
+- [ ] Transaction: failure до replace → файл НЕ змінено
+- [ ] Transaction: rollback failure → `Corrupted` стан
 
 ---
 
@@ -248,6 +300,11 @@ bdo-ua-client/
 - [ ] Не використовувати лише `patch`/`version`
 
 **Файли:** `Services/LocalizationStateService.cs`
+
+**Тести (v7.x):**
+- [ ] LocalizationState resolution: кожен стан
+- [ ] Compatibility blocking: `compatible_with_official_patch == false`
+- [ ] Не використовувати лише `patch`/`version`
 
 ---
 
@@ -330,8 +387,7 @@ bdo-ua-client/
 - [ ] Встановлення success → файл замінено
 - [ ] Backup створено
 - [ ] Оновлення працює
-- [ ] Відновлення оригіналу працює
-- [ ] Видалення працює
+- [ ] Повернення до стану без української локалізації через Restore Original працює
 - [ ] Логи записуються
 
 ---
@@ -431,12 +487,13 @@ v1.1 — API error handling + CancellationToken
 
 Після кожного етапу/підетапу:
 1. `dotnet build` — має пройти без помилок
-2. Виправити compile errors
-3. Створити коміт за форматом `v{ЕТАП}.{ПІДЕТАП} — {опис}`
-4. Push в репозиторій
-5. Коротко описати що реалізовано
-6. Перелічити зміни у файлах
-7. Вказати що перевірено
-8. Зупинитись і дочекатись наступної команди
+2. `dotnet test` — якщо є тести для цього етапу
+3. Виправити compile errors
+4. Створити коміт за форматом `v{ЕТАП}.{ПІДЕТАП} — {опис}`
+5. Push в репозиторій
+6. Коротко описати що реалізовано
+7. Перелічити зміни у файлах
+8. Вказати що перевірено
+9. Зупинитись і дочекатись наступної команди
 
 **Незакомічені файли:** перед кожним комітом перевіряти `git status` і додавати всі робочі файли

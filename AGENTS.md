@@ -168,7 +168,7 @@ UI → Application/Services → API Client → Game Detection
 
 §10.2 Не вважати API ідеальним: обробляти timeout, DNS error, 4xx/5xx, порожню відповідь, malformed JSON.
 
-§10.3 Відповіді перетворювати на моделі (`ReleasesResponse`, `LocalizationMode`, `ApiError` тощо).
+§10.3 Відповіді перетворювати на моделі через `ApiResult<T>`. `null` НЕ використовується як generic signal failure.
 
 §10.4 Base URL — централізовано (Config/Environment).
 
@@ -230,7 +230,7 @@ Base URL: `https://bdo-ua.com.ua/api/public/v1`
 }
 ```
 
-§11.2 `current` відсутній для режиму — нормальний стан (актуальний release ще не опубліковано).
+§11.2 `current` відсутній для режиму — нормальний стан (актуальний release ще не опубліковано). `current` є nullable. `current == null` — валідний бізнес-стан, не deserialization/API error.
 
 §11.3 `history` використовувати лише для інформації. Завантажувати старі версії ЗАБОРОНЕНО.
 
@@ -371,7 +371,19 @@ API надає release metadata через `GET /releases`. Клієнт вик�
 
 ## §19 🗑️ Видалення
 
-§19.1 Uninstall: визначити зміни → відновити backup → видалити лише localization files → перевірити.
+§19.1 **Розділення backup:**
+- **Original snapshot** — незмінна копія `languagedata_en.loc`, яка існувала перед першою модифікацією клієнтом. Не перезаписувати. Не трактувати як гарантовано актуальний original після майбутніх патчів гри.
+- **Restore points** — попередні встановлені локалізації. Створюються ПЕРЕД заміною game file (pre-operation snapshot). Не вважати їх оригінальним game file.
+
+§19.2 **Metadata original snapshot:** `created_at`, `game_patch` (якщо достовірно), `sha256` (локально, не з API), `size_bytes`.
+
+§19.3 **Чотири операції:**
+1. `Встановити` — перша установка
+2. `Оновити` — заміна на новіший release
+3. `Відновити оригінал` — у першу чергу завантаження з `official_source_url`; локальний original snapshot — fallback ТІЛЬКИ якщо `snapshot.game_patch == current.official_patch`
+4. `Відновити backup` — повернення до попереднього restore point
+
+§19.4 Не видаляти `languagedata_en.loc` фізично як спосіб uninstall. Повернення до стану без української = відновлення official/original `.loc`.
 
 ---
 
@@ -455,6 +467,10 @@ BDO-UA-Client/
 §27.2 Tests використовують temp directories, не працюють з реальними game files.
 
 §27.3 Edge cases: гра не знайдена, кілька копій, Unicode/пробіли, locked files, переповнений диск, перерваний download, пошкоджені файли.
+
+§27.4 Test project: `BdoClient.Tests`. Framework: xUnit (стандарт для .NET). Не тестувати WinForms layout.
+
+§27.5 Тести додавати разом з testable logic (Етапи 1-7), а не відкладати все до фіналу.
 
 ---
 
