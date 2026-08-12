@@ -9,8 +9,16 @@
 | HTTP | `HttpClient` (built-in) | Стандартна бібліотека |
 | Serialization | `System.Text.Json` | Вбудований, швидкий |
 | Hash | `System.Security.Cryptography` | SHA-256 вбудований |
-| Tests | xUnit (built-in for .NET 8) | Стандартний test framework |
-| Side dependencies | **Немає** | Все з .NET 8 SDK |
+| Tests | xUnit (test-only NuGet dependency) | Стандартний test framework для .NET |
+| Side dependencies | **Немає** | Все з .NET 8 SDK (runtime/production) |
+
+**TargetFramework:** `net8.0-windows` з `UseWindowsForms=true` для обох проектів.
+
+**Solution:** `BdoUaClient.sln` містить `BdoClient.csproj` + `BdoClient.Tests/BdoClient.Tests.csproj`.
+
+**Команди перевірки:**
+- `dotnet build BdoUaClient.sln`
+- `dotnet test BdoUaClient.sln --no-build`
 
 ---
 
@@ -18,6 +26,9 @@
 
 ```
 bdo-ua-client/
+├── BdoUaClient.sln
+│
+├── BdoClient.csproj          (net8.0-windows, UseWindowsForms=true)
 ├── Program.cs
 ├── MainForm.cs
 ├── MainForm.Designer.cs
@@ -48,19 +59,20 @@ bdo-ua-client/
 ├── Logging/
 │   └── ILogger.cs (мінімальний contract)
 │
-└── app.manifest
-
-BdoClient.Tests/
-├── Api/
-│   └── BdoUaApiClientTests.cs
-├── Models/
-│   └── LocalizationModeTests.cs
-├── Services/
-│   ├── LocalizationInstallerTests.cs
-│   ├── LocalizationStateServiceTests.cs
-│   └── GameDetectorTests.cs
-└── Storage/
-    └── ConfigStoreTests.cs
+├── app.manifest
+│
+└── BdoClient.Tests/          (net8.0-windows, xUnit)
+    ├── BdoClient.Tests.csproj
+    ├── Api/
+    │   └── BdoUaApiClientTests.cs
+    ├── Models/
+    │   └── LocalizationModeTests.cs
+    ├── Services/
+    │   ├── LocalizationInstallerTests.cs
+    │   ├── LocalizationStateServiceTests.cs
+    │   └── GameDetectorTests.cs
+    └── Storage/
+        └── ConfigStoreTests.cs
 ```
 
 ## Архітектура (runtime data)
@@ -459,7 +471,7 @@ v1.1 — API error handling + CancellationToken
 4. **Опис** — коротко українською, що зроблено
 5. **Список файлів** — перелічити всі змінені/створені файли
 6. **Не комітити** — build errors, placeholder, broken code
-7. **Перед комітом** — `dotnet build` має пройти
+7. **Перед комітом** — `dotnet build BdoUaClient.sln` + `dotnet test BdoUaClient.sln --no-build`
 8. **Push** — після кожного коміту одразу push
 9. **Звіт** — після кожного коміту/пушу ОБОВ'ЯЗКОВО повідомити: що закомічено, який message, які файли, hash, branch
 
@@ -511,8 +523,8 @@ v1.1 — API error handling + CancellationToken
 Не реалізовувати всі етапи за один раз.
 
 Після кожного етапу/підетапу:
-1. `dotnet build` — має пройти без помилок
-2. `dotnet test` — якщо є тести для цього етапу
+1. `dotnet build BdoUaClient.sln` — має пройти без помилок
+2. `dotnet test BdoUaClient.sln --no-build` — якщо є тести для цього етапу
 3. Виправити compile errors
 4. Створити коміт за форматом `v{ЕТАП}.{ПІДЕТАП} — {опис}`
 5. Push в репозиторій

@@ -469,7 +469,7 @@ BDO-UA-Client/
 
 §27.3 Edge cases: гра не знайдена, кілька копій, Unicode/пробіли, locked files, переповнений диск, перерваний download, пошкоджені файли.
 
-§27.4 Test project: `BdoClient.Tests`. Framework: xUnit (стандарт для .NET). Не тестувати WinForms layout.
+§27.4 Test project: `BdoClient.Tests`. Framework: xUnit (test-only NuGet dependency). Не тестувати WinForms layout. TargetFramework: `net8.0-windows` (для ProjectReference на WinForms app).
 
 §27.5 Тести додавати разом з testable logic (Етапи 1-7), а не відкладати все до фіналу.
 
@@ -543,9 +543,9 @@ BDO-UA-Client/
 
 §33.5 Код відповідає архітектурі.
 
-§33.6 Build проходить.
+§33.6 `dotnet build BdoUaClient.sln` проходить без помилок.
 
-§33.7 Tests проходять (якщо є).
+§33.7 `dotnet test BdoUaClient.sln --no-build` проходить (якщо є тести).
 
 ---
 
