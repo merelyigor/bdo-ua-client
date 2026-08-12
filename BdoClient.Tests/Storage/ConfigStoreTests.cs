@@ -25,11 +25,13 @@ public class ConfigStoreTests : IDisposable
     }
 
     [Fact]
-    public void Load_MissingFile_ReturnsMissing()
+    public void Load_MissingFile_ReturnsMissingWithDefaultConfig()
     {
         var result = _store.Load();
         Assert.Equal(FileLoadStatus.Missing, result.Status);
-        Assert.Null(result.Value);
+        Assert.NotNull(result.Value);
+        Assert.Null(result.Value!.GamePath);
+        Assert.Null(result.Value!.LastMode);
     }
 
     [Fact]

@@ -14,6 +14,7 @@ public sealed class FileLoadResult<T>
     }
 
     public static FileLoadResult<T> Missing() => new(FileLoadStatus.Missing, default, null);
+    public static FileLoadResult<T> Missing(T defaultValue) => new(FileLoadStatus.Missing, defaultValue, null);
     public static FileLoadResult<T> Valid(T value) => new(FileLoadStatus.Valid, value, null);
     public static FileLoadResult<T> Invalid(string error) => new(FileLoadStatus.Invalid, default, error);
 }

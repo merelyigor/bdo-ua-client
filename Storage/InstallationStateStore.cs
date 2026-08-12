@@ -39,6 +39,13 @@ public sealed class InstallationStateStore
                 return FileLoadResult<InstallationMetadata>.Invalid("Deserialized to null");
             }
 
+            var validationError = ValidateMetadata(metadata);
+            if (validationError != null)
+            {
+                _logger.Warning($"Installation metadata validation failed: {validationError}");
+                return FileLoadResult<InstallationMetadata>.Invalid(validationError);
+            }
+
             return FileLoadResult<InstallationMetadata>.Valid(metadata);
         }
         catch (JsonException ex)
@@ -113,5 +120,36 @@ public sealed class InstallationStateStore
         {
             _logger.Warning($"Failed to cleanup temp file: {ex.Message}");
         }
+    }
+
+    private static string? ValidateMetadata(InstallationMetadata metadata)
+    {
+        if (metadata.InstalledAt == default)
+            return "installed_at is default";
+
+        return metadata.Source switch
+        {
+            "api" => ValidateApiMetadata(metadata),
+            "official" => ValidateOfficialMetadata(metadata),
+            _ => $"Unknown source: {metadata.Source}"
+        };
+    }
+
+    private static string? ValidateApiMetadata(InstallationMetadata metadata)
+    {
+        if (string.IsNullOrEmpty(metadata.ModeSlug))
+            return "mode_slug is empty";
+        if (string.IsNullOrEmpty(metadata.PublicId))
+            return "public_id is empty";
+        if (metadata.Version == null)
+            return "version is null";
+        if (string.IsNullOrEmpty(metadata.Sha256))
+            return "sha256 is empty";
+        return null;
+    }
+
+    private static string? ValidateOfficialMetadata(InstallationMetadata metadata)
+    {
+        return null;
     }
 }

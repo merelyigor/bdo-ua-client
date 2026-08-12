@@ -25,7 +25,7 @@ public sealed class ConfigStore
         if (!File.Exists(_paths.ConfigFile))
         {
             _logger.Debug("Config file not found, using defaults");
-            return FileLoadResult<Config>.Missing();
+            return FileLoadResult<Config>.Missing(new Config());
         }
 
         try

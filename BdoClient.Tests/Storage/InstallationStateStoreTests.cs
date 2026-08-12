@@ -35,16 +35,7 @@ public class InstallationStateStoreTests : IDisposable
     [Fact]
     public async Task SaveAndLoad_ApiMetadata_Roundtrip()
     {
-        var metadata = new InstallationMetadata
-        {
-            ModeSlug = "full-ukrainian",
-            PublicId = "01KZFM8YZBEBYF9JYSACTR8XW9",
-            Version = 2,
-            GamePatch = 396,
-            Sha256 = "3b2fce8035666a5251878ce434f741dbdcd62574686ae42c87663097546c3ecf",
-            InstalledAt = new DateTimeOffset(2026, 8, 13, 15, 30, 0, TimeSpan.FromHours(3)),
-            Source = "api"
-        };
+        var metadata = CreateValidApiMetadata();
 
         await _store.SaveAsync(metadata);
         var result = _store.Load();
@@ -94,7 +85,11 @@ public class InstallationStateStoreTests : IDisposable
         {
             GamePatch = 396,
             InstalledAt = ts,
-            Source = "api"
+            Source = "api",
+            ModeSlug = "test",
+            PublicId = "test-id",
+            Version = 1,
+            Sha256 = "abc123"
         };
 
         await _store.SaveAsync(metadata);
@@ -127,9 +122,95 @@ public class InstallationStateStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task EmptyObject_ReturnsInvalid()
+    {
+        await File.WriteAllTextAsync(_paths.InstallationFile, "{}");
+
+        var result = _store.Load();
+
+        Assert.Equal(FileLoadStatus.Invalid, result.Status);
+    }
+
+    [Fact]
+    public async Task ApiMetadata_MissingPublicId_ReturnsInvalid()
+    {
+        var json = """
+        {
+            "mode_slug": "full-ukrainian",
+            "public_id": null,
+            "version": 2,
+            "game_patch": 396,
+            "sha256": "abc123",
+            "installed_at": "2026-08-13T15:30:00+03:00",
+            "source": "api"
+        }
+        """;
+        await File.WriteAllTextAsync(_paths.InstallationFile, json);
+
+        var result = _store.Load();
+
+        Assert.Equal(FileLoadStatus.Invalid, result.Status);
+    }
+
+    [Fact]
+    public async Task ApiMetadata_MissingSha256_ReturnsInvalid()
+    {
+        var json = """
+        {
+            "mode_slug": "full-ukrainian",
+            "public_id": "test-id",
+            "version": 2,
+            "game_patch": 396,
+            "sha256": null,
+            "installed_at": "2026-08-13T15:30:00+03:00",
+            "source": "api"
+        }
+        """;
+        await File.WriteAllTextAsync(_paths.InstallationFile, json);
+
+        var result = _store.Load();
+
+        Assert.Equal(FileLoadStatus.Invalid, result.Status);
+    }
+
+    [Fact]
+    public async Task UnknownSource_ReturnsInvalid()
+    {
+        var json = """
+        {
+            "game_patch": 396,
+            "installed_at": "2026-08-13T15:30:00+03:00",
+            "source": "unknown"
+        }
+        """;
+        await File.WriteAllTextAsync(_paths.InstallationFile, json);
+
+        var result = _store.Load();
+
+        Assert.Equal(FileLoadStatus.Invalid, result.Status);
+    }
+
+    [Fact]
+    public async Task DefaultInstalledAt_ReturnsInvalid()
+    {
+        var json = """
+        {
+            "game_patch": 396,
+            "installed_at": "0001-01-01T00:00:00",
+            "source": "api"
+        }
+        """;
+        await File.WriteAllTextAsync(_paths.InstallationFile, json);
+
+        var result = _store.Load();
+
+        Assert.Equal(FileLoadStatus.Invalid, result.Status);
+    }
+
+    [Fact]
     public async Task Clear_RemovesFile()
     {
-        var metadata = new InstallationMetadata { GamePatch = 396, Source = "api" };
+        var metadata = CreateValidApiMetadata();
         await _store.SaveAsync(metadata);
 
         await _store.ClearAsync();
@@ -147,11 +228,25 @@ public class InstallationStateStoreTests : IDisposable
     [Fact]
     public async Task Save_NoTempFileRemainsAfterSave()
     {
-        var metadata = new InstallationMetadata { GamePatch = 396, Source = "api" };
+        var metadata = CreateValidApiMetadata();
         await _store.SaveAsync(metadata);
 
         var tempFile = _paths.InstallationFile + ".tmp";
         Assert.False(File.Exists(tempFile));
+    }
+
+    private static InstallationMetadata CreateValidApiMetadata()
+    {
+        return new InstallationMetadata
+        {
+            ModeSlug = "full-ukrainian",
+            PublicId = "01KZFM8YZBEBYF9JYSACTR8XW9",
+            Version = 2,
+            GamePatch = 396,
+            Sha256 = "3b2fce8035666a5251878ce434f741dbdcd62574686ae42c87663097546c3ecf",
+            InstalledAt = new DateTimeOffset(2026, 8, 13, 15, 30, 0, TimeSpan.FromHours(3)),
+            Source = "api"
+        };
     }
 
     private class NullLogger : ILogger
