@@ -11,6 +11,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="BdoClient.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Remove="BdoClient.Tests\**" />
     <EmbeddedResource Remove="BdoClient.Tests\**" />
     <None Remove="BdoClient.Tests\**" />

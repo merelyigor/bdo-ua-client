@@ -194,23 +194,30 @@ bdo-ua-client/
 ### Етап 3: Game detection + validation
 
 **Що реалізовано:**
-- `GameDetector.cs` з 6 кроками пошуку
-- Валідація: наявність `ads\languagedata_en.loc`
+- `GameDetector.cs` — automatic detection + path validation
+- Detection order: saved config → registry → Steam → API patterns → NotFound
+- Path validation: `{game_path}\ads\languagedata_en.loc`
+- Manual path validation (без UI)
+- Steam VDF/appmanifest parsing
+- API `{drive}` pattern expansion
 
 **Acceptance criteria:**
-- [ ] Порядок: saved path → registry → Steam libraryfolders → appmanifest → API patterns → manual
+- [ ] Порядок: saved path → registry → Steam libraryfolders → appmanifest → API patterns → NotFound
 - [ ] Steam: читає `libraryfolders.vdf`, знаходить `appmanifest_582660.acf`, витягує `installdir`
 - [ ] API `install_path_patterns` — ТІЛЬКИ hints (перебір дисків)
 - [ ] Validation: файл `{game_path}\ads\languagedata_en.loc` існує
-- [ ] Ручний вибір через `FolderBrowserDialog`
-- [ ] Знайдений шлях зберігається в `config.json`
+- [ ] `ValidateAndSaveManualPathAsync()` — caller передає directory, validation + save
+- [ ] FolderBrowserDialog — UI fallback, підключається на UI integration stage
+- [ ] Знайдений шлях зберігається в `config.json` без втрати `last_mode`
 
-**Файли:** `Services/GameDetector.cs`
+**Файли:** `Services/GameDetector.cs`, `Services/DetectionResult.cs`
 
 **Тести (v3.x):**
-- [ ] Path validation: валідна директорія
-- [ ] Path validation: відсутній `ads\languagedata_en.loc`
-- [ ] Path validation: Unicode/пробіли у шляху
+- [ ] Path validation: валідна директорія, missing file, Unicode, spaces
+- [ ] Saved config: valid path → SavedConfig, invalid → skip
+- [ ] Steam: libraryfolders, appmanifest, malformed VDF/ACF
+- [ ] API patterns: `{drive}` expansion, malformed pattern skip
+- [ ] Manual: valid → save, invalid → no save, last_mode preserved
 
 ---
 
