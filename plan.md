@@ -227,22 +227,66 @@ bdo-ua-client/
 - Download у `{cache}/{unique-tmp}`
 - Перевірка HTTP status, `Content-Length` vs `size_bytes`
 - SHA-256 для release downloads; для official source — без hash
+- Retry: до 3 повторних спроб після первинної, максимум 4 HTTP attempts
+- Exponential backoff: 1s, 2s, 4s
+- Per-attempt timeout через linked CancellationTokenSource (не HttpClient.Timeout)
+- Відновлення файлу гри при помилці після replace (rollback)
+- `DownloadResult` typed result з `DownloadError` enum
+- `DownloadProgress` через `IProgress<T>`
+- Streaming SHA-256 через `IncrementalHash` (без буферизації всього файлу)
+- `DownloadResult.IsRetryable` flag для відрізнення retryable/non-retryable помилок
+- HTTP 4xx (крім 408) → non-retryable Http; HTTP 408/5xx → retryable Http
+- Timeout/Network → retryable; IO/Cancellation → non-retryable
+- Temp cleanup: видалення після dispose stream (try/finally)
+- Cleanup logging: Warning при помилці видалення
+- InvalidMetadata: повертає `DownloadResult.Failure` замість throw
+- URL validation: `Uri.TryCreate` з HTTPS scheme check
+- Official source: та сама retry політика що й release
 
 **Acceptance criteria:**
-- [ ] `HttpClient` з timeout
-- [ ] Temporary: `%LocalAppData%\BDO-UA-Client\cache\{random}.tmp`
-- [ ] Retry: максимум 3 спроби, exponential backoff (1s, 2s, 4s)
-- [ ] Перевірка `Content-Length` vs `size_bytes` (якщо доступно)
-- [ ] SHA-256 для release files
-- [ ] Для official: без SHA-256 перевірки
-- [ ] При помилці — temp видаляється
+- [x] `HttpClient` з timeout
+- [x] Temporary: `%LocalAppData%\BDO-UA-Client\cache\{random}.tmp`
+- [x] Retry: до 3 повторних спроб після первинної, максимум 4 HTTP attempts
+- [x] Exponential backoff (1s, 2s, 4s)
+- [x] Per-attempt timeout через linked CancellationTokenSource
+- [x] Перевірка `Content-Length` vs `size_bytes` (якщо доступно)
+- [x] SHA-256 для release files
+- [x] Для official: без SHA-256 перевірки
+- [x] При помилці — temp видаляється
+- [x] Cleanup logging
+- [x] InvalidMetadata: return result (no throw)
+- [x] URL validation (Uri.TryCreate + HTTPS)
+- [x] Official source: same retry policy
+- [x] `IsRetryable` flag on result
+- [x] Final error kind preserved after retry exhaustion
 
-**Файли:** `Services/LocalizationInstaller.cs`
+**Файли:** `Services/LocalizationInstaller.cs`, `Services/DownloadResult.cs`
 
 **Тести (v4.x):**
-- [ ] SHA-256 verification: hash збігається
-- [ ] SHA-256 verification: hash не збігається → помилка
-- [ ] Size validation при наявності `size_bytes`
+- [x] SHA-256 verification: hash збігається
+- [x] SHA-256 verification: hash не збігається → помилка
+- [x] Size validation при наявності `size_bytes`
+- [x] 404 → no retry, final Http error
+- [x] 500 → retry then fail with Http
+- [x] 408 → retry then fail with Http
+- [x] Network error → retry then fail with Network
+- [x] Internal timeout → retry then fail with Timeout
+- [x] Caller cancellation → no retry, propagate
+- [x] InvalidMetadata → no HTTP call
+- [x] Temp cleanup on failure (HashMismatch/SizeMismatch/Network/Cancellation)
+- [x] Temp file remains on success
+- [x] Progress reporting
+- [x] SHA-256 case-insensitive
+- [x] Official source: success without SHA
+- [x] Official source: 500 → retry then fail
+- [x] Official source: network error → retry then fail
+- [x] Official source: internal timeout → retry then fail
+- [x] Official source: cancellation → no retry, propagate
+- [x] Official source: 404 → no retry
+- [x] Official source: empty/http/malformed URL → InvalidMetadata
+- [x] Official source: temp cleanup on failure
+- [x] DownloadProgress percentage calculation
+- [x] DownloadResult types (Success/SuccessWithoutHash/Failure)
 
 ---
 

@@ -20,9 +20,10 @@ public sealed class DownloadResult
     public string? Sha256 { get; }
     public DownloadError Error { get; }
     public string? ErrorMessage { get; }
+    public bool IsRetryable { get; }
 
     private DownloadResult(bool isSuccess, string? tempFilePath, long? sizeBytes, string? sha256,
-        DownloadError error, string? errorMessage)
+        DownloadError error, string? errorMessage, bool isRetryable)
     {
         IsSuccess = isSuccess;
         TempFilePath = tempFilePath;
@@ -30,14 +31,15 @@ public sealed class DownloadResult
         Sha256 = sha256;
         Error = error;
         ErrorMessage = errorMessage;
+        IsRetryable = isRetryable;
     }
 
     public static DownloadResult Success(string tempFilePath, long sizeBytes, string sha256) =>
-        new(true, tempFilePath, sizeBytes, sha256, default, null);
+        new(true, tempFilePath, sizeBytes, sha256, default, null, false);
 
     public static DownloadResult SuccessWithoutHash(string tempFilePath, long sizeBytes) =>
-        new(true, tempFilePath, sizeBytes, null, default, null);
+        new(true, tempFilePath, sizeBytes, null, default, null, false);
 
-    public static DownloadResult Failure(DownloadError error, string? message = null) =>
-        new(false, null, null, null, error, message);
+    public static DownloadResult Failure(DownloadError error, string? message = null, bool isRetryable = false) =>
+        new(false, null, null, null, error, message, isRetryable);
 }

@@ -26,81 +26,130 @@ public class LocalizationInstallerTests : IDisposable
             Directory.Delete(_tempDir, true);
     }
 
+    private int GetTmpFileCount()
+    {
+        return Directory.GetFiles(_paths.CacheDir, "*.tmp").Length;
+    }
+
     // ValidateReleaseMetadata
 
     [Fact]
-    public void ValidateReleaseMetadata_Valid_DoesNotThrow()
+    public void ValidateReleaseMetadata_Valid_ReturnsNull()
     {
         var release = CreateValidRelease();
-        LocalizationInstaller.ValidateReleaseMetadata(release);
+        Assert.Null(LocalizationInstaller.ValidateReleaseMetadata(release));
     }
 
     [Fact]
-    public void ValidateReleaseMetadata_MissingDownloadUrl_Throws()
+    public void ValidateReleaseMetadata_MissingDownloadUrl_ReturnsInvalidMetadata()
     {
         var release = CreateValidRelease();
         release.DownloadUrl = null;
-        Assert.Throws<ArgumentException>(() => LocalizationInstaller.ValidateReleaseMetadata(release));
+        var result = LocalizationInstaller.ValidateReleaseMetadata(release);
+        Assert.NotNull(result);
+        Assert.Equal(DownloadError.InvalidMetadata, result!.Error);
     }
 
     [Fact]
-    public void ValidateReleaseMetadata_NonHttps_Throws()
+    public void ValidateReleaseMetadata_HttpUrl_ReturnsInvalidMetadata()
     {
         var release = CreateValidRelease();
         release.DownloadUrl = "http://example.com/file.loc";
-        Assert.Throws<ArgumentException>(() => LocalizationInstaller.ValidateReleaseMetadata(release));
+        var result = LocalizationInstaller.ValidateReleaseMetadata(release);
+        Assert.NotNull(result);
+        Assert.Equal(DownloadError.InvalidMetadata, result!.Error);
     }
 
     [Fact]
-    public void ValidateReleaseMetadata_ZeroSize_Throws()
+    public void ValidateReleaseMetadata_RelativeUrl_ReturnsInvalidMetadata()
+    {
+        var release = CreateValidRelease();
+        release.DownloadUrl = "/relative/path/file.loc";
+        var result = LocalizationInstaller.ValidateReleaseMetadata(release);
+        Assert.NotNull(result);
+        Assert.Equal(DownloadError.InvalidMetadata, result!.Error);
+    }
+
+    [Fact]
+    public void ValidateReleaseMetadata_MalformedUrl_ReturnsInvalidMetadata()
+    {
+        var release = CreateValidRelease();
+        release.DownloadUrl = "https://";
+        var result = LocalizationInstaller.ValidateReleaseMetadata(release);
+        Assert.NotNull(result);
+        Assert.Equal(DownloadError.InvalidMetadata, result!.Error);
+    }
+
+    [Fact]
+    public void ValidateReleaseMetadata_ZeroSize_ReturnsInvalidMetadata()
     {
         var release = CreateValidRelease();
         release.SizeBytes = 0;
-        Assert.Throws<ArgumentException>(() => LocalizationInstaller.ValidateReleaseMetadata(release));
+        var result = LocalizationInstaller.ValidateReleaseMetadata(release);
+        Assert.NotNull(result);
+        Assert.Equal(DownloadError.InvalidMetadata, result!.Error);
     }
 
     [Fact]
-    public void ValidateReleaseMetadata_NegativeSize_Throws()
+    public void ValidateReleaseMetadata_NegativeSize_ReturnsInvalidMetadata()
     {
         var release = CreateValidRelease();
         release.SizeBytes = -1;
-        Assert.Throws<ArgumentException>(() => LocalizationInstaller.ValidateReleaseMetadata(release));
+        var result = LocalizationInstaller.ValidateReleaseMetadata(release);
+        Assert.NotNull(result);
+        Assert.Equal(DownloadError.InvalidMetadata, result!.Error);
     }
 
     [Fact]
-    public void ValidateReleaseMetadata_MissingSha256_Throws()
+    public void ValidateReleaseMetadata_MissingSha256_ReturnsInvalidMetadata()
     {
         var release = CreateValidRelease();
         release.Sha256 = null;
-        Assert.Throws<ArgumentException>(() => LocalizationInstaller.ValidateReleaseMetadata(release));
+        var result = LocalizationInstaller.ValidateReleaseMetadata(release);
+        Assert.NotNull(result);
+        Assert.Equal(DownloadError.InvalidMetadata, result!.Error);
     }
 
     [Fact]
-    public void ValidateReleaseMetadata_MissingPublicId_Throws()
+    public void ValidateReleaseMetadata_MissingPublicId_ReturnsInvalidMetadata()
     {
         var release = CreateValidRelease();
         release.PublicId = null;
-        Assert.Throws<ArgumentException>(() => LocalizationInstaller.ValidateReleaseMetadata(release));
+        var result = LocalizationInstaller.ValidateReleaseMetadata(release);
+        Assert.NotNull(result);
+        Assert.Equal(DownloadError.InvalidMetadata, result!.Error);
     }
 
     // ValidateOfficialUrl
 
     [Fact]
-    public void ValidateOfficialUrl_Valid_DoesNotThrow()
+    public void ValidateOfficialUrl_Valid_ReturnsNull()
     {
-        LocalizationInstaller.ValidateOfficialUrl("https://example.com/loc.loc");
+        Assert.Null(LocalizationInstaller.ValidateOfficialUrl("https://example.com/loc.loc"));
     }
 
     [Fact]
-    public void ValidateOfficialUrl_Empty_Throws()
+    public void ValidateOfficialUrl_Empty_ReturnsInvalidMetadata()
     {
-        Assert.Throws<ArgumentException>(() => LocalizationInstaller.ValidateOfficialUrl(""));
+        var result = LocalizationInstaller.ValidateOfficialUrl("");
+        Assert.NotNull(result);
+        Assert.Equal(DownloadError.InvalidMetadata, result!.Error);
     }
 
     [Fact]
-    public void ValidateOfficialUrl_Http_Throws()
+    public void ValidateOfficialUrl_Http_ReturnsInvalidMetadata()
     {
-        Assert.Throws<ArgumentException>(() => LocalizationInstaller.ValidateOfficialUrl("http://example.com/loc.loc"));
+        var result = LocalizationInstaller.ValidateOfficialUrl("http://example.com/loc.loc");
+        Assert.NotNull(result);
+        Assert.Equal(DownloadError.InvalidMetadata, result!.Error);
+    }
+
+    [Fact]
+    public void ValidateOfficialUrl_Malformed_ReturnsInvalidMetadata()
+    {
+        var result = LocalizationInstaller.ValidateOfficialUrl("not-a-url");
+        Assert.NotNull(result);
+        Assert.Equal(DownloadError.InvalidMetadata, result!.Error);
     }
 
     // Successful release download
@@ -110,8 +159,7 @@ public class LocalizationInstallerTests : IDisposable
     {
         var content = Encoding.UTF8.GetBytes("test localization content");
         var sha256 = ComputeSha256(content);
-        var handler = new MockHttpHandler(content, statusCode: System.Net.HttpStatusCode.OK,
-            contentLength: content.Length);
+        var handler = new MockHttpHandler(content, content.Length);
         var installer = CreateInstaller(handler);
 
         var release = CreateValidRelease();
@@ -133,8 +181,7 @@ public class LocalizationInstallerTests : IDisposable
     public async Task DownloadReleaseAsync_WrongSha_ReturnsHashMismatch()
     {
         var content = Encoding.UTF8.GetBytes("test content");
-        var handler = new MockHttpHandler(content, statusCode: System.Net.HttpStatusCode.OK,
-            contentLength: content.Length);
+        var handler = new MockHttpHandler(content, content.Length);
         var installer = CreateInstaller(handler);
 
         var release = CreateValidRelease();
@@ -145,6 +192,7 @@ public class LocalizationInstallerTests : IDisposable
 
         Assert.False(result.IsSuccess);
         Assert.Equal(DownloadError.HashMismatch, result.Error);
+        Assert.Null(result.TempFilePath);
     }
 
     // Size mismatch (Content-Length)
@@ -153,8 +201,7 @@ public class LocalizationInstallerTests : IDisposable
     public async Task DownloadReleaseAsync_ContentLengthMismatch_ReturnsSizeMismatch()
     {
         var content = Encoding.UTF8.GetBytes("test");
-        var handler = new MockHttpHandler(content, statusCode: System.Net.HttpStatusCode.OK,
-            contentLength: 9999);
+        var handler = new MockHttpHandler(content, 9999);
         var installer = CreateInstaller(handler);
 
         var release = CreateValidRelease();
@@ -165,6 +212,7 @@ public class LocalizationInstallerTests : IDisposable
 
         Assert.False(result.IsSuccess);
         Assert.Equal(DownloadError.SizeMismatch, result.Error);
+        Assert.Equal(0, GetTmpFileCount());
     }
 
     // Size mismatch (actual download)
@@ -173,8 +221,7 @@ public class LocalizationInstallerTests : IDisposable
     public async Task DownloadReleaseAsync_DownloadSizeMismatch_ReturnsSizeMismatch()
     {
         var content = Encoding.UTF8.GetBytes("test");
-        var handler = new MockHttpHandler(content, statusCode: System.Net.HttpStatusCode.OK,
-            contentLength: null);
+        var handler = new MockHttpHandler(content, content.Length, omitContentLength: true);
         var installer = CreateInstaller(handler);
 
         var release = CreateValidRelease();
@@ -185,14 +232,15 @@ public class LocalizationInstallerTests : IDisposable
 
         Assert.False(result.IsSuccess);
         Assert.Equal(DownloadError.SizeMismatch, result.Error);
+        Assert.Equal(0, GetTmpFileCount());
     }
 
-    // HTTP 404 → no retry
+    // HTTP 404 → no retry, final Http error
 
     [Fact]
-    public async Task DownloadReleaseAsync_404_ReturnsHttpError()
+    public async Task DownloadReleaseAsync_404_NoRetry_ReturnsHttp()
     {
-        var handler = new MockHttpHandler(null, statusCode: System.Net.HttpStatusCode.NotFound);
+        var handler = new MockHttpHandler(null, 0, statusCode: 404);
         var installer = CreateInstaller(handler);
 
         var release = CreateValidRelease();
@@ -201,17 +249,57 @@ public class LocalizationInstallerTests : IDisposable
 
         Assert.False(result.IsSuccess);
         Assert.Equal(DownloadError.Http, result.Error);
+        Assert.Contains("404", result.ErrorMessage);
         Assert.Equal(1, handler.RequestCount);
+        Assert.Equal(0, GetTmpFileCount());
     }
 
-    // 500 → retry then fail
+    // HTTP 500 → retry then fail with Http
 
     [Fact]
-    public async Task DownloadReleaseAsync_500_RetriesThenFails()
+    public async Task DownloadReleaseAsync_500_RetriesThenFails_Http()
     {
-        var handler = new MockHttpHandler(null, statusCode: System.Net.HttpStatusCode.InternalServerError);
+        var handler = new MockHttpHandler(null, 0, statusCode: 500);
         handler.FailUntilAttempt = 10;
-        var installer = CreateInstaller(handler);
+        var installer = CreateInstaller(handler, retryDelaysMs: new[] { 0, 0, 0 });
+
+        var release = CreateValidRelease();
+
+        var result = await installer.DownloadReleaseAsync(release);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DownloadError.Http, result.Error);
+        Assert.Contains("500", result.ErrorMessage);
+        Assert.Equal(4, handler.RequestCount);
+    }
+
+    // HTTP 408 → retry then fail with Http
+
+    [Fact]
+    public async Task DownloadReleaseAsync_408_RetriesThenFails_Http()
+    {
+        var handler = new MockHttpHandler(null, 0, statusCode: 408);
+        handler.FailUntilAttempt = 10;
+        var installer = CreateInstaller(handler, retryDelaysMs: new[] { 0, 0, 0 });
+
+        var release = CreateValidRelease();
+
+        var result = await installer.DownloadReleaseAsync(release);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DownloadError.Http, result.Error);
+        Assert.Contains("408", result.ErrorMessage);
+        Assert.Equal(4, handler.RequestCount);
+    }
+
+    // HttpRequestException → retry then fail with Network
+
+    [Fact]
+    public async Task DownloadReleaseAsync_NetworkError_RetriesThenFails_Network()
+    {
+        var handler = new MockHttpHandler(null, 0);
+        handler.ThrowOnAttempt = 10;
+        var installer = CreateInstaller(handler, retryDelaysMs: new[] { 0, 0, 0 });
 
         var release = CreateValidRelease();
 
@@ -222,14 +310,33 @@ public class LocalizationInstallerTests : IDisposable
         Assert.Equal(4, handler.RequestCount);
     }
 
-    // Cancellation
+    // Internal timeout → retry then fail with Timeout
 
     [Fact]
-    public async Task DownloadReleaseAsync_Cancellation_ThrowsOperationCanceledException()
+    public async Task DownloadReleaseAsync_InternalTimeout_RetriesThenFails_Timeout()
     {
         var content = Encoding.UTF8.GetBytes("test");
-        var handler = new MockHttpHandler(content, statusCode: System.Net.HttpStatusCode.OK,
-            contentLength: content.Length, delayMs: 5000);
+        var handler = new MockHttpHandler(content, content.Length, delayMs: 5000);
+        var installer = CreateInstaller(handler, timeoutSeconds: 1, retryDelaysMs: new[] { 0, 0, 0 });
+
+        var release = CreateValidRelease();
+        release.SizeBytes = content.Length;
+        release.Sha256 = ComputeSha256(content);
+
+        var result = await installer.DownloadReleaseAsync(release);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DownloadError.Timeout, result.Error);
+        Assert.Equal(4, handler.RequestCount);
+    }
+
+    // Caller cancellation → no retry, propagate
+
+    [Fact]
+    public async Task DownloadReleaseAsync_CallerCancellation_NoRetry_Throws()
+    {
+        var content = Encoding.UTF8.GetBytes("test");
+        var handler = new MockHttpHandler(content, content.Length, delayMs: 5000);
         var installer = CreateInstaller(handler);
 
         var release = CreateValidRelease();
@@ -241,6 +348,7 @@ public class LocalizationInstallerTests : IDisposable
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => installer.DownloadReleaseAsync(release, cancellationToken: cts.Token));
+        Assert.Equal(1, handler.RequestCount);
     }
 
     // Metadata validation prevents HTTP call
@@ -248,25 +356,26 @@ public class LocalizationInstallerTests : IDisposable
     [Fact]
     public async Task DownloadReleaseAsync_InvalidMetadata_NoHttpRequest()
     {
-        var handler = new MockHttpHandler(null);
+        var handler = new MockHttpHandler(null, 0);
         var installer = CreateInstaller(handler);
 
         var release = CreateValidRelease();
         release.DownloadUrl = null;
 
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => installer.DownloadReleaseAsync(release));
+        var result = await installer.DownloadReleaseAsync(release);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DownloadError.InvalidMetadata, result.Error);
         Assert.Equal(0, handler.RequestCount);
     }
 
-    // Temp file cleaned on failure
+    // Temp file cleaned on HashMismatch
 
     [Fact]
     public async Task DownloadReleaseAsync_HashMismatch_TempFileCleaned()
     {
         var content = Encoding.UTF8.GetBytes("test");
-        var handler = new MockHttpHandler(content, statusCode: System.Net.HttpStatusCode.OK,
-            contentLength: content.Length);
+        var handler = new MockHttpHandler(content, content.Length);
         var installer = CreateInstaller(handler);
 
         var release = CreateValidRelease();
@@ -276,7 +385,71 @@ public class LocalizationInstallerTests : IDisposable
         var result = await installer.DownloadReleaseAsync(release);
 
         Assert.False(result.IsSuccess);
-        Assert.False(File.Exists(result.TempFilePath));
+        Assert.Equal(DownloadError.HashMismatch, result.Error);
+        Assert.Null(result.TempFilePath);
+    }
+
+    // Temp file cleaned on SizeMismatch
+
+    [Fact]
+    public async Task DownloadReleaseAsync_SizeMismatch_TempFileCleaned()
+    {
+        var content = Encoding.UTF8.GetBytes("test");
+        var handler = new MockHttpHandler(content, 9999);
+        var installer = CreateInstaller(handler);
+
+        var release = CreateValidRelease();
+        release.SizeBytes = content.Length;
+        release.Sha256 = ComputeSha256(content);
+
+        var result = await installer.DownloadReleaseAsync(release);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DownloadError.SizeMismatch, result.Error);
+        Assert.Null(result.TempFilePath);
+    }
+
+    // Temp file cleaned on network failure
+
+    [Fact]
+    public async Task DownloadReleaseAsync_NetworkFailure_TempFileCleaned()
+    {
+        var handler = new MockHttpHandler(null, 0);
+        handler.ThrowOnAttempt = 10;
+        var installer = CreateInstaller(handler, retryDelaysMs: new[] { 0, 0, 0 });
+
+        var release = CreateValidRelease();
+
+        var result = await installer.DownloadReleaseAsync(release);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DownloadError.Network, result.Error);
+        Assert.Null(result.TempFilePath);
+    }
+
+    // Temp file cleaned on cancellation
+
+    [Fact]
+    public async Task DownloadReleaseAsync_Cancellation_TempFileCleaned()
+    {
+        var content = Encoding.UTF8.GetBytes("test");
+        var handler = new MockHttpHandler(content, content.Length, delayMs: 5000);
+        var installer = CreateInstaller(handler);
+
+        var release = CreateValidRelease();
+        release.SizeBytes = content.Length;
+        release.Sha256 = ComputeSha256(content);
+
+        using var cts = new CancellationTokenSource();
+        cts.CancelAfter(50);
+
+        try
+        {
+            await installer.DownloadReleaseAsync(release, cancellationToken: cts.Token);
+        }
+        catch (OperationCanceledException) { }
+
+        Assert.Equal(0, GetTmpFileCount());
     }
 
     // Temp file remains on success
@@ -286,8 +459,7 @@ public class LocalizationInstallerTests : IDisposable
     {
         var content = Encoding.UTF8.GetBytes("test");
         var sha256 = ComputeSha256(content);
-        var handler = new MockHttpHandler(content, statusCode: System.Net.HttpStatusCode.OK,
-            contentLength: content.Length);
+        var handler = new MockHttpHandler(content, content.Length);
         var installer = CreateInstaller(handler);
 
         var release = CreateValidRelease();
@@ -307,8 +479,7 @@ public class LocalizationInstallerTests : IDisposable
     {
         var content = Encoding.UTF8.GetBytes("test content");
         var sha256 = ComputeSha256(content);
-        var handler = new MockHttpHandler(content, statusCode: System.Net.HttpStatusCode.OK,
-            contentLength: content.Length);
+        var handler = new MockHttpHandler(content, content.Length);
         var installer = CreateInstaller(handler);
 
         var release = CreateValidRelease();
@@ -331,8 +502,7 @@ public class LocalizationInstallerTests : IDisposable
     {
         var content = Encoding.UTF8.GetBytes("test");
         var sha256 = ComputeSha256(content).ToUpperInvariant();
-        var handler = new MockHttpHandler(content, statusCode: System.Net.HttpStatusCode.OK,
-            contentLength: content.Length);
+        var handler = new MockHttpHandler(content, content.Length);
         var installer = CreateInstaller(handler);
 
         var release = CreateValidRelease();
@@ -350,8 +520,7 @@ public class LocalizationInstallerTests : IDisposable
     public async Task DownloadOfficialSourceAsync_Success_ReturnsFile()
     {
         var content = Encoding.UTF8.GetBytes("official content");
-        var handler = new MockHttpHandler(content, statusCode: System.Net.HttpStatusCode.OK,
-            contentLength: content.Length);
+        var handler = new MockHttpHandler(content, content.Length);
         var installer = CreateInstaller(handler);
 
         var result = await installer.DownloadOfficialSourceAsync("https://example.com/loc.loc");
@@ -363,28 +532,61 @@ public class LocalizationInstallerTests : IDisposable
         Assert.Null(result.Sha256);
     }
 
-    // Official source: HTTP failure
+    // Official source: 500 → retry then fail
 
     [Fact]
-    public async Task DownloadOfficialSourceAsync_HttpFailure_ReturnsError()
+    public async Task DownloadOfficialSourceAsync_500_RetriesThenFails()
     {
-        var handler = new MockHttpHandler(null, statusCode: System.Net.HttpStatusCode.NotFound);
-        var installer = CreateInstaller(handler);
+        var handler = new MockHttpHandler(null, 0, statusCode: 500);
+        handler.FailUntilAttempt = 10;
+        var installer = CreateInstaller(handler, retryDelaysMs: new[] { 0, 0, 0 });
 
         var result = await installer.DownloadOfficialSourceAsync("https://example.com/loc.loc");
 
         Assert.False(result.IsSuccess);
         Assert.Equal(DownloadError.Http, result.Error);
+        Assert.Equal(4, handler.RequestCount);
     }
 
-    // Official source: cancellation
+    // Official source: network error → retry then fail
+
+    [Fact]
+    public async Task DownloadOfficialSourceAsync_NetworkError_RetriesThenFails()
+    {
+        var handler = new MockHttpHandler(null, 0);
+        handler.ThrowOnAttempt = 10;
+        var installer = CreateInstaller(handler, retryDelaysMs: new[] { 0, 0, 0 });
+
+        var result = await installer.DownloadOfficialSourceAsync("https://example.com/loc.loc");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DownloadError.Network, result.Error);
+        Assert.Equal(4, handler.RequestCount);
+    }
+
+    // Official source: internal timeout → retry then fail
+
+    [Fact]
+    public async Task DownloadOfficialSourceAsync_Timeout_RetriesThenFails()
+    {
+        var content = Encoding.UTF8.GetBytes("test");
+        var handler = new MockHttpHandler(content, content.Length, delayMs: 5000);
+        var installer = CreateInstaller(handler, timeoutSeconds: 1, retryDelaysMs: new[] { 0, 0, 0 });
+
+        var result = await installer.DownloadOfficialSourceAsync("https://example.com/loc.loc");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DownloadError.Timeout, result.Error);
+        Assert.Equal(4, handler.RequestCount);
+    }
+
+    // Official source: cancellation → no retry, propagate
 
     [Fact]
     public async Task DownloadOfficialSourceAsync_Cancellation_Throws()
     {
         var content = Encoding.UTF8.GetBytes("test");
-        var handler = new MockHttpHandler(content, statusCode: System.Net.HttpStatusCode.OK,
-            contentLength: content.Length, delayMs: 5000);
+        var handler = new MockHttpHandler(content, content.Length, delayMs: 5000);
         var installer = CreateInstaller(handler);
 
         using var cts = new CancellationTokenSource();
@@ -392,28 +594,65 @@ public class LocalizationInstallerTests : IDisposable
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => installer.DownloadOfficialSourceAsync("https://example.com/loc.loc", cancellationToken: cts.Token));
+        Assert.Equal(1, handler.RequestCount);
+    }
+
+    // Official source: 404 → no retry
+
+    [Fact]
+    public async Task DownloadOfficialSourceAsync_404_NoRetry()
+    {
+        var handler = new MockHttpHandler(null, 0, statusCode: 404);
+        var installer = CreateInstaller(handler);
+
+        var result = await installer.DownloadOfficialSourceAsync("https://example.com/loc.loc");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DownloadError.Http, result.Error);
+        Assert.Equal(1, handler.RequestCount);
     }
 
     // Official source: metadata validation
 
     [Fact]
-    public async Task DownloadOfficialSourceAsync_EmptyUrl_Throws()
+    public async Task DownloadOfficialSourceAsync_EmptyUrl_ReturnsInvalidMetadata()
     {
-        var handler = new MockHttpHandler(null);
+        var handler = new MockHttpHandler(null, 0);
         var installer = CreateInstaller(handler);
 
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => installer.DownloadOfficialSourceAsync(""));
+        var result = await installer.DownloadOfficialSourceAsync("");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DownloadError.InvalidMetadata, result.Error);
+        Assert.Equal(0, handler.RequestCount);
     }
 
     [Fact]
-    public async Task DownloadOfficialSourceAsync_HttpUrl_Throws()
+    public async Task DownloadOfficialSourceAsync_HttpUrl_ReturnsInvalidMetadata()
     {
-        var handler = new MockHttpHandler(null);
+        var handler = new MockHttpHandler(null, 0);
         var installer = CreateInstaller(handler);
 
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => installer.DownloadOfficialSourceAsync("http://example.com/loc.loc"));
+        var result = await installer.DownloadOfficialSourceAsync("http://example.com/loc.loc");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DownloadError.InvalidMetadata, result.Error);
+        Assert.Equal(0, handler.RequestCount);
+    }
+
+    // Official source: temp cleanup on failure
+
+    [Fact]
+    public async Task DownloadOfficialSourceAsync_Failure_CacheDirEmpty()
+    {
+        var handler = new MockHttpHandler(null, 0, statusCode: 500);
+        handler.FailUntilAttempt = 10;
+        var installer = CreateInstaller(handler, retryDelaysMs: new[] { 0, 0, 0 });
+
+        var result = await installer.DownloadOfficialSourceAsync("https://example.com/loc.loc");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(0, GetTmpFileCount());
     }
 
     // DownloadProgress
@@ -461,10 +700,12 @@ public class LocalizationInstallerTests : IDisposable
         Assert.Equal("connection refused", result.ErrorMessage);
     }
 
-    private LocalizationInstaller CreateInstaller(MockHttpHandler handler)
+    private LocalizationInstaller CreateInstaller(MockHttpHandler handler,
+        int timeoutSeconds = 60, int[]? retryDelaysMs = null)
     {
         var httpClient = new HttpClient(handler);
-        return new LocalizationInstaller(httpClient, _paths, _logger);
+        return new LocalizationInstaller(httpClient, _paths, logger: _logger,
+            timeoutSeconds: timeoutSeconds, retryDelaysMs: retryDelaysMs);
     }
 
     private static CurrentRelease CreateValidRelease()
@@ -498,21 +739,22 @@ public class LocalizationInstallerTests : IDisposable
     private class MockHttpHandler : HttpMessageHandler
     {
         private readonly byte[]? _responseContent;
-        private readonly System.Net.HttpStatusCode _statusCode;
-        private readonly long? _contentLength;
+        private readonly long _contentLength;
+        private readonly int _statusCode;
+        private readonly bool _omitContentLength;
         private readonly int _delayMs;
 
         public int RequestCount { get; private set; }
         public int FailUntilAttempt { get; set; }
+        public int ThrowOnAttempt { get; set; }
 
-        public MockHttpHandler(byte[]? responseContent,
-            System.Net.HttpStatusCode statusCode = System.Net.HttpStatusCode.OK,
-            long? contentLength = null,
-            int delayMs = 0)
+        public MockHttpHandler(byte[]? responseContent, long contentLength,
+            int statusCode = 200, bool omitContentLength = false, int delayMs = 0)
         {
             _responseContent = responseContent;
-            _statusCode = statusCode;
             _contentLength = contentLength;
+            _statusCode = statusCode;
+            _omitContentLength = omitContentLength;
             _delayMs = delayMs;
         }
 
@@ -521,20 +763,23 @@ public class LocalizationInstallerTests : IDisposable
         {
             RequestCount++;
 
+            if (ThrowOnAttempt > 0 && RequestCount <= ThrowOnAttempt)
+                throw new HttpRequestException("Simulated network error");
+
             if (_delayMs > 0)
                 await Task.Delay(_delayMs, cancellationToken);
 
-            if (RequestCount <= FailUntilAttempt)
-                return new HttpResponseMessage(System.Net.HttpStatusCode.InternalServerError);
+            if (FailUntilAttempt > 0 && RequestCount <= FailUntilAttempt)
+                return new HttpResponseMessage((System.Net.HttpStatusCode)_statusCode);
 
             if (_responseContent == null)
-                return new HttpResponseMessage(_statusCode);
+                return new HttpResponseMessage((System.Net.HttpStatusCode)_statusCode);
 
             var content = new ByteArrayContent(_responseContent);
-            if (_contentLength.HasValue)
-                content.Headers.ContentLength = _contentLength.Value;
+            if (!_omitContentLength)
+                content.Headers.ContentLength = _contentLength;
 
-            return new HttpResponseMessage(_statusCode) { Content = content };
+            return new HttpResponseMessage((System.Net.HttpStatusCode)_statusCode) { Content = content };
         }
     }
 }
