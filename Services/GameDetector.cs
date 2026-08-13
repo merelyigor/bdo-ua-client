@@ -10,7 +10,6 @@ public sealed class GameDetector
 {
     private const string LocalizationFile = "languagedata_en.loc";
     private const string AdsDir = "ads";
-    private const int BdoAppId = 582660;
     private const string AppManifestFile = "appmanifest_582660.acf";
     private const string LibraryFoldersFile = "libraryfolders.vdf";
     private const string SteamAppsDir = "steamapps";
@@ -19,10 +18,7 @@ public sealed class GameDetector
     private static readonly string[] SteamDefaultPaths = new[]
     {
         @"C:\Program Files (x86)\Steam",
-        @"C:\Program Files\Steam",
-        @"D:\Steam",
-        @"D:\SteamLibrary",
-        @"E:\SteamLibrary"
+        @"C:\Program Files\Steam"
     };
 
     private readonly ConfigStore _configStore;
@@ -63,7 +59,7 @@ public sealed class GameDetector
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var registryResult = DetectFromRegistry();
+        var registryResult = await DetectFromRegistryAsync(cancellationToken).ConfigureAwait(false);
         if (registryResult != null)
         {
             _logger.Info($"Game found from registry: {registryResult.GamePath}");
@@ -72,7 +68,7 @@ public sealed class GameDetector
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var steamResult = DetectFromSteam(cancellationToken);
+        var steamResult = await DetectFromSteamAsync(cancellationToken).ConfigureAwait(false);
         if (steamResult != null)
         {
             _logger.Info($"Game found from Steam: {steamResult.GamePath}");
@@ -81,9 +77,9 @@ public sealed class GameDetector
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (apiPatterns != null)
+        if (apiPatterns != null && apiPatterns.Count > 0)
         {
-            var apiResult = DetectFromApiPatterns(apiPatterns, cancellationToken);
+            var apiResult = await DetectFromApiPatternsAsync(apiPatterns, cancellationToken).ConfigureAwait(false);
             if (apiResult != null)
             {
                 _logger.Info($"Game found from API pattern: {apiResult.GamePath}");
@@ -106,13 +102,43 @@ public sealed class GameDetector
         }
 
         var normalizedPath = Path.GetFullPath(gamePath);
-        await SaveDetectedPathAsync(normalizedPath, DetectionSource.Manual, cancellationToken).ConfigureAwait(false);
+        var persisted = await SaveDetectedPathAsync(normalizedPath, DetectionSource.Manual, cancellationToken).ConfigureAwait(false);
+
+        if (!persisted)
+        {
+            _logger.Warning($"Manual path validated but config save failed: {normalizedPath}");
+            return DetectionResult.Found(normalizedPath, DetectionSource.Manual, persisted: false);
+        }
 
         _logger.Info($"Manual path validated and saved: {normalizedPath}");
-        return DetectionResult.Found(normalizedPath, DetectionSource.Manual);
+        return DetectionResult.Found(normalizedPath, DetectionSource.Manual, persisted: true);
     }
 
-    private async Task<DetectionResult?> DetectFromSavedConfigAsync(CancellationToken cancellationToken)
+    internal static string? NormalizeApiPathToGameRoot(string expandedPath)
+    {
+        if (string.IsNullOrWhiteSpace(expandedPath))
+            return null;
+
+        try
+        {
+            var fullPath = Path.GetFullPath(expandedPath);
+
+            if (fullPath.TrimEnd('\\', '/').EndsWith(AdsDir, StringComparison.OrdinalIgnoreCase))
+            {
+                var parent = Path.GetDirectoryName(fullPath.TrimEnd('\\', '/'));
+                if (!string.IsNullOrEmpty(parent))
+                    return parent;
+            }
+
+            return fullPath;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private Task<DetectionResult?> DetectFromSavedConfigAsync(CancellationToken cancellationToken)
     {
         try
         {
@@ -120,59 +146,79 @@ public sealed class GameDetector
             if (configResult.Status == FileLoadStatus.Invalid)
             {
                 _logger.Warning($"Config load error: {configResult.Error}");
-                return null;
+                return Task.FromResult<DetectionResult?>(null);
             }
 
             var gamePath = configResult.Value?.GamePath;
             if (string.IsNullOrEmpty(gamePath))
             {
                 _logger.Debug("No saved game path");
-                return null;
+                return Task.FromResult<DetectionResult?>(null);
             }
 
             if (ValidateGamePath(gamePath))
             {
                 _logger.Debug($"Saved path validated: {gamePath}");
-                return DetectionResult.Found(Path.GetFullPath(gamePath), DetectionSource.SavedConfig);
+                return Task.FromResult<DetectionResult?>(
+                    DetectionResult.Found(Path.GetFullPath(gamePath), DetectionSource.SavedConfig, persisted: true));
             }
 
             _logger.Debug($"Saved path invalid: {gamePath}");
-            return null;
+            return Task.FromResult<DetectionResult?>(null);
         }
         catch (Exception ex)
         {
             _logger.Error($"Error checking saved config: {ex.Message}");
-            return null;
+            return Task.FromResult<DetectionResult?>(null);
         }
     }
 
-    private DetectionResult? DetectFromRegistry()
+    private async Task<DetectionResult?> DetectFromRegistryAsync(CancellationToken cancellationToken)
     {
-        try
+        var viewPairs = new (RegistryHive hive, RegistryView view)[]
         {
-            return SearchUninstallRegistry(
-                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall")
-                ?? SearchUninstallRegistry(
-                    @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall")
-                ?? SearchUninstallRegistry(
-                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-                    RegistryHive.CurrentUser);
-        }
-        catch (Exception ex)
+            (RegistryHive.LocalMachine, RegistryView.Registry64),
+            (RegistryHive.LocalMachine, RegistryView.Registry32),
+            (RegistryHive.CurrentUser, RegistryView.Registry64),
+            (RegistryHive.CurrentUser, RegistryView.Registry32)
+        };
+
+        foreach (var (hive, view) in viewPairs)
         {
-            _logger.Warning($"Registry detection error: {ex.Message}");
-            return null;
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                var result = SearchUninstallRegistry(hive, view);
+                if (result != null)
+                {
+                    var persisted = await SaveDetectedPathAsync(result.GamePath!, DetectionSource.Registry, cancellationToken).ConfigureAwait(false);
+                    return DetectionResult.Found(result.GamePath!, DetectionSource.Registry, persisted);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug($"Registry scan error ({hive}/{view}): {ex.Message}");
+            }
         }
+
+        return null;
     }
 
-    private DetectionResult? SearchUninstallRegistry(string keyPath, RegistryHive hive = RegistryHive.LocalMachine)
+    private DetectionResult? SearchUninstallRegistry(RegistryHive hive, RegistryView view)
     {
+        const string keyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";
+
         try
         {
-            using var baseKey = RegistryKey.OpenBaseKey(hive, RegistryView.Registry64);
+            using var baseKey = RegistryKey.OpenBaseKey(hive, view);
             using var key = baseKey.OpenSubKey(keyPath, false);
 
-            if (key == null) return null;
+            if (key == null)
+            {
+                _logger.Debug($"Registry key not found: {hive}\\{keyPath} (view={view})");
+                return null;
+            }
 
             foreach (var subKeyName in key.GetSubKeyNames())
             {
@@ -184,38 +230,48 @@ public sealed class GameDetector
                     var displayName = subKey.GetValue("DisplayName") as string;
                     if (string.IsNullOrEmpty(displayName)) continue;
 
-                    if (!displayName.Contains("Black Desert", StringComparison.OrdinalIgnoreCase) &&
-                        !displayName.Contains("BDO", StringComparison.OrdinalIgnoreCase))
+                    if (!IsBlackDesertEntry(displayName))
                     {
+                        _logger.Debug($"Skipping non-BDO registry entry: {displayName}");
                         continue;
                     }
 
-                    var installLocation = subKey.GetValue("InstallLocation") as string
-                        ?? subKey.GetValue("UninstallString") as string;
-
-                    if (string.IsNullOrEmpty(installLocation)) continue;
+                    var installLocation = subKey.GetValue("InstallLocation") as string;
+                    if (string.IsNullOrEmpty(installLocation))
+                    {
+                        _logger.Debug($"No InstallLocation for: {displayName}");
+                        continue;
+                    }
 
                     var path = installLocation.Trim('"').TrimEnd('\\', '/');
                     if (ValidateGamePath(path))
                     {
-                        _logger.Debug($"Found via registry: {path} ({displayName})");
+                        _logger.Debug($"Found via registry: {path} ({displayName}, {hive}\\{view})");
                         return DetectionResult.Found(Path.GetFullPath(path), DetectionSource.Registry);
                     }
+
+                    _logger.Debug($"Registry path invalid: {path} ({displayName})");
                 }
-                catch
+                catch (Exception ex)
                 {
-                    continue;
+                    _logger.Debug($"Error reading registry subkey {subKeyName}: {ex.Message}");
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Debug($"Cannot open registry key {hive}\\{keyPath} (view={view}): {ex.Message}");
         }
 
         return null;
     }
 
-    private DetectionResult? DetectFromSteam(CancellationToken cancellationToken)
+    private static bool IsBlackDesertEntry(string displayName)
+    {
+        return displayName.Contains("Black Desert", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<DetectionResult?> DetectFromSteamAsync(CancellationToken cancellationToken)
     {
         var steamPaths = GetSteamPaths();
 
@@ -223,29 +279,36 @@ public sealed class GameDetector
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (!Directory.Exists(steamPath)) continue;
-
-            var steamAppsPath = Path.Combine(steamPath, SteamAppsDir);
-            if (!Directory.Exists(steamAppsPath)) continue;
-
-            var libraryFoldersPath = Path.Combine(steamAppsPath, LibraryFoldersFile);
-            var libraries = ParseLibraryFolders(libraryFoldersPath);
-
-            foreach (var library in libraries)
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                var steamAppsPath = Path.Combine(steamPath, SteamAppsDir);
+                if (!Directory.Exists(steamAppsPath)) continue;
 
-                var appManifestPath = Path.Combine(library, SteamAppsDir, AppManifestFile);
-                var installdir = ParseAppManifest(appManifestPath);
+                var libraryFoldersPath = Path.Combine(steamAppsPath, LibraryFoldersFile);
+                var libraries = ParseLibraryFolders(libraryFoldersPath);
 
-                if (string.IsNullOrEmpty(installdir)) continue;
-
-                var candidate = Path.Combine(library, SteamAppsDir, CommonDir, installdir);
-                if (ValidateGamePath(candidate))
+                foreach (var library in libraries)
                 {
-                    _logger.Debug($"Found via Steam: {candidate}");
-                    return DetectionResult.Found(Path.GetFullPath(candidate), DetectionSource.Steam);
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var appManifestPath = Path.Combine(library, SteamAppsDir, AppManifestFile);
+                    var installdir = ParseAppManifest(appManifestPath);
+
+                    if (string.IsNullOrEmpty(installdir)) continue;
+
+                    var candidate = Path.Combine(library, SteamAppsDir, CommonDir, installdir);
+                    if (ValidateGamePath(candidate))
+                    {
+                        var fullPath = Path.GetFullPath(candidate);
+                        _logger.Debug($"Found via Steam: {fullPath}");
+                        var persisted = await SaveDetectedPathAsync(fullPath, DetectionSource.Steam, cancellationToken).ConfigureAwait(false);
+                        return DetectionResult.Found(fullPath, DetectionSource.Steam, persisted);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug($"Steam scan error for {steamPath}: {ex.Message}");
             }
         }
 
@@ -386,7 +449,7 @@ public sealed class GameDetector
         }
     }
 
-    private DetectionResult? DetectFromApiPatterns(IReadOnlyList<InstallPathPattern> patterns, CancellationToken cancellationToken)
+    private async Task<DetectionResult?> DetectFromApiPatternsAsync(IReadOnlyList<InstallPathPattern> patterns, CancellationToken cancellationToken)
     {
         var drives = DriveInfo.GetDrives()
             .Where(d => d.DriveType == DriveType.Fixed && d.IsReady)
@@ -405,13 +468,22 @@ public sealed class GameDetector
 
                 try
                 {
-                    var expanded = pattern.Pattern.Replace("{drive}", drive.TrimEnd('\\', '/'));
-                    expanded = expanded.Replace("\\\\", "\\").Replace("/", "\\");
+                    var expanded = ExpandApiPattern(pattern.Pattern, drive);
+                    if (expanded == null) continue;
 
-                    if (ValidateGamePath(expanded))
+                    var gameRoot = NormalizeApiPathToGameRoot(expanded);
+                    if (gameRoot == null)
                     {
-                        _logger.Debug($"Found via API pattern: {expanded}");
-                        return DetectionResult.Found(Path.GetFullPath(expanded), DetectionSource.ApiPattern);
+                        _logger.Debug($"API pattern normalized to null: {expanded}");
+                        continue;
+                    }
+
+                    if (ValidateGamePath(gameRoot))
+                    {
+                        var fullPath = Path.GetFullPath(gameRoot);
+                        _logger.Debug($"Found via API pattern: {fullPath}");
+                        var persisted = await SaveDetectedPathAsync(fullPath, DetectionSource.ApiPattern, cancellationToken).ConfigureAwait(false);
+                        return DetectionResult.Found(fullPath, DetectionSource.ApiPattern, persisted);
                     }
                 }
                 catch (Exception ex)
@@ -424,7 +496,7 @@ public sealed class GameDetector
         return null;
     }
 
-    private async Task SaveDetectedPathAsync(string gamePath, DetectionSource source, CancellationToken cancellationToken)
+    private async Task<bool> SaveDetectedPathAsync(string gamePath, DetectionSource source, CancellationToken cancellationToken)
     {
         try
         {
@@ -434,10 +506,12 @@ public sealed class GameDetector
             config.GamePath = gamePath;
             await _configStore.SaveAsync(config, cancellationToken).ConfigureAwait(false);
             _logger.Debug($"Game path saved: {gamePath} (source: {source})");
+            return true;
         }
         catch (Exception ex)
         {
-            _logger.Error($"Failed to save game path: {ex.Message}");
+            _logger.Warning($"Failed to save game path: {gamePath} (source: {source}): {ex.Message}");
+            return false;
         }
     }
 }

@@ -65,6 +65,55 @@ public class GameDetectorTests : IDisposable
         Assert.False(GameDetector.ValidateGamePath(@"C:\Nonexistent\Path"));
     }
 
+    // NormalizeApiPathToGameRoot
+
+    [Fact]
+    public void NormalizeApiPathToGameRoot_TrailingAds_ReturnsParent()
+    {
+        var gameRoot = CreateFakeGamePath();
+        var adsPath = Path.Combine(gameRoot, "ads");
+
+        var result = GameDetector.NormalizeApiPathToGameRoot(adsPath);
+
+        Assert.Equal(Path.GetFullPath(gameRoot), result);
+    }
+
+    [Fact]
+    public void NormalizeApiPathToGameRoot_TrailingAdsSlash_ReturnsParent()
+    {
+        var gameRoot = CreateFakeGamePath();
+        var adsPath = gameRoot + @"\ads\";
+
+        var result = GameDetector.NormalizeApiPathToGameRoot(adsPath);
+
+        Assert.Equal(Path.GetFullPath(gameRoot), result);
+    }
+
+    [Fact]
+    public void NormalizeApiPathToGameRoot_GameRoot_ReturnsItself()
+    {
+        var gameRoot = CreateFakeGamePath();
+
+        var result = GameDetector.NormalizeApiPathToGameRoot(gameRoot);
+
+        Assert.Equal(Path.GetFullPath(gameRoot), result);
+    }
+
+    [Fact]
+    public void NormalizeApiPathToGameRoot_NullOrEmpty_ReturnsNull()
+    {
+        Assert.Null(GameDetector.NormalizeApiPathToGameRoot(null!));
+        Assert.Null(GameDetector.NormalizeApiPathToGameRoot(""));
+    }
+
+    [Fact]
+    public void NormalizeApiPathToGameRoot_NonexistentPath_StillNormalizes()
+    {
+        var result = GameDetector.NormalizeApiPathToGameRoot(@"C:\Nonexistent\Path\ads");
+
+        Assert.Equal(@"C:\Nonexistent\Path", result);
+    }
+
     // ParseLibraryFoldersContent
 
     [Fact]
@@ -240,6 +289,15 @@ public class GameDetectorTests : IDisposable
         Assert.True(result.IsFound);
         Assert.Equal(@"C:\Game", result.GamePath);
         Assert.Equal(DetectionSource.Steam, result.Source);
+        Assert.True(result.Persisted);
+    }
+
+    [Fact]
+    public void DetectionResult_Found_NotPersisted()
+    {
+        var result = DetectionResult.Found(@"C:\Game", DetectionSource.Registry, persisted: false);
+        Assert.True(result.IsFound);
+        Assert.False(result.Persisted);
     }
 
     [Fact]
@@ -248,6 +306,7 @@ public class GameDetectorTests : IDisposable
         var result = DetectionResult.NotFound();
         Assert.False(result.IsFound);
         Assert.Null(result.GamePath);
+        Assert.False(result.Persisted);
     }
 
     // Saved config (integration - tests config store interaction)
@@ -263,6 +322,29 @@ public class GameDetectorTests : IDisposable
 
         Assert.True(result.IsFound);
         Assert.Equal(DetectionSource.SavedConfig, result.Source);
+        Assert.True(result.Persisted);
+    }
+
+    [Fact]
+    public async Task DetectFromSavedConfig_InvalidPath_DoesNotReturnSavedConfig()
+    {
+        var config = new Config { GamePath = @"C:\Invalid\Path" };
+        await _configStore.SaveAsync(config);
+
+        var result = await _detector.DetectAsync();
+
+        Assert.NotEqual(DetectionSource.SavedConfig, result.Source);
+    }
+
+    [Fact]
+    public async Task DetectFromSavedConfig_EmptyPath_DoesNotReturnSavedConfig()
+    {
+        var config = new Config { GamePath = "" };
+        await _configStore.SaveAsync(config);
+
+        var result = await _detector.DetectAsync();
+
+        Assert.NotEqual(DetectionSource.SavedConfig, result.Source);
     }
 
     // Manual path
@@ -276,6 +358,7 @@ public class GameDetectorTests : IDisposable
 
         Assert.True(result.IsFound);
         Assert.Equal(DetectionSource.Manual, result.Source);
+        Assert.True(result.Persisted);
 
         var config = _configStore.Load();
         Assert.Equal(gamePath, config.Value!.GamePath);
@@ -303,6 +386,24 @@ public class GameDetectorTests : IDisposable
         var loaded = _configStore.Load();
         Assert.Equal("full-ukrainian", loaded.Value!.LastMode);
         Assert.Equal(gamePath, loaded.Value!.GamePath);
+    }
+
+    // API pattern with trailing ads (integration)
+
+    [Fact]
+    public void ApiPattern_TrailingAds_ConvertedToGameRoot()
+    {
+        var gamePath = CreateFakeGamePath();
+        var driveLetter = Path.GetPathRoot(gamePath)!.TrimEnd('\\', '/').TrimEnd(':');
+
+        var parentDir = Path.GetDirectoryName(gamePath)!;
+        var pattern = $@"{driveLetter}:\{{drive}}:\...\Black Desert Online\ads\";
+
+        var expanded = GameDetector.ExpandApiPattern(pattern, driveLetter + ":");
+        Assert.NotNull(expanded);
+
+        var normalized = GameDetector.NormalizeApiPathToGameRoot(expanded);
+        Assert.NotNull(normalized);
     }
 
     private string CreateFakeGamePath(string? subDir = null)
