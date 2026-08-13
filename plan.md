@@ -296,26 +296,51 @@ bdo-ua-client/
 - Original snapshot: ОДИН РАЗ перед першою модифікацією (не перезаписувати)
 - Restore points: створюються ПЕРЕД replace game file
 - Restore original: download з `official_source_url`; локальний snapshot — fallback
+- Immutable snapshot: size/hash validation на read
+- Replace safety: temp file → atomic move → verification → recovery на failure
+- Typed results: `RestoreResult` з `RestoreError` enum
 
 **Acceptance criteria:**
-- [ ] Original snapshot: `%LocalAppData%\BDO-UA-Client\backups\original\`
-- [ ] Original snapshot НЕ перезаписується
-- [ ] Metadata original snapshot: `created_at`, `game_patch` (якщо достовірно), `sha256` (локально), `size_bytes`
-- [ ] Локальний SHA-256 — НЕ checksum від API
-- [ ] Restore points: `%LocalAppData%\BDO-UA-Client\backups\restore-points\{timestamp}\`
-- [ ] Restore point створюється ПЕРЕД заміною (pre-operation snapshot)
-- [ ] Кожен restore point: `languagedata_en.loc` + `metadata.json`
-- [ ] Restore original: download з `official_source_url` → replace → metadata `source: "official"`
-- [ ] Fallback: original snapshot використовується автоматично ТІЛЬКИ якщо достовірно встановлено, що `snapshot.game_patch == current.official_patch`. Якщо patch snapshot невідомий або не збігається — автоматичний restore заборонений, показати помилку
-- [ ] При відсутності official source + неможливості fallback → помилка
+- [x] Original snapshot: `%LocalAppData%\BDO-UA-Client\backups\original\`
+- [x] Original snapshot НЕ перезаписується (навіть при зміні game file)
+- [x] Metadata original snapshot: `created_at`, `game_patch` (nullable), `sha256` (локально), `size_bytes`
+- [x] Локальний SHA-256 — НЕ checksum від API
+- [x] Snapshot validation: size_bytes + SHA-256 при read
+- [x] Corrupted snapshot → explicit error, NOT overwritten
+- [x] Restore points: `%LocalAppData%\BDO-UA-Client\backups\restore-points\{unique-id}\`
+- [x] Restore point створюється ПЕРЕД replace (pre-operation snapshot)
+- [x] Кожен restore point: `languagedata_en.loc` + `metadata.json`
+- [x] Restore original: download з `official_source_url` → restore point → replace → verify → metadata `source: "official"`
+- [x] Fallback: snapshot.game_patch != null && currentOfficialPatch != null && match → allowed
+- [x] Fallback forbidden: patch null, mismatch, corrupted snapshot
+- [x] Replace safety: temp → move → verify → recovery on failure
+- [x] Post-replace recovery from restore point
 
-**Файли:** `Services/LocalizationInstaller.cs`
+**Файли:** `Storage/BackupStore.cs`, `Models/BackupMetadata.cs`, `Models/RestoreResult.cs`, `Services/HashHelper.cs`, `Services/RestoreOriginalService.cs`
 
 **Тести (v5.x):**
-- [ ] Original snapshot створюється один раз
-- [ ] Original snapshot НЕ перезаписується
-- [ ] Restore point створюється перед replace
-- [ ] Fallback: patch mismatch → помилка
+- [x] Original snapshot: first creation creates file + metadata
+- [x] Original snapshot: SHA/size metadata matches snapshot
+- [x] Original snapshot: second call does NOT overwrite
+- [x] Original snapshot: source changed → original remains unchanged
+- [x] Original snapshot: existing valid → accepted
+- [x] Original snapshot: corrupted → error, NOT overwritten
+- [x] Original snapshot: incomplete (file without metadata / metadata without file) → error
+- [x] Original snapshot: source missing → SourceMissing
+- [x] Original snapshot: cancellation leaves no partial
+- [x] Restore point: creates unique directory with file + metadata
+- [x] Restore point: hash/size correct
+- [x] Restore point: source missing → failure
+- [x] Official restore: success → restore point created, file replaced, metadata saved
+- [x] Official restore: download temp cleaned
+- [x] Official restore: game_patch recorded
+- [x] Fallback: official unavailable + patch match → fallback success
+- [x] Fallback: patch mismatch → PatchMismatch
+- [x] Fallback: snapshot patch null → FallbackNotAllowed
+- [x] Fallback: currentOfficialPatch null → FallbackNotAllowed
+- [x] Fallback: corrupted snapshot → FallbackNotAllowed
+- [x] Fallback: does not modify immutable snapshot
+- [x] Failure before replace → target unchanged
 
 ---
 
