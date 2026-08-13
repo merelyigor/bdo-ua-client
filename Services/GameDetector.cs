@@ -315,7 +315,7 @@ public sealed class GameDetector
         return null;
     }
 
-    private static List<string> GetSteamPaths()
+    private List<string> GetSteamPaths()
     {
         var paths = new List<string>();
 
@@ -336,8 +336,9 @@ public sealed class GameDetector
                     paths.Add(normalized);
             }
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Debug($"Cannot read Steam registry path: {ex.Message}");
         }
 
         return paths;
@@ -507,6 +508,10 @@ public sealed class GameDetector
             await _configStore.SaveAsync(config, cancellationToken).ConfigureAwait(false);
             _logger.Debug($"Game path saved: {gamePath} (source: {source})");
             return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {

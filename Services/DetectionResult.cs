@@ -13,10 +13,10 @@ public sealed class DetectionResult
 {
     public bool IsFound { get; }
     public string? GamePath { get; }
-    public DetectionSource Source { get; }
+    public DetectionSource? Source { get; }
     public bool Persisted { get; }
 
-    private DetectionResult(bool isFound, string? gamePath, DetectionSource source, bool persisted)
+    private DetectionResult(bool isFound, string? gamePath, DetectionSource? source, bool persisted)
     {
         IsFound = isFound;
         GamePath = gamePath;
@@ -28,5 +28,5 @@ public sealed class DetectionResult
         new(true, gamePath, source, persisted);
 
     public static DetectionResult NotFound() =>
-        new(false, null, default, false);
+        new(false, null, null, false);
 }

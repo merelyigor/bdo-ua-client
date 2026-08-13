@@ -301,15 +301,16 @@ public class GameDetectorTests : IDisposable
     }
 
     [Fact]
-    public void DetectionResult_NotFound()
+    public void DetectionResult_NotFound_SourceIsNull()
     {
         var result = DetectionResult.NotFound();
         Assert.False(result.IsFound);
         Assert.Null(result.GamePath);
+        Assert.Null(result.Source);
         Assert.False(result.Persisted);
     }
 
-    // Saved config (integration - tests config store interaction)
+    // Saved config
 
     [Fact]
     public async Task DetectFromSavedConfig_ValidPath_ReturnsSavedConfig()
@@ -326,7 +327,7 @@ public class GameDetectorTests : IDisposable
     }
 
     [Fact]
-    public async Task DetectFromSavedConfig_InvalidPath_DoesNotReturnSavedConfig()
+    public async Task DetectFromSavedConfig_InvalidPath_SavedConfigNotUsed()
     {
         var config = new Config { GamePath = @"C:\Invalid\Path" };
         await _configStore.SaveAsync(config);
@@ -337,7 +338,7 @@ public class GameDetectorTests : IDisposable
     }
 
     [Fact]
-    public async Task DetectFromSavedConfig_EmptyPath_DoesNotReturnSavedConfig()
+    public async Task DetectFromSavedConfig_EmptyPath_SavedConfigNotUsed()
     {
         var config = new Config { GamePath = "" };
         await _configStore.SaveAsync(config);
@@ -372,6 +373,7 @@ public class GameDetectorTests : IDisposable
         var result = await _detector.ValidateAndSaveManualPathAsync(invalidPath);
 
         Assert.False(result.IsFound);
+        Assert.Null(result.Source);
     }
 
     [Fact]
@@ -388,22 +390,51 @@ public class GameDetectorTests : IDisposable
         Assert.Equal(gamePath, loaded.Value!.GamePath);
     }
 
-    // API pattern with trailing ads (integration)
+    // API pattern: real contract shape — {drive}:\...\Black Desert Online\ads\
 
     [Fact]
-    public void ApiPattern_TrailingAds_ConvertedToGameRoot()
+    public void ApiPattern_RealContractShape_ExpandsAndNormalizesToGameRoot()
+    {
+        var gameRoot = CreateFakeGamePath();
+        var rootName = Path.GetPathRoot(gameRoot)!.TrimEnd('\\', '/');
+
+        var relativeFromRoot = gameRoot[(rootName.Length + 1)..];
+        var pattern = $@"{{drive}}:\{relativeFromRoot}\ads\";
+
+        var expanded = GameDetector.ExpandApiPattern(pattern, rootName);
+        Assert.NotNull(expanded);
+        Assert.Contains("ads", expanded);
+
+        var gameRootResult = GameDetector.NormalizeApiPathToGameRoot(expanded);
+        Assert.NotNull(gameRootResult);
+
+        var expectedGameRoot = Path.GetFullPath(gameRoot);
+        var actualGameRoot = Path.GetFullPath(gameRootResult!);
+        Assert.Equal(expectedGameRoot, actualGameRoot);
+
+        Assert.True(GameDetector.ValidateGamePath(gameRootResult!));
+    }
+
+    // Cancellation propagation
+
+    [Fact]
+    public async Task ManualPath_Cancellation_ThrowsOperationCanceledException()
     {
         var gamePath = CreateFakeGamePath();
-        var driveLetter = Path.GetPathRoot(gamePath)!.TrimEnd('\\', '/').TrimEnd(':');
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
 
-        var parentDir = Path.GetDirectoryName(gamePath)!;
-        var pattern = $@"{driveLetter}:\{{drive}}:\...\Black Desert Online\ads\";
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => _detector.ValidateAndSaveManualPathAsync(gamePath, cts.Token));
+    }
 
-        var expanded = GameDetector.ExpandApiPattern(pattern, driveLetter + ":");
-        Assert.NotNull(expanded);
+    // Persistence: NotFound has null source
 
-        var normalized = GameDetector.NormalizeApiPathToGameRoot(expanded);
-        Assert.NotNull(normalized);
+    [Fact]
+    public void NotFound_HasNullSource()
+    {
+        var result = DetectionResult.NotFound();
+        Assert.Null(result.Source);
     }
 
     private string CreateFakeGamePath(string? subDir = null)
