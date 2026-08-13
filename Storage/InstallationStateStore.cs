@@ -145,6 +145,8 @@ public sealed class InstallationStateStore
             return "version is null";
         if (string.IsNullOrEmpty(metadata.Sha256))
             return "sha256 is empty";
+        if (metadata.GamePatch == null)
+            return "game_patch is null";
         return null;
     }
 

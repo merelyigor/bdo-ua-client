@@ -14,7 +14,7 @@ public sealed class InstallationMetadata
     public int? Version { get; set; }
 
     [JsonPropertyName("game_patch")]
-    public int GamePatch { get; set; }
+    public int? GamePatch { get; set; }
 
     [JsonPropertyName("sha256")]
     public string? Sha256 { get; set; }

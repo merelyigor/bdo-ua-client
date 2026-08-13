@@ -26,21 +26,22 @@ public class RestoreOriginalServiceTests : IDisposable
             Directory.Delete(_tempDir, true);
     }
 
-    private string CreateGameFile(byte[]? content = null)
+    private string CreateGameRoot(byte[]? content = null)
     {
         var gameDir = Path.Combine(_tempDir, "game", "ads");
         Directory.CreateDirectory(gameDir);
         var path = Path.Combine(gameDir, "languagedata_en.loc");
         File.WriteAllText(path, content != null ? Encoding.UTF8.GetString(content) : "game content");
-        return path;
+        return Path.Combine(_tempDir, "game");
     }
+
+    private string GameLocFilePath => Path.Combine(_tempDir, "game", "ads", "languagedata_en.loc");
 
     private async Task CreateValidSnapshot(int? gamePatch, byte[]? content = null)
     {
         var backupStore = new BackupStore(_paths, _logger);
-        var snapshotSource = Path.Combine(_tempDir, "snapshot_source.loc");
-        File.WriteAllBytes(snapshotSource, content ?? Encoding.UTF8.GetBytes("snapshot content"));
-        await backupStore.CreateOriginalSnapshotAsync(snapshotSource, trustedGamePatch: gamePatch);
+        var gameRoot = CreateGameRoot(content ?? Encoding.UTF8.GetBytes("snapshot content"));
+        await backupStore.CreateOriginalSnapshotAsync(gameRoot, trustedGamePatch: gamePatch);
     }
 
     private RestoreOriginalService CreateService(
@@ -53,9 +54,31 @@ public class RestoreOriginalServiceTests : IDisposable
 
         return new RestoreOriginalService(
             installer, backupStore, stateStore, _logger,
-            gameLocFilePath: Path.Combine(_tempDir, "game", "ads", "languagedata_en.loc"),
+            gameRoot: Path.Combine(_tempDir, "game"),
             officialSourceUrl: officialUrl ?? "https://example.com/loc.loc",
             currentOfficialPatch: currentOfficialPatch);
+    }
+
+    // --- Upfront validation: missing game target ---
+
+    [Fact]
+    public async Task RestoreOriginalAsync_MissingGameTarget_ReturnsInvalidGamePath_NoHttpRequest()
+    {
+        var handler = new MockHttpHandler(null, 0);
+        var service = new RestoreOriginalService(
+            new LocalizationInstaller(new HttpClient(handler), _paths, _logger),
+            new BackupStore(_paths, _logger),
+            new InstallationStateStore(_paths, _logger),
+            _logger,
+            gameRoot: Path.Combine(_tempDir, "nonexistent"),
+            officialSourceUrl: "https://example.com/loc.loc",
+            currentOfficialPatch: 100);
+
+        var result = await service.RestoreOriginalAsync();
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(RestoreError.InvalidGamePath, result.Error);
+        Assert.Equal(0, handler.RequestCount);
     }
 
     // --- Official restore: success ---
@@ -63,7 +86,7 @@ public class RestoreOriginalServiceTests : IDisposable
     [Fact]
     public async Task RestoreOriginalAsync_OfficialSuccess_ReplacesFileAndSavesMetadata()
     {
-        var gameFile = CreateGameFile(Encoding.UTF8.GetBytes("old content"));
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("old content"));
         var officialContent = Encoding.UTF8.GetBytes("official restored content");
         var handler = new MockHttpHandler(officialContent, officialContent.Length);
 
@@ -72,7 +95,7 @@ public class RestoreOriginalServiceTests : IDisposable
         var result = await service.RestoreOriginalAsync();
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("official restored content", File.ReadAllText(gameFile));
+        Assert.Equal("official restored content", File.ReadAllText(GameLocFilePath));
 
         var stateStore = new InstallationStateStore(_paths, _logger);
         var state = stateStore.Load();
@@ -85,7 +108,7 @@ public class RestoreOriginalServiceTests : IDisposable
     [Fact]
     public async Task RestoreOriginalAsync_OfficialSuccess_CreatesRestorePoint()
     {
-        var gameFile = CreateGameFile(Encoding.UTF8.GetBytes("old content"));
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("old content"));
         var officialContent = Encoding.UTF8.GetBytes("new content");
         var handler = new MockHttpHandler(officialContent, officialContent.Length);
 
@@ -105,6 +128,7 @@ public class RestoreOriginalServiceTests : IDisposable
     [Fact]
     public async Task RestoreOriginalAsync_OfficialSuccess_DownloadTempCleaned()
     {
+        var gameRoot = CreateGameRoot();
         var officialContent = Encoding.UTF8.GetBytes("content");
         var handler = new MockHttpHandler(officialContent, officialContent.Length);
 
@@ -116,12 +140,48 @@ public class RestoreOriginalServiceTests : IDisposable
         Assert.Empty(tmpFiles);
     }
 
+    [Fact]
+    public async Task RestoreOriginalAsync_OfficialSuccess_GamePatchRecorded()
+    {
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("old"));
+        var officialContent = Encoding.UTF8.GetBytes("new");
+        var handler = new MockHttpHandler(officialContent, officialContent.Length);
+
+        var service = CreateService(handler, currentOfficialPatch: 42);
+
+        var result = await service.RestoreOriginalAsync();
+
+        Assert.True(result.IsSuccess);
+
+        var stateStore = new InstallationStateStore(_paths, _logger);
+        var state = stateStore.Load();
+        Assert.Equal(42, state.Value!.GamePatch);
+    }
+
+    [Fact]
+    public async Task RestoreOriginalAsync_OfficialSuccess_GamePatchNull_StoredAsNull()
+    {
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("old"));
+        var officialContent = Encoding.UTF8.GetBytes("new");
+        var handler = new MockHttpHandler(officialContent, officialContent.Length);
+
+        var service = CreateService(handler, currentOfficialPatch: null);
+
+        var result = await service.RestoreOriginalAsync();
+
+        Assert.True(result.IsSuccess);
+
+        var stateStore = new InstallationStateStore(_paths, _logger);
+        var state = stateStore.Load();
+        Assert.Null(state.Value!.GamePatch);
+    }
+
     // --- Official download fails → fallback ---
 
     [Fact]
     public async Task RestoreOriginalAsync_DownloadFails_FallbackToSnapshot()
     {
-        var gameFile = CreateGameFile(Encoding.UTF8.GetBytes("original game"));
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("original game"));
 
         await CreateValidSnapshot(gamePatch: 100, content: Encoding.UTF8.GetBytes("original snapshot"));
 
@@ -132,7 +192,7 @@ public class RestoreOriginalServiceTests : IDisposable
         var result = await service.RestoreOriginalAsync();
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("original snapshot", File.ReadAllText(gameFile));
+        Assert.Equal("original snapshot", File.ReadAllText(GameLocFilePath));
     }
 
     // --- Fallback: patch mismatch → PatchMismatch ---
@@ -140,7 +200,7 @@ public class RestoreOriginalServiceTests : IDisposable
     [Fact]
     public async Task RestoreOriginalAsync_PatchMismatch_ReturnsPatchMismatch()
     {
-        var gameFile = CreateGameFile();
+        var gameRoot = CreateGameRoot();
 
         await CreateValidSnapshot(gamePatch: 99, content: Encoding.UTF8.GetBytes("snapshot content"));
 
@@ -159,7 +219,7 @@ public class RestoreOriginalServiceTests : IDisposable
     [Fact]
     public async Task RestoreOriginalAsync_SnapshotPatchNull_ReturnsFallbackNotAllowed()
     {
-        var gameFile = CreateGameFile();
+        var gameRoot = CreateGameRoot();
 
         await CreateValidSnapshot(gamePatch: null, content: Encoding.UTF8.GetBytes("snapshot content"));
 
@@ -178,7 +238,7 @@ public class RestoreOriginalServiceTests : IDisposable
     [Fact]
     public async Task RestoreOriginalAsync_CurrentPatchNull_ReturnsFallbackNotAllowed()
     {
-        var gameFile = CreateGameFile();
+        var gameRoot = CreateGameRoot();
 
         await CreateValidSnapshot(gamePatch: 100, content: Encoding.UTF8.GetBytes("snapshot content"));
 
@@ -197,7 +257,7 @@ public class RestoreOriginalServiceTests : IDisposable
     [Fact]
     public async Task RestoreOriginalAsync_CorruptedSnapshot_ReturnsFallbackNotAllowed()
     {
-        var gameFile = CreateGameFile();
+        var gameRoot = CreateGameRoot();
 
         await CreateValidSnapshot(gamePatch: 100, content: Encoding.UTF8.GetBytes("snapshot content"));
 
@@ -218,11 +278,11 @@ public class RestoreOriginalServiceTests : IDisposable
     [Fact]
     public async Task RestoreOriginalAsync_Fallback_DoesNotModifySnapshot()
     {
-        var gameFile = CreateGameFile(Encoding.UTF8.GetBytes("game"));
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("game"));
 
         await CreateValidSnapshot(gamePatch: 100, content: Encoding.UTF8.GetBytes("immutable snapshot"));
 
-        var originalSnapshotHash = BdoClient.Services.HashHelper.ComputeFileSha256(
+        var originalSnapshotHash = await BdoClient.Services.HashHelper.ComputeFileSha256Async(
             Path.Combine(_paths.OriginalBackupDir, "languagedata_en.loc"));
 
         var handler = new MockHttpHandler(null, 0, statusCode: 500);
@@ -231,7 +291,7 @@ public class RestoreOriginalServiceTests : IDisposable
 
         await service.RestoreOriginalAsync();
 
-        var afterHash = BdoClient.Services.HashHelper.ComputeFileSha256(
+        var afterHash = await BdoClient.Services.HashHelper.ComputeFileSha256Async(
             Path.Combine(_paths.OriginalBackupDir, "languagedata_en.loc"));
         Assert.Equal(originalSnapshotHash, afterHash);
     }
@@ -241,7 +301,7 @@ public class RestoreOriginalServiceTests : IDisposable
     [Fact]
     public async Task RestoreOriginalAsync_DownloadFailsNoSnapshot_TargetUnchanged()
     {
-        var gameFile = CreateGameFile(Encoding.UTF8.GetBytes("original"));
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("original"));
 
         var handler = new MockHttpHandler(null, 0, statusCode: 500);
         handler.FailUntilAttempt = 10;
@@ -250,27 +310,23 @@ public class RestoreOriginalServiceTests : IDisposable
         var result = await service.RestoreOriginalAsync();
 
         Assert.False(result.IsSuccess);
-        Assert.Equal("original", File.ReadAllText(gameFile));
+        Assert.Equal("original", File.ReadAllText(GameLocFilePath));
     }
 
-    // --- Official restore: state save failure → recovery attempted ---
+    // --- Source validation: arbitrary .loc outside game ads path ---
 
     [Fact]
-    public async Task RestoreOriginalAsync_OfficialSuccess_GamePatchRecorded()
+    public async Task CreateOriginalSnapshot_ArbitraryPathOutsideGameAds_Rejected()
     {
-        var gameFile = CreateGameFile(Encoding.UTF8.GetBytes("old"));
-        var officialContent = Encoding.UTF8.GetBytes("new");
-        var handler = new MockHttpHandler(officialContent, officialContent.Length);
+        var arbitraryDir = Path.Combine(_tempDir, "arbitrary");
+        Directory.CreateDirectory(arbitraryDir);
+        File.WriteAllText(Path.Combine(arbitraryDir, "languagedata_en.loc"), "data");
 
-        var service = CreateService(handler, currentOfficialPatch: 42);
+        var store = new BackupStore(_paths, _logger);
+        var result = await store.CreateOriginalSnapshotAsync(arbitraryDir, trustedGamePatch: 100);
 
-        var result = await service.RestoreOriginalAsync();
-
-        Assert.True(result.IsSuccess);
-
-        var stateStore = new InstallationStateStore(_paths, _logger);
-        var state = stateStore.Load();
-        Assert.Equal(42, state.Value!.GamePatch);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(RestoreError.SourceMissing, result.Error);
     }
 
     // --- MockHttpHandler ---
