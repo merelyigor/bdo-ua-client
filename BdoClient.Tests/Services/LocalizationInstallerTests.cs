@@ -192,7 +192,7 @@ public class LocalizationInstallerTests : IDisposable
 
         Assert.False(result.IsSuccess);
         Assert.Equal(DownloadError.HashMismatch, result.Error);
-        Assert.Null(result.TempFilePath);
+        Assert.Equal(0, GetTmpFileCount());
     }
 
     // Size mismatch (Content-Length)
@@ -369,10 +369,10 @@ public class LocalizationInstallerTests : IDisposable
         Assert.Equal(0, handler.RequestCount);
     }
 
-    // Temp file cleaned on HashMismatch
+    // Cleanup after HashMismatch
 
     [Fact]
-    public async Task DownloadReleaseAsync_HashMismatch_TempFileCleaned()
+    public async Task DownloadReleaseAsync_HashMismatch_CacheDirEmpty()
     {
         var content = Encoding.UTF8.GetBytes("test");
         var handler = new MockHttpHandler(content, content.Length);
@@ -386,13 +386,13 @@ public class LocalizationInstallerTests : IDisposable
 
         Assert.False(result.IsSuccess);
         Assert.Equal(DownloadError.HashMismatch, result.Error);
-        Assert.Null(result.TempFilePath);
+        Assert.Equal(0, GetTmpFileCount());
     }
 
-    // Temp file cleaned on SizeMismatch
+    // Cleanup after SizeMismatch
 
     [Fact]
-    public async Task DownloadReleaseAsync_SizeMismatch_TempFileCleaned()
+    public async Task DownloadReleaseAsync_SizeMismatch_CacheDirEmpty()
     {
         var content = Encoding.UTF8.GetBytes("test");
         var handler = new MockHttpHandler(content, 9999);
@@ -406,31 +406,13 @@ public class LocalizationInstallerTests : IDisposable
 
         Assert.False(result.IsSuccess);
         Assert.Equal(DownloadError.SizeMismatch, result.Error);
-        Assert.Null(result.TempFilePath);
+        Assert.Equal(0, GetTmpFileCount());
     }
 
-    // Temp file cleaned on network failure
+    // Cleanup after cancellation
 
     [Fact]
-    public async Task DownloadReleaseAsync_NetworkFailure_TempFileCleaned()
-    {
-        var handler = new MockHttpHandler(null, 0);
-        handler.ThrowOnAttempt = 10;
-        var installer = CreateInstaller(handler, retryDelaysMs: new[] { 0, 0, 0 });
-
-        var release = CreateValidRelease();
-
-        var result = await installer.DownloadReleaseAsync(release);
-
-        Assert.False(result.IsSuccess);
-        Assert.Equal(DownloadError.Network, result.Error);
-        Assert.Null(result.TempFilePath);
-    }
-
-    // Temp file cleaned on cancellation
-
-    [Fact]
-    public async Task DownloadReleaseAsync_Cancellation_TempFileCleaned()
+    public async Task DownloadReleaseAsync_Cancellation_CacheDirEmpty()
     {
         var content = Encoding.UTF8.GetBytes("test");
         var handler = new MockHttpHandler(content, content.Length, delayMs: 5000);
@@ -449,6 +431,26 @@ public class LocalizationInstallerTests : IDisposable
         }
         catch (OperationCanceledException) { }
 
+        Assert.Equal(0, GetTmpFileCount());
+    }
+
+    // Stream failure (IOException) after partial write → cleanup
+
+    [Fact]
+    public async Task DownloadReleaseAsync_StreamFailure_AfterPartialWrite_CleansTempFile()
+    {
+        var firstChunk = Encoding.UTF8.GetBytes("first_chunk");
+        var handler = new PartialFailingHandler(firstChunk, failOnRead: 1);
+        var installer = CreateInstaller(handler);
+
+        var release = CreateValidRelease();
+        release.SizeBytes = firstChunk.Length + 500;
+        release.Sha256 = "doesnt_matter";
+
+        var result = await installer.DownloadReleaseAsync(release);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DownloadError.Io, result.Error);
         Assert.Equal(0, GetTmpFileCount());
     }
 
@@ -674,33 +676,36 @@ public class LocalizationInstallerTests : IDisposable
     // DownloadResult types
 
     [Fact]
-    public void DownloadResult_Success_HasCorrectProperties()
+    public void DownloadResult_Success_ErrorIsNull()
     {
         var result = DownloadResult.Success("/tmp/file.tmp", 1024, "abc123");
         Assert.True(result.IsSuccess);
+        Assert.Null(result.Error);
         Assert.Equal("/tmp/file.tmp", result.TempFilePath);
         Assert.Equal(1024, result.SizeBytes);
         Assert.Equal("abc123", result.Sha256);
     }
 
     [Fact]
-    public void DownloadResult_SuccessWithoutHash_HasCorrectProperties()
+    public void DownloadResult_SuccessWithoutHash_ErrorIsNull()
     {
         var result = DownloadResult.SuccessWithoutHash("/tmp/file.tmp", 512);
         Assert.True(result.IsSuccess);
+        Assert.Null(result.Error);
         Assert.Null(result.Sha256);
     }
 
     [Fact]
-    public void DownloadResult_Failure_HasCorrectProperties()
+    public void DownloadResult_Failure_ErrorIsNotNull()
     {
         var result = DownloadResult.Failure(DownloadError.Network, "connection refused");
         Assert.False(result.IsSuccess);
+        Assert.NotNull(result.Error);
         Assert.Equal(DownloadError.Network, result.Error);
         Assert.Equal("connection refused", result.ErrorMessage);
     }
 
-    private LocalizationInstaller CreateInstaller(MockHttpHandler handler,
+    private LocalizationInstaller CreateInstaller(HttpMessageHandler handler,
         int timeoutSeconds = 60, int[]? retryDelaysMs = null)
     {
         var httpClient = new HttpClient(handler);
@@ -781,5 +786,88 @@ public class LocalizationInstallerTests : IDisposable
 
             return new HttpResponseMessage((System.Net.HttpStatusCode)_statusCode) { Content = content };
         }
+    }
+
+    private class PartialFailingHandler : HttpMessageHandler
+    {
+        private readonly byte[] _firstChunk;
+        private readonly int _failOnRead;
+
+        public int RequestCount { get; private set; }
+
+        public PartialFailingHandler(byte[] firstChunk, int failOnRead = 2)
+        {
+            _firstChunk = firstChunk;
+            _failOnRead = failOnRead;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            RequestCount++;
+
+            var stream = new FailingStream(_firstChunk, _failOnRead);
+            var content = new StreamContent(stream);
+            content.Headers.ContentLength = stream.Length;
+
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = content });
+        }
+    }
+
+    private class FailingStream : Stream
+    {
+        private readonly byte[] _data;
+        private readonly int _failAfterReads;
+        private int _reads;
+        private int _position;
+
+        public FailingStream(byte[] data, int failAfterReads)
+        {
+            _data = new byte[data.Length + 500];
+            Array.Copy(data, _data, data.Length);
+            _failAfterReads = failAfterReads;
+        }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => _data.Length;
+        public override long Position { get => _position; set => throw new NotSupportedException(); }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(Read(buffer, offset, count));
+        }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            var temp = new byte[buffer.Length];
+            var read = Read(temp, 0, buffer.Length);
+            temp.AsMemory(0, read).CopyTo(buffer);
+            return ValueTask.FromResult(read);
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            _reads++;
+            if (_reads > _failAfterReads)
+                throw new IOException("Simulated stream failure");
+
+            var available = _data.Length - _position;
+            if (available <= 0)
+                return 0;
+
+            var toCopy = Math.Min(count, available);
+            Array.Copy(_data, _position, buffer, offset, toCopy);
+            _position += toCopy;
+            return toCopy;
+        }
+
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing) { }
     }
 }

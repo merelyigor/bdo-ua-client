@@ -7,7 +7,6 @@ namespace BdoClient.Services;
 
 public sealed class LocalizationInstaller
 {
-    private const int DefaultMaxRetries = 3;
     private static readonly int[] DefaultRetryDelaysMs = { 1000, 2000, 4000 };
     private const int DefaultTimeoutSeconds = 60;
     private const int ReadBufferSize = 81920;
@@ -62,7 +61,7 @@ public sealed class LocalizationInstaller
             if (result.IsSuccess)
                 return result;
 
-            lastError = result.Error;
+            lastError = result.Error!.Value;
             lastErrorMessage = result.ErrorMessage;
 
             if (!result.IsRetryable)
@@ -99,7 +98,7 @@ public sealed class LocalizationInstaller
             if (result.IsSuccess)
                 return result;
 
-            lastError = result.Error;
+            lastError = result.Error!.Value;
             lastErrorMessage = result.ErrorMessage;
 
             if (!result.IsRetryable)
@@ -147,13 +146,18 @@ public sealed class LocalizationInstaller
                     $"Content-Length {contentLength.Value} differs from expected {expectedSize}");
             }
 
-            await using var responseStream = await response.Content
-                .ReadAsStreamAsync(attemptCts.Token).ConfigureAwait(false);
-            await using var fileStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None,
-                ReadBufferSize, FileOptions.Asynchronous);
+            long bytesDownloaded;
+            string computedSha256;
 
-            var (bytesDownloaded, computedSha256) = await CopyAndHashAsync(
-                responseStream, fileStream, expectedSize, progress, attemptCts.Token).ConfigureAwait(false);
+            {
+                await using var responseStream = await response.Content
+                    .ReadAsStreamAsync(attemptCts.Token).ConfigureAwait(false);
+                await using var fileStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None,
+                    ReadBufferSize, FileOptions.Asynchronous);
+
+                (bytesDownloaded, computedSha256) = await CopyAndHashAsync(
+                    responseStream, fileStream, expectedSize, progress, attemptCts.Token).ConfigureAwait(false);
+            }
 
             if (bytesDownloaded != expectedSize)
             {
@@ -234,13 +238,17 @@ public sealed class LocalizationInstaller
 
             var contentLength = response.Content.Headers.ContentLength;
 
-            await using var responseStream = await response.Content
-                .ReadAsStreamAsync(attemptCts.Token).ConfigureAwait(false);
-            await using var fileStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None,
-                ReadBufferSize, FileOptions.Asynchronous);
+            long bytesDownloaded;
 
-            var bytesDownloaded = await CopyAndReportAsync(
-                responseStream, fileStream, contentLength, progress, attemptCts.Token).ConfigureAwait(false);
+            {
+                await using var responseStream = await response.Content
+                    .ReadAsStreamAsync(attemptCts.Token).ConfigureAwait(false);
+                await using var fileStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None,
+                    ReadBufferSize, FileOptions.Asynchronous);
+
+                bytesDownloaded = await CopyAndReportAsync(
+                    responseStream, fileStream, contentLength, progress, attemptCts.Token).ConfigureAwait(false);
+            }
 
             _logger.Info($"Official source downloaded: {tempFilePath} ({bytesDownloaded} bytes)");
             return DownloadResult.SuccessWithoutHash(tempFilePath, bytesDownloaded);
