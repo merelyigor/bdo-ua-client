@@ -11,22 +11,19 @@ public sealed class LocalizationInstallService
     private readonly InstallationStateStore _stateStore;
     private readonly ILogger _logger;
     private readonly string _gameRoot;
-    private readonly string _officialSourceUrl;
 
     public LocalizationInstallService(
         LocalizationInstaller installer,
         BackupStore backupStore,
         InstallationStateStore stateStore,
         ILogger logger,
-        string gameRoot,
-        string officialSourceUrl)
+        string gameRoot)
     {
         _installer = installer ?? throw new ArgumentNullException(nameof(installer));
         _backupStore = backupStore ?? throw new ArgumentNullException(nameof(backupStore));
         _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _gameRoot = gameRoot ?? throw new ArgumentNullException(nameof(gameRoot));
-        _officialSourceUrl = officialSourceUrl ?? throw new ArgumentNullException(nameof(officialSourceUrl));
     }
 
     public async Task<InstallResult> InstallReleaseAsync(
@@ -59,7 +56,9 @@ public sealed class LocalizationInstallService
         if (release.Patch <= 0)
             return InstallResult.Failure(InstallError.InvalidRelease, "release.Patch is invalid");
 
-        if (string.IsNullOrWhiteSpace(release.DownloadUrl) || !release.DownloadUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(release.DownloadUrl)
+            || !Uri.TryCreate(release.DownloadUrl, UriKind.Absolute, out var uri)
+            || uri.Scheme != Uri.UriSchemeHttps)
             return InstallResult.Failure(InstallError.InvalidRelease, "release.DownloadUrl is invalid");
 
         if (release.SizeBytes <= 0)
@@ -70,92 +69,23 @@ public sealed class LocalizationInstallService
 
         if (!release.CompatibleWithOfficialPatch)
         {
-            _logger.Error($"Release incompatible: compatible_with_official_patch=false");
+            _logger.Error("Release incompatible: compatible_with_official_patch=false");
             return InstallResult.Failure(InstallError.Incompatible,
                 "Release is not compatible with official patch");
         }
 
-        // --- Phase 2: Original snapshot safety ---
-        var (snapExists, snapValid, snapError) = await _backupStore
-            .CheckOriginalSnapshotAsync(cancellationToken).ConfigureAwait(false);
-
-        if (snapExists && !snapValid)
+        // --- Phase 2: Validate pre-operation installation state ---
+        var preStateLoad = _stateStore.Load();
+        if (preStateLoad.Status == FileLoadStatus.Invalid)
         {
-            _logger.Error("Original snapshot corrupted — aborting transaction");
-            return InstallResult.Failure(InstallError.OriginalSnapshotFailed,
-                "Original snapshot exists but is corrupted");
+            _logger.Error($"Pre-operation installation state is invalid: {preStateLoad.Error}");
+            return InstallResult.Failure(InstallError.PreOperationStateFailed,
+                $"Pre-operation installation state is invalid: {preStateLoad.Error}");
         }
 
-        if (!snapExists)
-        {
-            // First install: check for inconsistent state
-            var currentState = ReadRawInstallationState();
-            if (currentState != null)
-            {
-                var metadata = System.Text.Json.JsonSerializer.Deserialize<InstallationMetadata>(
-                    currentState, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                if (metadata?.Source == "api")
-                {
-                    _logger.Error("No original snapshot but source=api metadata exists — aborting (inconsistent state)");
-                    return InstallResult.Failure(InstallError.OriginalSnapshotFailed,
-                        "Original snapshot missing with existing API installation metadata — inconsistent state");
-                }
-            }
-
-            // Create original snapshot from current game file
-            _logger.Info("Creating original snapshot (first install)");
-            var snapResult = await _backupStore
-                .CreateOriginalSnapshotAsync(_gameRoot, trustedGamePatch: null, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (!snapResult.IsSuccess)
-            {
-                _logger.Error($"Failed to create original snapshot: {snapResult.Error}");
-                return InstallResult.Failure(InstallError.OriginalSnapshotFailed,
-                    $"Failed to create original snapshot: {snapResult.ErrorMessage}");
-            }
-        }
-
-        // --- Phase 3: Capture pre-operation state ---
         var preStateBytes = ReadRawInstallationState();
 
-        // --- Phase 4: Create restore point ---
-        string? restorePointDir = null;
-        if (File.Exists(gameLocFilePath))
-        {
-            var rpDir = Path.Combine(
-                _backupStore.RestorePointsDir,
-                $"{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}_{Guid.NewGuid():N}".Substring(0, 35));
-            Directory.CreateDirectory(rpDir);
-
-            var rpFile = Path.Combine(rpDir, "languagedata_en.loc");
-            await HashHelper.CopyFileAsync(gameLocFilePath, rpFile, cancellationToken).ConfigureAwait(false);
-
-            var rpSha = await HashHelper.ComputeFileSha256Async(rpFile, cancellationToken).ConfigureAwait(false);
-            var rpSize = new FileInfo(rpFile).Length;
-
-            var rpMetadata = new BackupMetadata
-            {
-                CreatedAt = DateTimeOffset.UtcNow,
-                GamePatch = null,
-                Sha256 = rpSha,
-                SizeBytes = rpSize,
-                Source = "pre_install"
-            };
-            var rpJson = System.Text.Json.JsonSerializer.Serialize(rpMetadata,
-                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-            await File.WriteAllTextAsync(Path.Combine(rpDir, "metadata.json"), rpJson, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (preStateBytes != null)
-                await File.WriteAllBytesAsync(Path.Combine(rpDir, "installation-state.json"),
-                    preStateBytes, cancellationToken).ConfigureAwait(false);
-
-            restorePointDir = rpDir;
-            _logger.Info($"Restore point created: {rpDir}");
-        }
-
-        // --- Phase 5: Download ---
+        // --- Phase 3: Download + Stage 4 verification ---
         DownloadResult downloadResult;
         try
         {
@@ -165,22 +95,90 @@ public sealed class LocalizationInstallService
         }
         catch
         {
-            CleanupFile(restorePointDir);
             throw;
         }
 
         if (!downloadResult.IsSuccess)
         {
             _logger.Error($"Download failed: {downloadResult.Error}");
-            CleanupFile(restorePointDir);
             CleanupDownloadTemp(downloadResult.TempFilePath);
             return InstallResult.Failure(InstallError.DownloadFailed,
                 $"Download failed: {downloadResult.ErrorMessage}");
         }
 
-        // --- Phase 6: Replace game file ---
         string downloadTempPath = downloadResult.TempFilePath!;
 
+        // --- Phase 4: Original snapshot safety ---
+        var (snapExists, snapValid, snapError) = await _backupStore
+            .CheckOriginalSnapshotAsync(cancellationToken).ConfigureAwait(false);
+
+        if (snapExists && !snapValid)
+        {
+            _logger.Error("Original snapshot corrupted — aborting transaction");
+            CleanupDownloadTemp(downloadTempPath);
+            return InstallResult.Failure(InstallError.OriginalSnapshotFailed,
+                "Original snapshot exists but is corrupted");
+        }
+
+        if (!snapExists)
+        {
+            if (preStateLoad.Status == FileLoadStatus.Valid && preStateLoad.Value?.Source == "api")
+            {
+                _logger.Error("No original snapshot but source=api metadata exists — aborting (inconsistent state)");
+                CleanupDownloadTemp(downloadTempPath);
+                return InstallResult.Failure(InstallError.OriginalSnapshotFailed,
+                    "Original snapshot missing with existing API installation metadata — inconsistent state");
+            }
+
+            _logger.Info("Creating original snapshot (first install)");
+            var snapResult = await _backupStore
+                .CreateOriginalSnapshotAsync(_gameRoot, trustedGamePatch: null, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!snapResult.IsSuccess)
+            {
+                _logger.Error($"Failed to create original snapshot: {snapResult.Error}");
+                CleanupDownloadTemp(downloadTempPath);
+                return InstallResult.Failure(InstallError.OriginalSnapshotFailed,
+                    $"Failed to create original snapshot: {snapResult.ErrorMessage}");
+            }
+        }
+
+        // --- Phase 5: Capture pre-operation state (after download, before restore point) ---
+        preStateBytes = ReadRawInstallationState();
+
+        // --- Phase 6: Create restore point (after verified download, before replace) ---
+        string? restorePointDir = null;
+        if (File.Exists(gameLocFilePath))
+        {
+            var (rpDir, rpResult) = await _backupStore
+                .CreateRestorePointAsync(gameLocFilePath, release.Patch, "pre_install", cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!rpResult.IsSuccess || rpDir == null)
+            {
+                _logger.Error($"Failed to create restore point: {rpResult.Error}");
+                CleanupDownloadTemp(downloadTempPath);
+                return InstallResult.Failure(InstallError.BackupFailed,
+                    $"Failed to create restore point: {rpResult.ErrorMessage}");
+            }
+
+            restorePointDir = rpDir;
+
+            // Persist raw installation-state snapshot into restore point directory
+            if (preStateBytes != null)
+            {
+                var stateSnapshotPath = Path.Combine(rpDir, "installation-state.json");
+                var tempStatePath = stateSnapshotPath + ".tmp";
+                await File.WriteAllBytesAsync(tempStatePath, preStateBytes, cancellationToken)
+                    .ConfigureAwait(false);
+                File.Move(tempStatePath, stateSnapshotPath, overwrite: false);
+            }
+
+            _logger.Info($"Restore point created: {rpDir}");
+        }
+
+        // --- Phase 7: Replace game file (destructive boundary) ---
         try
         {
             var replaceResult = await _backupStore
@@ -189,10 +187,11 @@ public sealed class LocalizationInstallService
 
             if (!replaceResult.IsSuccess)
             {
+                CleanupDownloadTemp(downloadTempPath);
+
                 if (replaceResult.Error == RestoreError.VerificationFailed)
                 {
-                    _logger.Error("Post-replace verification failed");
-                    CleanupDownloadTemp(downloadTempPath);
+                    _logger.Error("Post-replace verification failed (internal recovery succeeded)");
                     return InstallResult.Failure(InstallError.VerificationFailed,
                         "Post-replace SHA-256 verification failed");
                 }
@@ -200,36 +199,38 @@ public sealed class LocalizationInstallService
                 if (replaceResult.Error == RestoreError.RecoveryFailed)
                 {
                     _logger.Error("Post-replace recovery failed — critical");
-                    CleanupDownloadTemp(downloadTempPath);
                     return InstallResult.Failure(InstallError.RollbackFailed,
                         "Replace failed and recovery also failed");
                 }
 
-                // ReplaceFailed without recovery (pre-replace)
+                // ReplaceFailed without recovery (pre-replace failure)
                 _logger.Error($"Replace failed: {replaceResult.Error}");
-                CleanupDownloadTemp(downloadTempPath);
-                CleanupFile(restorePointDir);
                 return InstallResult.Failure(InstallError.ReplaceFailed,
                     replaceResult.ErrorMessage);
             }
         }
         catch (OperationCanceledException)
         {
-            _logger.Warning("Transaction cancelled after replace — rolling back");
+            // ReplaceGameFileAsync handles post-replace recovery internally.
+            // Pre-replace OCE: game untouched, state untouched.
+            // Post-replace OCE: game recovered internally, state untouched.
+            // Stage 6 does NOT perform second game rollback here.
             CleanupDownloadTemp(downloadTempPath);
-            await RollbackAsync(gameLocFilePath, restorePointDir, preStateBytes).ConfigureAwait(false);
             throw;
         }
 
-        // --- Phase 7: Verify installed file ---
+        // --- Phase 8: Verify installed file against release contract ---
         try
         {
             var actualSize = new FileInfo(gameLocFilePath).Length;
             if (actualSize != release.SizeBytes)
             {
                 _logger.Error($"Post-replace size mismatch: expected {release.SizeBytes}, got {actualSize}");
-                await RollbackAsync(gameLocFilePath, restorePointDir, preStateBytes).ConfigureAwait(false);
                 CleanupDownloadTemp(downloadTempPath);
+                var rollbackResult = await RollbackAsync(gameLocFilePath, restorePointDir, preStateBytes)
+                    .ConfigureAwait(false);
+                if (!rollbackResult.IsSuccess)
+                    return InstallResult.Failure(InstallError.RollbackFailed, rollbackResult.ErrorMessage);
                 return InstallResult.Failure(InstallError.VerificationFailed,
                     $"Post-replace size mismatch: expected {release.SizeBytes}, got {actualSize}");
             }
@@ -238,9 +239,12 @@ public sealed class LocalizationInstallService
                 .ConfigureAwait(false);
             if (!string.Equals(actualSha, release.Sha256, StringComparison.OrdinalIgnoreCase))
             {
-                _logger.Error($"Post-replace hash mismatch");
-                await RollbackAsync(gameLocFilePath, restorePointDir, preStateBytes).ConfigureAwait(false);
+                _logger.Error("Post-replace SHA-256 mismatch");
                 CleanupDownloadTemp(downloadTempPath);
+                var rollbackResult = await RollbackAsync(gameLocFilePath, restorePointDir, preStateBytes)
+                    .ConfigureAwait(false);
+                if (!rollbackResult.IsSuccess)
+                    return InstallResult.Failure(InstallError.RollbackFailed, rollbackResult.ErrorMessage);
                 return InstallResult.Failure(InstallError.VerificationFailed,
                     "Post-replace SHA-256 mismatch");
             }
@@ -249,11 +253,14 @@ public sealed class LocalizationInstallService
         {
             _logger.Warning("Transaction cancelled during verification — rolling back");
             CleanupDownloadTemp(downloadTempPath);
-            await RollbackAsync(gameLocFilePath, restorePointDir, preStateBytes).ConfigureAwait(false);
+            var rollbackResult = await RollbackAsync(gameLocFilePath, restorePointDir, preStateBytes)
+                .ConfigureAwait(false);
+            if (!rollbackResult.IsSuccess)
+                return InstallResult.Failure(InstallError.RollbackFailed, rollbackResult.ErrorMessage);
             throw;
         }
 
-        // --- Phase 8: Save installation state ---
+        // --- Phase 9: Save installation state ---
         var newMetadata = new InstallationMetadata
         {
             Source = "api",
@@ -273,29 +280,36 @@ public sealed class LocalizationInstallService
         {
             _logger.Warning("Transaction cancelled during state save — rolling back");
             CleanupDownloadTemp(downloadTempPath);
-            await RollbackAsync(gameLocFilePath, restorePointDir, preStateBytes).ConfigureAwait(false);
+            var rollbackResult = await RollbackAsync(gameLocFilePath, restorePointDir, preStateBytes)
+                .ConfigureAwait(false);
+            if (!rollbackResult.IsSuccess)
+                return InstallResult.Failure(InstallError.RollbackFailed, rollbackResult.ErrorMessage);
             throw;
         }
         catch (Exception ex)
         {
             _logger.Error($"State save failed: {ex.Message}");
             CleanupDownloadTemp(downloadTempPath);
-            await RollbackAsync(gameLocFilePath, restorePointDir, preStateBytes).ConfigureAwait(false);
+            var rollbackResult = await RollbackAsync(gameLocFilePath, restorePointDir, preStateBytes)
+                .ConfigureAwait(false);
+            if (!rollbackResult.IsSuccess)
+                return InstallResult.Failure(InstallError.RollbackFailed, rollbackResult.ErrorMessage);
             return InstallResult.Failure(InstallError.StateSaveFailed, ex.Message);
         }
 
-        // --- Phase 9: Commit ---
+        // --- Phase 10: Commit ---
         CleanupDownloadTemp(downloadTempPath);
         _logger.Info($"Install transaction completed: mode={modeSlug}, public_id={release.PublicId}");
         return InstallResult.Success();
     }
 
-    private async Task RollbackAsync(string gameLocFilePath, string? restorePointDir, byte[]? preStateBytes)
+    private async Task<RollbackResult> RollbackAsync(
+        string gameLocFilePath, string? restorePointDir, byte[]? preStateBytes)
     {
         _logger.Warning("Rollback initiated");
 
         // 1. Restore game file
-        var gameRollbackOk = false;
+        var gameRestored = false;
         if (restorePointDir != null)
         {
             var rpFile = Path.Combine(restorePointDir, "languagedata_en.loc");
@@ -306,8 +320,8 @@ public sealed class LocalizationInstallService
                     var recoveryResult = await _backupStore
                         .RecoverFromRestorePointAsync(gameLocFilePath, restorePointDir, CancellationToken.None)
                         .ConfigureAwait(false);
-                    gameRollbackOk = recoveryResult.IsSuccess;
-                    if (gameRollbackOk)
+                    gameRestored = recoveryResult.IsSuccess;
+                    if (gameRestored)
                         _logger.Info("Game file rollback succeeded");
                     else
                         _logger.Error($"Game file rollback failed: {recoveryResult.Error}");
@@ -327,43 +341,82 @@ public sealed class LocalizationInstallService
             _logger.Warning("No restore point — cannot rollback game file");
         }
 
-        // 2. Restore installation state
-        var stateRollbackOk = false;
+        // 2. Restore installation state (always attempt, even if game rollback failed)
+        var stateRestored = false;
         try
         {
-            var stateRollbackPath = Path.Combine(_stateStore.StateDir, "installation.json");
-
-            if (preStateBytes == null)
-            {
-                // Pre-operation state was absent → delete
-                if (File.Exists(stateRollbackPath))
-                    File.Delete(stateRollbackPath);
-                stateRollbackOk = true;
-                _logger.Info("Installation state rollback: removed (was absent)");
-            }
-            else
-            {
-                // Pre-operation state existed → restore exact bytes
-                var tempPath = stateRollbackPath + ".rollback.tmp";
-                await File.WriteAllBytesAsync(tempPath, preStateBytes, CancellationToken.None).ConfigureAwait(false);
-
-                if (File.Exists(stateRollbackPath))
-                    File.Delete(stateRollbackPath);
-
-                File.Move(tempPath, stateRollbackPath);
-                stateRollbackOk = true;
-                _logger.Info("Installation state rollback: restored from snapshot");
-            }
+            stateRestored = await RollbackInstallationStateAsync(preStateBytes).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            _logger.Error($"Installation state rollback failed: {ex.Message}");
+            _logger.Error($"Installation state rollback exception: {ex.Message}");
         }
 
-        if (!gameRollbackOk || !stateRollbackOk)
-            _logger.Error("Rollback partially failed — game state may be inconsistent");
+        if (gameRestored && stateRestored)
+        {
+            _logger.Info("Rollback completed: both components restored");
+            return new RollbackResult(true, gameRestored, stateRestored, null);
+        }
 
-        CleanupFile(restorePointDir);
+        _logger.Error($"Rollback partially failed: game={gameRestored}, state={stateRestored}");
+        return new RollbackResult(false, gameRestored, stateRestored,
+            $"Rollback partially failed: game={gameRestored}, state={stateRestored}");
+    }
+
+    private async Task<bool> RollbackInstallationStateAsync(byte[]? preStateBytes)
+    {
+        var stateRollbackPath = Path.Combine(_stateStore.StateDir, "installation.json");
+
+        if (preStateBytes == null)
+        {
+            // Pre-operation state was absent → delete current
+            if (!File.Exists(stateRollbackPath))
+                return true;
+
+            File.Delete(stateRollbackPath);
+            var absent = !File.Exists(stateRollbackPath);
+            if (absent)
+                _logger.Info("Installation state rollback: removed (was absent)");
+            else
+                _logger.Error("Installation state rollback: file still exists after delete");
+            return absent;
+        }
+
+        // Pre-operation state existed → atomic restore via temp → replace → verify
+        var tempPath = Path.Combine(_stateStore.StateDir, $"installation.rollback.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            await File.WriteAllBytesAsync(tempPath, preStateBytes, CancellationToken.None).ConfigureAwait(false);
+
+            if (File.Exists(stateRollbackPath))
+            {
+                File.Replace(tempPath, stateRollbackPath, null);
+            }
+            else
+            {
+                File.Move(tempPath, stateRollbackPath, overwrite: false);
+            }
+
+            // Verify exact byte-for-byte match
+            var restoredBytes = await File.ReadAllBytesAsync(stateRollbackPath, CancellationToken.None)
+                .ConfigureAwait(false);
+            var match = restoredBytes.Length == preStateBytes.Length
+                && restoredBytes.AsSpan().SequenceEqual(preStateBytes);
+
+            if (match)
+            {
+                _logger.Info("Installation state rollback: restored from snapshot");
+                return true;
+            }
+
+            _logger.Error("Installation state rollback: verification mismatch after restore");
+            return false;
+        }
+        finally
+        {
+            // Cleanup temp best-effort
+            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+        }
     }
 
     private byte[]? ReadRawInstallationState()
@@ -385,20 +438,20 @@ public sealed class LocalizationInstallService
             _logger.Warning($"Failed to cleanup download temp: {ex.Message}");
         }
     }
+}
 
-    private void CleanupFile(string? path)
+internal sealed class RollbackResult
+{
+    public bool IsSuccess { get; }
+    public bool GameRestored { get; }
+    public bool StateRestored { get; }
+    public string? ErrorMessage { get; }
+
+    public RollbackResult(bool isSuccess, bool gameRestored, bool stateRestored, string? errorMessage)
     {
-        if (path == null) return;
-        try
-        {
-            if (File.Exists(path))
-                File.Delete(path);
-            else if (Directory.Exists(path))
-                Directory.Delete(path, recursive: true);
-        }
-        catch (Exception ex)
-        {
-            _logger.Warning($"Failed to cleanup: {ex.Message}");
-        }
+        IsSuccess = isSuccess;
+        GameRestored = gameRestored;
+        StateRestored = stateRestored;
+        ErrorMessage = errorMessage;
     }
 }

@@ -60,9 +60,8 @@ public class LocalizationInstallServiceTests : IDisposable
     }
 
     private LocalizationInstallService CreateService(
-        MockHttpHandler handler,
-        string? gameRoot = null,
-        string? officialUrl = null)
+        HttpMessageHandler handler,
+        string? gameRoot = null)
     {
         var httpClient = new HttpClient(handler);
         var installer = new LocalizationInstaller(httpClient, _paths, _logger);
@@ -71,8 +70,7 @@ public class LocalizationInstallServiceTests : IDisposable
 
         return new LocalizationInstallService(
             installer, backupStore, stateStore, _logger,
-            gameRoot: gameRoot ?? Path.Combine(_tempDir, "game"),
-            officialSourceUrl: officialUrl ?? "https://example.com/official.loc");
+            gameRoot: gameRoot ?? Path.Combine(_tempDir, "game"));
     }
 
     // --- Input validation ---
@@ -223,33 +221,34 @@ public class LocalizationInstallServiceTests : IDisposable
     public async Task InstallReleaseAsync_CorruptedOriginalSnapshot_ReturnsOriginalSnapshotFailed()
     {
         var gameRoot = CreateGameRoot();
-        var handler = new MockHttpHandler(null, 0);
-        var service = CreateService(handler);
 
         // Create valid snapshot then corrupt it
         var backupStore = new BackupStore(_paths, _logger);
         await backupStore.CreateOriginalSnapshotAsync(gameRoot, trustedGamePatch: 100);
         File.WriteAllText(Path.Combine(_paths.OriginalBackupDir, "languagedata_en.loc"), "corrupted");
 
-        var release = CreateRelease();
+        // Download must succeed (snapshot check happens after download in v6.1 ordering)
+        var releaseContent = Encoding.UTF8.GetBytes("new content");
+        var release = CreateRelease(content: releaseContent);
+        var handler = new MockHttpHandler(releaseContent, releaseContent.Length);
+        var service = CreateService(handler);
+
         var result = await service.InstallReleaseAsync("full-ukrainian", release);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(InstallError.OriginalSnapshotFailed, result.Error);
-        Assert.Equal(0, handler.RequestCount);
     }
 
     [Fact]
     public async Task InstallReleaseAsync_MissingSnapshotWithApiMetadata_ReturnsOriginalSnapshotFailed()
     {
         var gameRoot = CreateGameRoot();
-        var handler = new MockHttpHandler(null, 0);
-        var service = CreateService(handler);
 
-        // Write existing API metadata without original snapshot
+        // Write valid existing API metadata (no snapshot) — must include ModeSlug
         var metadata = new InstallationMetadata
         {
             Source = "api",
+            ModeSlug = "full-ukrainian",
             PublicId = "old-public-id",
             Version = 1,
             GamePatch = 100,
@@ -260,12 +259,16 @@ public class LocalizationInstallServiceTests : IDisposable
             new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(Path.Combine(_paths.StateDir, "installation.json"), json);
 
-        var release = CreateRelease();
+        // Download must succeed (snapshot check happens after download)
+        var releaseContent = Encoding.UTF8.GetBytes("new content");
+        var release = CreateRelease(content: releaseContent);
+        var handler = new MockHttpHandler(releaseContent, releaseContent.Length);
+        var service = CreateService(handler);
+
         var result = await service.InstallReleaseAsync("full-ukrainian", release);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(InstallError.OriginalSnapshotFailed, result.Error);
-        Assert.Equal(0, handler.RequestCount);
     }
 
     // --- First install success ---
@@ -318,7 +321,8 @@ public class LocalizationInstallServiceTests : IDisposable
         var oldMetadata = new InstallationMetadata
         {
             Source = "api",
-            PublicId = "old-public-id",
+            ModeSlug = "full-ukrainian",
+            PublicId = "old-id",
             Version = 1,
             GamePatch = 100,
             Sha256 = "old-sha",
@@ -327,13 +331,9 @@ public class LocalizationInstallServiceTests : IDisposable
         var stateStore = new InstallationStateStore(_paths, _logger);
         await stateStore.SaveAsync(oldMetadata);
 
-        // Create original snapshot (from initial game file before localization)
+        // Create original snapshot from the game root (must exist before service runs)
         var backupStore = new BackupStore(_paths, _logger);
-        var initialGameDir = Path.Combine(_tempDir, "initial", "ads");
-        Directory.CreateDirectory(initialGameDir);
-        File.WriteAllText(Path.Combine(initialGameDir, "languagedata_en.loc"), "initial game");
-        await backupStore.CreateOriginalSnapshotAsync(
-            Path.Combine(_tempDir, "initial"), trustedGamePatch: 100);
+        await backupStore.CreateOriginalSnapshotAsync(gameRoot, trustedGamePatch: 100);
 
         // New release
         var newContent = Encoding.UTF8.GetBytes("new localization v2");
@@ -348,8 +348,8 @@ public class LocalizationInstallServiceTests : IDisposable
 
         Assert.True(result.IsSuccess);
 
-        // Original snapshot unchanged (still "initial game")
-        Assert.Equal("initial game", File.ReadAllText(
+        // Original snapshot unchanged (still "old localization")
+        Assert.Equal("old localization", File.ReadAllText(
             Path.Combine(_paths.OriginalBackupDir, "languagedata_en.loc")));
 
         // Game file updated
@@ -360,7 +360,7 @@ public class LocalizationInstallServiceTests : IDisposable
         Assert.Equal("01ABCDEF1234567890ABCDEF", state.Value!.PublicId);
         Assert.Equal(2, state.Value.Version);
 
-        // Old restore point exists
+        // Restore point exists
         var rpDirs = Directory.GetDirectories(_paths.RestorePointsDir);
         Assert.NotEmpty(rpDirs);
     }
@@ -476,8 +476,7 @@ public class LocalizationInstallServiceTests : IDisposable
 
         var service = new LocalizationInstallService(
             installer, backupStore, stateStore, _logger,
-            gameRoot: Path.Combine(_tempDir, "game"),
-            officialSourceUrl: "https://example.com/official.loc");
+            gameRoot: Path.Combine(_tempDir, "game"));
 
         var result = await service.InstallReleaseAsync("full-ukrainian", release);
 
@@ -499,7 +498,9 @@ public class LocalizationInstallServiceTests : IDisposable
     public async Task InstallReleaseAsync_CancelledBeforeReplace_NoMutation()
     {
         var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("original"));
-        var handler = new MockHttpHandler(null, 0);
+
+        // Handler that respects cancellation token
+        var handler = new MockHttpHandlerWithCancellation();
 
         var service = CreateService(handler);
         using var cts = new CancellationTokenSource();
@@ -512,7 +513,6 @@ public class LocalizationInstallServiceTests : IDisposable
 
         Assert.Equal("original", File.ReadAllText(GameLocFilePath));
         Assert.False(File.Exists(Path.Combine(_paths.StateDir, "installation.json")));
-        Assert.Equal(0, handler.RequestCount);
     }
 
     // --- Restore point retention ---
@@ -566,6 +566,7 @@ public class LocalizationInstallServiceTests : IDisposable
         var oldMetadata = new InstallationMetadata
         {
             Source = "api",
+            ModeSlug = "full-ukrainian",
             PublicId = "old-id",
             Version = 1,
             GamePatch = 100,
@@ -577,7 +578,7 @@ public class LocalizationInstallServiceTests : IDisposable
         var oldBytes = Encoding.UTF8.GetBytes(oldJson);
         File.WriteAllBytes(Path.Combine(_paths.StateDir, "installation.json"), oldBytes);
 
-        // Set up original snapshot
+        // Set up original snapshot (required for source=api metadata consistency)
         var backupStore = new BackupStore(_paths, _logger);
         var initialDir = Path.Combine(_tempDir, "initial", "ads");
         Directory.CreateDirectory(initialDir);
@@ -596,8 +597,7 @@ public class LocalizationInstallServiceTests : IDisposable
 
         var service = new LocalizationInstallService(
             installer, backupStore, stateStore, _logger,
-            gameRoot: Path.Combine(_tempDir, "game"),
-            officialSourceUrl: "https://example.com/official.loc");
+            gameRoot: Path.Combine(_tempDir, "game"));
 
         var result = await service.InstallReleaseAsync("full-ukrainian", release);
 
@@ -631,8 +631,7 @@ public class LocalizationInstallServiceTests : IDisposable
 
         var service = new LocalizationInstallService(
             installer, backupStore, stateStore, _logger,
-            gameRoot: Path.Combine(_tempDir, "game"),
-            officialSourceUrl: "https://example.com/official.loc");
+            gameRoot: Path.Combine(_tempDir, "game"));
 
         var result = await service.InstallReleaseAsync("full-ukrainian", release);
 
@@ -642,6 +641,123 @@ public class LocalizationInstallServiceTests : IDisposable
         Assert.False(File.Exists(Path.Combine(_paths.StateDir, "installation.json")));
 
         stateStore.OnSaveAsync = null;
+    }
+
+    // --- Ordering: download failure creates no snapshot, no restore point ---
+
+    [Fact]
+    public async Task InstallReleaseAsync_DownloadFails_NoSnapshotNoRestorePoint()
+    {
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("original"));
+        var handler = new MockHttpHandler(null, 0, statusCode: 500);
+        handler.FailUntilAttempt = 10;
+        var service = CreateService(handler);
+
+        var release = CreateRelease();
+        var result = await service.InstallReleaseAsync("full-ukrainian", release);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(InstallError.DownloadFailed, result.Error);
+        Assert.False(File.Exists(Path.Combine(_paths.OriginalBackupDir, "languagedata_en.loc")));
+        Assert.Empty(Directory.GetDirectories(_paths.RestorePointsDir));
+        Assert.Equal("original", File.ReadAllText(GameLocFilePath));
+    }
+
+    // --- Corrupted pre-state: PreOperationStateFailed, 0 HTTP ---
+
+    [Fact]
+    public async Task InstallReleaseAsync_CorruptedPreState_ReturnsPreOperationStateFailed_NoHttpRequest()
+    {
+        var gameRoot = CreateGameRoot();
+        var handler = new MockHttpHandler(null, 0);
+        var service = CreateService(handler);
+
+        // Write malformed installation.json
+        File.WriteAllText(Path.Combine(_paths.StateDir, "installation.json"), "{not valid json!!!");
+
+        var release = CreateRelease();
+        var result = await service.InstallReleaseAsync("full-ukrainian", release);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(InstallError.PreOperationStateFailed, result.Error);
+        Assert.Equal(0, handler.RequestCount);
+        Assert.Equal("game content", File.ReadAllText(GameLocFilePath));
+    }
+
+    // --- Corrupted pre-state + no snapshot: same failure ---
+
+    [Fact]
+    public async Task InstallReleaseAsync_CorruptedPreStateNoSnapshot_NoJsonException()
+    {
+        var gameRoot = CreateGameRoot();
+        var handler = new MockHttpHandler(null, 0);
+        var service = CreateService(handler);
+
+        File.WriteAllText(Path.Combine(_paths.StateDir, "installation.json"), "corrupted!!!");
+
+        var release = CreateRelease();
+        var result = await service.InstallReleaseAsync("full-ukrainian", release);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(InstallError.PreOperationStateFailed, result.Error);
+        Assert.Equal(0, handler.RequestCount);
+    }
+
+    // --- Restore-point retained after verification rollback ---
+
+    [Fact]
+    public async Task InstallReleaseAsync_StateSaveFails_RetainsRestorePoint()
+    {
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("original"));
+        var releaseContent = Encoding.UTF8.GetBytes("new content");
+        var release = CreateRelease(content: releaseContent);
+        var handler = new MockHttpHandler(releaseContent, releaseContent.Length);
+
+        var installer = new LocalizationInstaller(new HttpClient(handler), _paths, _logger);
+        var backupStore = new BackupStore(_paths, _logger);
+        var stateStore = new InstallationStateStore(_paths, _logger);
+        stateStore.OnSaveAsync = (m, ct) => throw new IOException("disk full");
+
+        var service = new LocalizationInstallService(
+            installer, backupStore, stateStore, _logger,
+            gameRoot: Path.Combine(_tempDir, "game"));
+
+        var result = await service.InstallReleaseAsync("full-ukrainian", release);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(InstallError.StateSaveFailed, result.Error);
+
+        // Restore point retained even after rollback
+        var rpDirs = Directory.GetDirectories(_paths.RestorePointsDir);
+        Assert.Single(rpDirs);
+        Assert.True(File.Exists(Path.Combine(rpDirs[0], "languagedata_en.loc")));
+
+        stateStore.OnSaveAsync = null;
+    }
+
+    // --- Corrupted pre-state + valid existing snapshot: PreOperationStateFailed ---
+
+    [Fact]
+    public async Task InstallReleaseAsync_CorruptedPreStateWithSnapshot_ReturnsPreOperationStateFailed()
+    {
+        var gameRoot = CreateGameRoot();
+
+        // Create valid original snapshot
+        var backupStore = new BackupStore(_paths, _logger);
+        await backupStore.CreateOriginalSnapshotAsync(gameRoot, trustedGamePatch: 100);
+
+        // Write corrupted installation.json
+        File.WriteAllText(Path.Combine(_paths.StateDir, "installation.json"), "corrupted!!!");
+
+        var handler = new MockHttpHandler(null, 0);
+        var service = CreateService(handler);
+
+        var release = CreateRelease();
+        var result = await service.InstallReleaseAsync("full-ukrainian", release);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(InstallError.PreOperationStateFailed, result.Error);
+        Assert.Equal(0, handler.RequestCount);
     }
 
     // --- MockHttpHandler ---
@@ -676,6 +792,19 @@ public class LocalizationInstallServiceTests : IDisposable
             var content = new ByteArrayContent(_responseContent);
             content.Headers.ContentLength = _contentLength;
             return Task.FromResult(new HttpResponseMessage((HttpStatusCode)_statusCode) { Content = content });
+        }
+    }
+
+    private class MockHttpHandlerWithCancellation : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(Encoding.UTF8.GetBytes("data"))
+            });
         }
     }
 
