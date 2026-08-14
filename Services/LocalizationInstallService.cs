@@ -108,74 +108,101 @@ public sealed class LocalizationInstallService
 
         string downloadTempPath = downloadResult.TempFilePath!;
 
-        // --- Phase 4: Original snapshot safety ---
-        var (snapExists, snapValid, snapError) = await _backupStore
-            .CheckOriginalSnapshotAsync(cancellationToken).ConfigureAwait(false);
-
-        if (snapExists && !snapValid)
-        {
-            _logger.Error("Original snapshot corrupted — aborting transaction");
-            CleanupDownloadTemp(downloadTempPath);
-            return InstallResult.Failure(InstallError.OriginalSnapshotFailed,
-                "Original snapshot exists but is corrupted");
-        }
-
-        if (!snapExists)
-        {
-            if (preStateLoad.Status == FileLoadStatus.Valid && preStateLoad.Value?.Source == "api")
-            {
-                _logger.Error("No original snapshot but source=api metadata exists — aborting (inconsistent state)");
-                CleanupDownloadTemp(downloadTempPath);
-                return InstallResult.Failure(InstallError.OriginalSnapshotFailed,
-                    "Original snapshot missing with existing API installation metadata — inconsistent state");
-            }
-
-            _logger.Info("Creating original snapshot (first install)");
-            var snapResult = await _backupStore
-                .CreateOriginalSnapshotAsync(_gameRoot, trustedGamePatch: null, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (!snapResult.IsSuccess)
-            {
-                _logger.Error($"Failed to create original snapshot: {snapResult.Error}");
-                CleanupDownloadTemp(downloadTempPath);
-                return InstallResult.Failure(InstallError.OriginalSnapshotFailed,
-                    $"Failed to create original snapshot: {snapResult.ErrorMessage}");
-            }
-        }
-
-        // --- Phase 5: Capture pre-operation state (after download, before restore point) ---
-        preStateBytes = ReadRawInstallationState();
-
-        // --- Phase 6: Create restore point (after verified download, before replace) ---
+        // --- Phases 4-6: Pre-replace operations ---
+        // All paths after successful download and before replace MUST clean up downloadTempPath.
+        // Structured try/catch/finally ensures cleanup on every exit (cancellation, exception, early return).
         string? restorePointDir = null;
-        if (File.Exists(gameLocFilePath))
+        try
         {
-            var (rpDir, rpResult) = await _backupStore
-                .CreateRestorePointAsync(gameLocFilePath, release.Patch, "pre_install", cancellationToken)
-                .ConfigureAwait(false);
+            // --- Phase 4: Original snapshot safety ---
+            var (snapExists, snapValid, snapError) = await _backupStore
+                .CheckOriginalSnapshotAsync(cancellationToken).ConfigureAwait(false);
 
-            if (!rpResult.IsSuccess || rpDir == null)
+            if (snapExists && !snapValid)
             {
-                _logger.Error($"Failed to create restore point: {rpResult.Error}");
-                CleanupDownloadTemp(downloadTempPath);
-                return InstallResult.Failure(InstallError.BackupFailed,
-                    $"Failed to create restore point: {rpResult.ErrorMessage}");
+                _logger.Error("Original snapshot corrupted — aborting transaction");
+                return InstallResult.Failure(InstallError.OriginalSnapshotFailed,
+                    "Original snapshot exists but is corrupted");
             }
 
-            restorePointDir = rpDir;
-
-            // Persist raw installation-state snapshot into restore point directory
-            if (preStateBytes != null)
+            if (!snapExists)
             {
-                var stateSnapshotPath = Path.Combine(rpDir, "installation-state.json");
-                var tempStatePath = stateSnapshotPath + ".tmp";
-                await File.WriteAllBytesAsync(tempStatePath, preStateBytes, cancellationToken)
+                if (preStateLoad.Status == FileLoadStatus.Valid && preStateLoad.Value?.Source == "api")
+                {
+                    _logger.Error("No original snapshot but source=api metadata exists — aborting (inconsistent state)");
+                    return InstallResult.Failure(InstallError.OriginalSnapshotFailed,
+                        "Original snapshot missing with existing API installation metadata — inconsistent state");
+                }
+
+                _logger.Info("Creating original snapshot (first install)");
+                var snapResult = await _backupStore
+                    .CreateOriginalSnapshotAsync(_gameRoot, trustedGamePatch: null, cancellationToken)
                     .ConfigureAwait(false);
-                File.Move(tempStatePath, stateSnapshotPath, overwrite: false);
+
+                if (!snapResult.IsSuccess)
+                {
+                    _logger.Error($"Failed to create original snapshot: {snapResult.Error}");
+                    return InstallResult.Failure(InstallError.OriginalSnapshotFailed,
+                        $"Failed to create original snapshot: {snapResult.ErrorMessage}");
+                }
             }
 
-            _logger.Info($"Restore point created: {rpDir}");
+            // --- Phase 5: Capture pre-operation state (after download, before restore point) ---
+            preStateBytes = ReadRawInstallationState();
+
+            // --- Phase 6: Create restore point (after verified download, before replace) ---
+            if (File.Exists(gameLocFilePath))
+            {
+                // Restore point contains the PRE-OPERATION game file, so use pre-operation patch
+                var restorePointGamePatch = preStateLoad.Status == FileLoadStatus.Valid
+                    ? preStateLoad.Value?.GamePatch
+                    : null;
+
+                var (rpDir, rpResult) = await _backupStore
+                    .CreateRestorePointAsync(gameLocFilePath, restorePointGamePatch, "pre_install", cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (!rpResult.IsSuccess || rpDir == null)
+                {
+                    _logger.Error($"Failed to create restore point: {rpResult.Error}");
+                    return InstallResult.Failure(InstallError.BackupFailed,
+                        $"Failed to create restore point: {rpResult.ErrorMessage}");
+                }
+
+                restorePointDir = rpDir;
+
+                // Persist raw installation-state snapshot into restore point directory
+                if (preStateBytes != null)
+                {
+                    var stateSnapshotPath = Path.Combine(rpDir, "installation-state.json");
+                    var tempStatePath = stateSnapshotPath + ".tmp";
+                    try
+                    {
+                        await File.WriteAllBytesAsync(tempStatePath, preStateBytes, cancellationToken)
+                            .ConfigureAwait(false);
+                        File.Move(tempStatePath, stateSnapshotPath, overwrite: false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        CleanupFile(tempStatePath);
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error($"Failed to persist installation-state snapshot: {ex.Message}");
+                        CleanupFile(tempStatePath);
+                        return InstallResult.Failure(InstallError.BackupFailed,
+                            $"Failed to persist installation-state snapshot: {ex.Message}");
+                    }
+                }
+
+                _logger.Info($"Restore point created: {rpDir}");
+            }
+        }
+        catch
+        {
+            CleanupDownloadTemp(downloadTempPath);
+            throw;
         }
 
         // --- Phase 7: Replace game file (destructive boundary) ---
@@ -415,7 +442,7 @@ public sealed class LocalizationInstallService
         finally
         {
             // Cleanup temp best-effort
-            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+            CleanupFile(tempPath);
         }
     }
 
@@ -437,6 +464,16 @@ public sealed class LocalizationInstallService
         {
             _logger.Warning($"Failed to cleanup download temp: {ex.Message}");
         }
+    }
+
+    private void CleanupFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch { }
     }
 }
 

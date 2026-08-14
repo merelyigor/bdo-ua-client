@@ -5,7 +5,7 @@ using BdoClient.Services;
 
 namespace BdoClient.Storage;
 
-public sealed class BackupStore
+public class BackupStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -76,7 +76,7 @@ public sealed class BackupStore
         }
     }
 
-    public async Task<RestoreResult> CreateOriginalSnapshotAsync(
+    public virtual async Task<RestoreResult> CreateOriginalSnapshotAsync(
         string gameRoot, int? trustedGamePatch, CancellationToken cancellationToken = default)
     {
         var sourceGameFilePath = Path.Combine(gameRoot, "ads", SnapshotFile);
@@ -194,7 +194,7 @@ public sealed class BackupStore
 
     // --- Restore points ---
 
-    public async Task<(string? restorePointDir, RestoreResult result)> CreateRestorePointAsync(
+    public virtual async Task<(string? restorePointDir, RestoreResult result)> CreateRestorePointAsync(
         string gameFilePath, int? gamePatch, string? operationLabel, CancellationToken cancellationToken = default)
     {
         if (!File.Exists(gameFilePath))
