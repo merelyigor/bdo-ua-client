@@ -416,36 +416,47 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 
 ### Етап 7: Localization state/update detection + compatibility
 
-**Що реалізовано (v7.0):**
+**Що реалізовано (v7.0 + v7.1):**
 - `LocalizationStateService` — deterministic state resolution
 - `LocalizationStateResult` — typed result with `State` + diagnostic `Error`
+- `LocalizationCompatibilityService` — action-level compatibility decision
+- `CompatibilityResult` — typed result with `IsAllowed` + blocking `Reason`
 - Resolution order: metadata load → source check → file existence → SHA-256 verification → public_id comparison
 - Canonical contract: Missing metadata → NotInstalled; Invalid metadata → InstalledVersionUnknown; source=official → NotInstalled
 - Primary release identity: `public_id` (ordinal exact), not version/patch
-- `current == null` → WaitingForRelease (Error=null, valid business state)
-- `current != null` але `PublicId` null/empty/whitespace → WaitingForRelease + diagnostic Error (malformed server metadata)
+- `current == null` → WaitingForRelease (Error=null) + compatibility Blocked
+- `current != null` але `PublicId` null/empty/whitespace → WaitingForRelease + diagnostic Error + compatibility Blocked
 - Factual hash verification via `HashHelper.ComputeFileSha256Async`
 - `Corrupted`: API metadata valid, but file missing/unreadable/hash mismatch
 - Cancellation propagation during hash computation
+- Compatibility: API `CompatibleWithOfficialPatch` boolean = source of truth; version/patch irrelevant
+- Stage 6 transaction guard (`InstallError.Incompatible`, 0 HTTP) retained as defense-in-depth
+- Compatibility layer returns reason; UI display → Stage 9
 
 **Acceptance criteria (state resolution — v7.0):**
 - [x] `NotInstalled`: metadata відсутня АБО source="official"
 - [x] `UpToDate`: public_id збігаються (ordinal exact)
 - [x] `UpdateAvailable`: public_id відрізняються
-- [x] `WaitingForRelease`: встановлено, hash OK, current відсутній/invalid
+- [x] `WaitingForRelease`: встановлено, hash OK, current відсутній
 - [x] `InstalledVersionUnknown`: installation.json існує, але Load() повертає Invalid
 - [x] `Corrupted`: API metadata valid, але файл missing/unreadable/hash mismatch
 - [x] Primary identity — `public_id`, не version/patch
 - [x] Не використовувати лише `patch`/`version`
 
-**Acceptance criteria (compatibility — v7.1, НЕ реалізовано):**
-- [ ] `compatible_with_official_patch == false` → Install та Update заборонені
-- [ ] Download не починається при несумісності
+**Acceptance criteria (compatibility — v7.1):**
+- [x] `compatible_with_official_patch == false` → Install та Update заборонені
+- [x] Download не починається при несумісності (Stage 6 guard: `InstallError.Incompatible`, 0 HTTP)
+- [x] Compatibility layer повертає blocking reason для UI
+- [x] `current == null` → blocked (no release available)
+- [x] Malformed `PublicId` → blocked (invalid metadata)
+- [x] Version/patch не впливають на compatibility decision (API boolean = source of truth)
+
+**Acceptance criteria (UI display — Stage 9, НЕ реалізовано):**
 - [ ] Користувачу показується причина блокування
 
-**Файли:** `Services/LocalizationStateService.cs`, `Services/LocalizationState.cs`, `Services/LocalizationStateResult.cs`
+**Файли:** `Services/LocalizationStateService.cs`, `Services/LocalizationState.cs`, `Services/LocalizationStateResult.cs`, `Services/LocalizationCompatibilityService.cs`, `Services/CompatibilityResult.cs`
 
-**Тести (v7.0, 18 tests):**
+**Тести (v7.0 + v7.1, 26 tests):**
 - [x] installation.json missing → NotInstalled
 - [x] valid source=official → NotInstalled
 - [x] malformed JSON → InstalledVersionUnknown
@@ -460,9 +471,13 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 - [x] different public_id + same version/patch → UpdateAvailable
 - [x] cancellation during hash → OCE propagated
 - [x] public_id is primary identity (not version/patch)
-- [x] current with empty PublicId → WaitingForRelease
-- [x] file content corrupted after install → Corrupted
-- [x] RollbackFailed scenario (file mismatch) → Corrupted
+- [x] current=null → compatibility Blocked
+- [x] current.PublicId null/empty/whitespace → compatibility Blocked
+- [x] compatible=false + valid PublicId → Blocked (reason explains compatibility)
+- [x] compatible=true + valid PublicId → Allowed (Reason=null)
+- [x] version/patch don't affect compatibility decision
+- [x] compatible=false cannot be overridden by version/patch/public_id
+- [x] Stage 6 guard: incompatible release → InstallError.Incompatible, 0 HTTP requests
 
 ---
 
