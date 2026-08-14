@@ -416,29 +416,50 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 
 ### Етап 7: Localization state/update detection + compatibility
 
-**Що реалізовано:**
-- Порівняння `installed.public_id` з `current.public_id`
-- Визначення LocalizationState
-- Перевірка `compatible_with_official_patch`
+**Що реалізовано (v7.0):**
+- `LocalizationStateService` — deterministic state resolution
+- Resolution order: metadata load → source check → file existence → SHA-256 verification → public_id comparison
+- Canonical contract: Missing metadata → NotInstalled; Invalid metadata → InstalledVersionUnknown; source=official → NotInstalled
+- Primary release identity: `public_id` (ordinal exact), not version/patch
+- `current == null` або `current.PublicId` empty → WaitingForRelease (no false update decision)
+- Factual hash verification via `HashHelper.ComputeFileSha256Async`
+- `Corrupted`: API metadata valid, but file missing/unreadable/hash mismatch
+- Cancellation propagation during hash computation
 
-**Acceptance criteria:**
-- [ ] `NotInstalled`: metadata відсутня
-- [ ] `UpToDate`: `public_id` збігаються
-- [ ] `UpdateAvailable`: `public_id` відрізняються
-- [ ] `WaitingForRelease`: встановлено, `current` відсутній
-- [ ] `InstalledVersionUnknown`: metadata нечитабельна
-- [ ] `Corrupted`: hash не збігається
+**Acceptance criteria (state resolution — v7.0):**
+- [x] `NotInstalled`: metadata відсутня АБО source="official"
+- [x] `UpToDate`: public_id збігаються (ordinal exact)
+- [x] `UpdateAvailable`: public_id відрізняються
+- [x] `WaitingForRelease`: встановлено, hash OK, current відсутній/invalid
+- [x] `InstalledVersionUnknown`: installation.json існує, але Load() повертає Invalid
+- [x] `Corrupted`: API metadata valid, але файл missing/unreadable/hash mismatch
+- [x] Primary identity — `public_id`, не version/patch
+- [x] Не використовувати лише `patch`/`version`
+
+**Acceptance criteria (compatibility — v7.1, НЕ реалізовано):**
 - [ ] `compatible_with_official_patch == false` → Install та Update заборонені
 - [ ] Download не починається при несумісності
 - [ ] Користувачу показується причина блокування
-- [ ] Не використовувати лише `patch`/`version`
 
-**Файли:** `Services/LocalizationStateService.cs`
+**Файли:** `Services/LocalizationStateService.cs`, `Services/LocalizationState.cs`
 
-**Тести (v7.x):**
-- [ ] LocalizationState resolution: кожен стан
-- [ ] Compatibility blocking: `compatible_with_official_patch == false`
-- [ ] Не використовувати лише `patch`/`version`
+**Тести (v7.0, 16 tests):**
+- [x] installation.json missing → NotInstalled
+- [x] valid source=official → NotInstalled
+- [x] malformed JSON → InstalledVersionUnknown
+- [x] semantically invalid metadata → InstalledVersionUnknown
+- [x] valid API metadata + game file missing → Corrupted
+- [x] valid API metadata + hash mismatch → Corrupted
+- [x] valid API metadata + matching hash + current=null → WaitingForRelease
+- [x] valid API metadata + matching hash + same public_id → UpToDate
+- [x] same public_id + different version/patch → UpToDate
+- [x] valid API metadata + matching hash + different public_id → UpdateAvailable
+- [x] different public_id + same version/patch → UpdateAvailable
+- [x] cancellation during hash → OCE propagated
+- [x] public_id is primary identity (not version/patch)
+- [x] current with empty PublicId → WaitingForRelease
+- [x] file content corrupted after install → Corrupted
+- [x] RollbackFailed scenario (file mismatch) → Corrupted
 
 ---
 
@@ -641,8 +662,7 @@ v1.1 — API error handling + CancellationToken
 | 4 | v4.x | v4.0 (download), v4.1 (SHA-256) |
 | 5 | v5.x | v5.0 (snapshot), v5.1 (restore points), v5.2 (restore original) |
 | 6 | v6.x | v6.0 (transaction), v6.1 (rollback result + atomic state), v6.2 (temp cleanup + patch semantics), v6.3 (ownership flag + finally) |
-| 7 | v7.x | v7.0 (state detection), v7.1 (compatibility) |
-| 8 | v8.x | v8.0 (UI layout) |
+| 7 | v7.x | v7.0 (state detection), v7.1 (compatibility) || 8 | v8.x | v8.0 (UI layout) |
 | 9 | v9.x | v9.0 (UI integration) |
 | 10 | v10.x | v10.0 (progress UX) |
 | 11 | v11.x | v11.0 (logging) |

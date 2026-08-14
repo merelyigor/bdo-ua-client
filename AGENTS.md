@@ -355,12 +355,12 @@ API надає release metadata через `GET /releases`. Клієнт вик�
 §18.3 `compatible_with_official_patch == false` → Install та Update заборонені, download не починається.
 
 §18.4 **LocalizationState (постійний стан файлу):**
-- `NotInstalled` — файл не встановлено
-- `UpToDate` — `installed.public_id == current.public_id`
+- `NotInstalled` — installation.json відсутній; АБО metadata valid і `source == "official"`
+- `UpToDate` — `installed.public_id == current.public_id` (ordinal exact string comparison)
 - `UpdateAvailable` — `installed.public_id != current.public_id`
-- `WaitingForRelease` — встановлено, але `current` відсутній
-- `InstalledVersionUnknown` — metadata немає або нечитабельна
-- `Corrupted` — hash не збігається
+- `WaitingForRelease` — встановлено, hash збігається, але `current` відсутній
+- `InstalledVersionUnknown` — installation.json існує, але `InstallationStateStore.Load()` повертає Invalid
+- `Corrupted` — API metadata valid, але фактичний файл missing/unreadable/hash mismatch
 
 §18.5 **OperationState (тимчасовий стан операції):**
 - `Idle` / `DetectingGame` / `LoadingApi` / `Downloading` / `Verifying`
