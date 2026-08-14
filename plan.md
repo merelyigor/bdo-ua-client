@@ -508,18 +508,37 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 
 ### Етап 9: Підключення UI до services
 
-**Що реалізовано:**
-- Прив'язка UI до services
-- User actions → service calls → UI update
+**Що реалізовано (v9.0):**
+- Composition root у `Program.cs` — concrete dependencies, no DI container
+- Startup sequence: load config → restore last_mode → load API → detect game → state/compatibility refresh
+- API: `GetReleasesAsync` at startup, cached in memory for session
+- API failure: message shown, actions disabled, detection still works independently
+- Game detection: `GameDetector.DetectAsync` with API `install_path_patterns`
+- Manual browse: `FolderBrowserDialog` → `ValidateAndSaveManualPathAsync`
+- Mode persistence: `ConfigStore` load/save `LastMode` on mode change
+- Mode→API mapping: slug from RadioButton.Tag → find mode in `response.Data.Modes`
+- `RefreshStateAsync`: state resolution + compatibility check + UI update
+- Diagnostics priority: API mode issue > state error > compatibility reason > neutral
+- LocalizationState → Ukrainian UI text mapping
+- Details: mode public name + version + patch
+- current=null: WaitingForRelease + blocked + disabled actions
+- Malformed current: WaitingForRelease + diagnostic Error + blocked
+- API failure ≠ current=null (separate `_apiLoadedSuccessfully` flag)
+- All action buttons disabled in v9.0 (install/update/restore not wired)
 
-**Acceptance criteria:**
-- [ ] "Знайти гру" → `GameDetector.DetectAsync()` → UI update
-- [ ] Вибір режиму → зберігається в config
-- [ ] "Встановити" → `LocalizationInstaller.InstallAsync()` → progress → UI
+**Acceptance criteria (v9.0):**
+- [x] `Знайти гру` → GameDetector.DetectAsync → UI update
+- [x] Manual path selection/validation via FolderBrowserDialog
+- [x] Mode selection saves config
+- [x] API + state + compatibility refresh on startup and mode change
+- [x] Errors shown in UI
+
+**Acceptance criteria (v9.1, НЕ реалізовано):**
+- [ ] "Встановити" → LocalizationInstallService.InstallReleaseAsync → progress → UI
 - [ ] OperationState оновлює UI
 - [ ] Помилки зрозумілою мовою
 
-**Файли:** `MainForm.cs`
+**Файли:** `Program.cs`, `MainForm.cs`
 
 ---
 
