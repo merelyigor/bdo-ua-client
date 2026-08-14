@@ -347,24 +347,70 @@ bdo-ua-client/
 ### Етап 6: Transactional install + rollback
 
 **Що реалізовано:**
-- Повний workflow з rollback
-- pre-operation snapshot перед replace
+- Transactional API release install/update через `LocalizationInstallService`
+- Verified Stage 4 download перед будь-якою модифікацією
+- Immutable original snapshot safety: наявність + цілісність перед replace
+- Pre-operation restore point з `trustedGamePatch` з попереднього стану (не з нового release)
+- Exact raw installation-state snapshot в restore-point директорію
+- Destructive boundary: `ReplaceGameFileAsync` з post-replace SHA-256 verification
+- Post-replace size + SHA-256 verification проти release contract
+- API `InstallationMetadata` commit тільки після verified replacement
+- Full game + installation-state rollback при помилці після replace
+- `RollbackAsync` повертає `RollbackResult` (IsSuccess, GameRestored, StateRestored, ErrorMessage)
+- Обидва rollback components (game + state) завжди виконуються навіть при помилці одного
+- State rollback атомарний: temp → `File.Replace`/`File.Move` → byte-for-byte verify
+- `InstallError.RollbackFailed` — typed critical result при partial rollback failure
+- Restore points retained після failed transaction
+- Download temp cleanup через ownership flag + finally pattern (`preReplaceCompleted`)
+- Pre-operation state validation: Invalid → `PreOperationStateFailed` до download/snapshot
+- Cancellation-safe: OCE передається, mandatory rollback через `CancellationToken.None`
 
 **Acceptance criteria:**
-- [ ] Кроки: release → download → HTTP check → size check → SHA-256 → pre-operation snapshot (game file + installation state) → replace → verify installed file → save state → cleanup → commit success
-- [ ] Ніколи не завантажувати поверх game file
-- [ ] При помилці до replace — файл гри НЕ змінено, metadata НЕ стверджує install
-- [ ] При помилці після replace — rollback відновлює game file + installation state до pre-operation стану
-- [ ] Якщо rollback не вдався: стан `Corrupted`, критична помилка в UI, деталі в log
-- [ ] Після невдалого rollback не записувати неправдивий successful state
-- [ ] Metadata ТІЛЬКИ після успіху
+- [x] Download verified (size + SHA-256) before destructive operation
+- [x] Original snapshot safety (exists + integrity) before first modification
+- [x] Restore point created immediately before replace
+- [x] Exact pre-operation installation state captured (raw bytes or null)
+- [x] Never download directly over game file
+- [x] Failure before replace leaves game/state unchanged
+- [x] Replace followed by release size + SHA-256 verification
+- [x] Installation metadata saved only after verified game replacement
+- [x] Post-replace verification/state-save failure rolls back game + installation state
+- [x] First-install rollback restores installation-state absence
+- [x] Update rollback restores exact prior installation-state bytes
+- [x] Mandatory rollback uses independent cancellation token (`CancellationToken.None`)
+- [x] Partial rollback failure returns `InstallError.RollbackFailed`
+- [x] No false successful metadata after failure
+- [x] Download temp cleanup on success/failure/cancellation/early return
+- [x] Completed restore points retained
+- [x] Original snapshot remains immutable
 
-**Файли:** `Services/LocalizationInstaller.cs`
+**Boundary RollbackFailed vs Stage 7 Corrupted:**
+Stage 6 повертає `InstallError.RollbackFailed` при невдалому rollback. LocalizationState resolution (включно з `Corrupted`) належить до Stage 7. Stage 6 НЕ встановлює `LocalizationState.Corrupted` напряму.
 
-**Тести (v6.x):**
-- [ ] Transaction: replace + save state → rollback відновлює обидва
-- [ ] Transaction: failure до replace → файл НЕ змінено
-- [ ] Transaction: rollback failure → `Corrupted` стан
+**Файли:** `Services/LocalizationInstallService.cs`, `Services/InstallResult.cs`, `Storage/BackupStore.cs`, `Storage/InstallationStateStore.cs`
+
+**Тести (v6.x, 203 total):**
+- [x] Input validation: missing game, empty mode, empty public id, invalid version/patch, HTTP URL, zero size, empty SHA-256
+- [x] Incompatible release blocks before HTTP
+- [x] First install success: snapshot created, game replaced, metadata saved, restore point exists
+- [x] Update success: existing snapshot unchanged, game updated, metadata updated, restore point exists
+- [x] Download failure: game/state unchanged, no snapshot, no restore point
+- [x] Corrupted original snapshot after download → OriginalSnapshotFailed
+- [x] Missing snapshot + valid source=api metadata → OriginalSnapshotFailed
+- [x] Corrupted pre-operation state → PreOperationStateFailed before HTTP
+- [x] Restore-point game_patch matches pre-operation patch (update: old=100, new=101 → rp=100)
+- [x] Restore-point game_patch null for first install without prior state
+- [x] State save failure → game rollback to original, state rollback to prior bytes
+- [x] State save failure → rollback restores exact prior metadata bytes (byte-for-byte)
+- [x] First-install state save failure → state absent after rollback
+- [x] Cancellation before replace → game unchanged, no state, temp cleaned
+- [x] Cancellation during original snapshot → download temp cleaned, no *.tmp
+- [x] Cancellation during restore-point creation → download temp cleaned, no *.tmp
+- [x] Restore-point retained after state-save failure rollback
+- [x] Raw state snapshot persistence failure → BackupFailed
+- [x] Corrupted pre-state with/without snapshot → PreOperationStateFailed
+- [x] Download ordering: failure creates no snapshot, no restore point
+- [x] Post-replace verification rollback: game restored
 
 ---
 
@@ -594,7 +640,7 @@ v1.1 — API error handling + CancellationToken
 | 3 | v3.x | v3.0 (detection) |
 | 4 | v4.x | v4.0 (download), v4.1 (SHA-256) |
 | 5 | v5.x | v5.0 (snapshot), v5.1 (restore points), v5.2 (restore original) |
-| 6 | v6.x | v6.0 (transaction), v6.1 (rollback) |
+| 6 | v6.x | v6.0 (transaction), v6.1 (rollback result + atomic state), v6.2 (temp cleanup + patch semantics), v6.3 (ownership flag + finally) |
 | 7 | v7.x | v7.0 (state detection), v7.1 (compatibility) |
 | 8 | v8.x | v8.0 (UI layout) |
 | 9 | v9.x | v9.0 (UI integration) |
