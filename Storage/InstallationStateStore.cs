@@ -14,6 +14,9 @@ public sealed class InstallationStateStore
     private readonly AppPaths _paths;
     private readonly ILogger _logger;
 
+    // Test seam: called instead of real save. Allows tests to inject cancellation/failure.
+    internal Func<InstallationMetadata, CancellationToken, Task>? OnSaveAsync { get; set; }
+
     public InstallationStateStore(AppPaths paths, ILogger logger)
     {
         _paths = paths ?? throw new ArgumentNullException(nameof(paths));
@@ -63,6 +66,13 @@ public sealed class InstallationStateStore
     public async Task SaveAsync(InstallationMetadata metadata, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(metadata);
+
+        // Test seam: delegate save to hook if set
+        if (OnSaveAsync != null)
+        {
+            await OnSaveAsync(metadata, cancellationToken).ConfigureAwait(false);
+            return;
+        }
 
         var json = JsonSerializer.Serialize(metadata, JsonOptions);
         var tempFile = _paths.InstallationFile + ".tmp";

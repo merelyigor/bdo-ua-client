@@ -345,33 +345,119 @@ public class BackupStoreTests : IDisposable
     // --- Post-replace failure: target modified, recovery required ---
 
     [Fact]
-    public async Task ReplaceGameFile_VerificationFailure_RecoveryRestores()
+    public async Task ReplaceGameFile_PostReplaceCancellation_RecoversAndPropagates()
     {
         var gameRoot = CreateGameRoot();
         var gameFile = Path.Combine(gameRoot, "ads", "languagedata_en.loc");
 
-        // Replace with new content successfully (creates implicit restore point data)
+        // Create restore point with original content
+        var (rpDir, _) = await _store.CreateRestorePointAsync(gameFile, 100, "pre-cancel");
+        Assert.NotNull(rpDir);
+
+        // Replace with new content successfully
         var sourceFile = Path.Combine(_tempDir, "source.loc");
         File.WriteAllBytes(sourceFile, Encoding.UTF8.GetBytes("new-content"));
-        var restoreDir = Path.Combine(_tempDir, "rp");
+        var replaceResult = await _store.ReplaceGameFileAsync(gameFile, sourceFile, rpDir);
+        Assert.True(replaceResult.IsSuccess);
+        Assert.Equal("new-content", File.ReadAllText(gameFile));
+
+        // Now set up a second replace with OnPostReplaceHook to cancel AFTER File.Replace
+        // Create a restore point from current state ("new-content") so recovery restores it
+        var (rpDir2, _) = await _store.CreateRestorePointAsync(gameFile, 100, "pre-cancel-2");
+        Assert.NotNull(rpDir2);
+
+        using var cts = new CancellationTokenSource();
+        _store.OnPostReplaceHook = () => cts.Cancel();
+
+        var sourceFile2 = Path.Combine(_tempDir, "source2.loc");
+        File.WriteAllBytes(sourceFile2, Encoding.UTF8.GetBytes("should-not-persist"));
+
+        // ReplaceGameFileAsync: File.Replace happens (targetReplaced = true),
+        // then OnPostReplaceHook cancels token, then verification throws OperationCanceledException
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => _store.ReplaceGameFileAsync(gameFile, sourceFile2, rpDir2, cts.Token));
+
+        _store.OnPostReplaceHook = null;
+
+        // Recovery restored pre-operation bytes (new-content from rpDir2Dir)
+        Assert.Equal("new-content", File.ReadAllText(gameFile));
+    }
+
+    [Fact]
+    public async Task ReplaceGameFile_PostReplaceCancellation_RecoveryFails_ReturnsRecoveryFailed()
+    {
+        var gameRoot = CreateGameRoot();
+        var gameFile = Path.Combine(gameRoot, "ads", "languagedata_en.loc");
+
+        // Replace with new content successfully
+        var sourceFile = Path.Combine(_tempDir, "source.loc");
+        File.WriteAllBytes(sourceFile, Encoding.UTF8.GetBytes("new-content"));
+        var restoreDir = Path.Combine(_tempDir, "rp-fail-cancel");
         Directory.CreateDirectory(restoreDir);
-        var rpResult = await _store.ReplaceGameFileAsync(gameFile, sourceFile, restoreDir);
-        Assert.True(rpResult.IsSuccess);
+        var replaceResult = await _store.ReplaceGameFileAsync(gameFile, sourceFile, restoreDir);
+        Assert.True(replaceResult.IsSuccess);
 
-        // Manually corrupt target to simulate post-replace verification failure scenario
-        File.WriteAllText(gameFile, "corrupted-after-replace");
+        // Set up restore point dir WITHOUT the actual file (recovery will fail)
+        var rpDir = Path.Combine(_tempDir, "rp-no-data");
+        Directory.CreateDirectory(rpDir);
+        File.WriteAllText(Path.Combine(rpDir, "metadata.json"),
+            System.Text.Json.JsonSerializer.Serialize(new BackupMetadata
+            {
+                CreatedAt = DateTimeOffset.UtcNow,
+                GamePatch = 100,
+                Sha256 = "x",
+                SizeBytes = 1,
+                Source = "empty"
+            }));
 
-        // Now replace with mismatched source: verification will fail because
-        // target hash (corrupted-after-replace) != source hash (will-not-match)
-        // After File.Replace, target = source, so this tests recovery path
-        var corruptSource = Path.Combine(_tempDir, "source2.loc");
-        File.WriteAllBytes(corruptSource, Encoding.UTF8.GetBytes("will-not-match"));
-        var result = await _store.ReplaceGameFileAsync(gameFile, corruptSource, restoreDir);
+        using var cts = new CancellationTokenSource();
+        _store.OnPostReplaceHook = () => cts.Cancel();
 
-        // Source hash matches target after File.Replace → verification passes
-        // But we can verify the recovery mechanism works by testing RecoverFromRestorePointAsync directly
-        Assert.True(result.IsSuccess);
-        Assert.Equal("will-not-match", File.ReadAllText(gameFile));
+        var sourceFile2 = Path.Combine(_tempDir, "source2.loc");
+        File.WriteAllBytes(sourceFile2, Encoding.UTF8.GetBytes("should-not-persist"));
+
+        // File.Replace happens, then cancellation, then recovery fails (no restore file)
+        var result = await _store.ReplaceGameFileAsync(gameFile, sourceFile2, rpDir, cts.Token);
+
+        _store.OnPostReplaceHook = null;
+
+        // Post-replace cancellation + recovery failed → RecoveryFailed
+        Assert.False(result.IsSuccess);
+        Assert.Equal(RestoreError.RecoveryFailed, result.Error);
+    }
+
+    [Fact]
+    public async Task ReplaceGameFile_PostReplaceGenericException_RecoveryRestores()
+    {
+        var gameRoot = CreateGameRoot();
+        var gameFile = Path.Combine(gameRoot, "ads", "languagedata_en.loc");
+
+        // Create restore point with original content
+        var (rpDir, _) = await _store.CreateRestorePointAsync(gameFile, 100, "pre-exception");
+        Assert.NotNull(rpDir);
+
+        // Replace with new content successfully
+        var sourceFile = Path.Combine(_tempDir, "source.loc");
+        File.WriteAllBytes(sourceFile, Encoding.UTF8.GetBytes("exception-test"));
+        var replaceResult = await _store.ReplaceGameFileAsync(gameFile, sourceFile, rpDir);
+        Assert.True(replaceResult.IsSuccess);
+        Assert.Equal("exception-test", File.ReadAllText(gameFile));
+
+        // OnPostReplaceHook throws generic Exception AFTER File.Replace (targetReplaced = true)
+        _store.OnPostReplaceHook = () => throw new IOException("simulated post-replace IO error");
+
+        var sourceFile2 = Path.Combine(_tempDir, "source2.loc");
+        File.WriteAllBytes(sourceFile2, Encoding.UTF8.GetBytes("should-not-apply"));
+
+        var result = await _store.ReplaceGameFileAsync(gameFile, sourceFile2, rpDir);
+
+        _store.OnPostReplaceHook = null;
+
+        // Post-replace exception + recovery succeeded → ReplaceFailed
+        Assert.False(result.IsSuccess);
+        Assert.Equal(RestoreError.ReplaceFailed, result.Error);
+        // Target restored from restore point (original content)
+        Assert.Equal("game content", File.ReadAllText(gameFile));
     }
 
     [Fact]

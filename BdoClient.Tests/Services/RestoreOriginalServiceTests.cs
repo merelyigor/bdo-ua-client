@@ -329,6 +329,40 @@ public class RestoreOriginalServiceTests : IDisposable
         Assert.Equal(RestoreError.SourceMissing, result.Error);
     }
 
+    // --- State-save cancellation after successful replace: recovery then propagate ---
+
+    [Fact]
+    public async Task RestoreOriginalAsync_StateSaveCancelled_RecoveryThenPropagate()
+    {
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("original bytes"));
+        var officialContent = Encoding.UTF8.GetBytes("official content");
+        var handler = new MockHttpHandler(officialContent, officialContent.Length);
+
+        var installer = new LocalizationInstaller(new HttpClient(handler), _paths, _logger);
+        var backupStore = new BackupStore(_paths, _logger);
+        var stateStore = new InstallationStateStore(_paths, _logger);
+
+        // Inject cancellation on state save: token is already cancelled when SaveAsync is called
+        using var cts = new CancellationTokenSource();
+        stateStore.OnSaveAsync = (metadata, ct) => throw new OperationCanceledException(ct);
+
+        var service = new RestoreOriginalService(
+            installer, backupStore, stateStore, _logger,
+            gameRoot: gameRoot,
+            officialSourceUrl: "https://example.com/loc.loc",
+            currentOfficialPatch: 100);
+
+        // RestoreOriginalAsync: download → restore point → replace → state save (throws OCE)
+        // Recovery with independent token restores original bytes, then propagates OCE
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => service.RestoreOriginalAsync());
+
+        stateStore.OnSaveAsync = null;
+
+        // Original bytes restored by recovery (independent CancellationToken.None)
+        Assert.Equal("original bytes", File.ReadAllText(GameLocFilePath));
+    }
+
     // --- MockHttpHandler ---
 
     private class MockHttpHandler : HttpMessageHandler

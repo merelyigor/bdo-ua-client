@@ -19,6 +19,10 @@ public sealed class BackupStore
     private readonly AppPaths _paths;
     private readonly ILogger _logger;
 
+    // Test seam: called between File.Replace and post-replace verification.
+    // When set, tests inject cancellation/failure at the destructive boundary.
+    internal Action? OnPostReplaceHook { get; set; }
+
     public BackupStore(AppPaths paths, ILogger logger)
     {
         _paths = paths ?? throw new ArgumentNullException(nameof(paths));
@@ -272,6 +276,9 @@ public sealed class BackupStore
                 File.Move(tempTargetPath, targetPath, overwrite: false);
 
             targetReplaced = true;
+
+            // Test seam: inject cancellation/failure after destructive boundary
+            OnPostReplaceHook?.Invoke();
 
             // Phase 3: verify replaced target
             var actualSha256 = await HashHelper.ComputeFileSha256Async(targetPath, cancellationToken).ConfigureAwait(false);
