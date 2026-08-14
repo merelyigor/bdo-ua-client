@@ -102,9 +102,9 @@ public sealed class RestoreOriginalService
         }
         catch (OperationCanceledException)
         {
-            // State save cancelled after successful replace: recover, then propagate
+            // State save cancelled after successful replace: recover with independent token, then propagate
             var recoveryResult = await _backupStore
-                .RecoverFromRestorePointAsync(_gameLocFilePath, rpDir, cancellationToken)
+                .RecoverFromRestorePointAsync(_gameLocFilePath, rpDir, CancellationToken.None)
                 .ConfigureAwait(false);
             if (!recoveryResult.IsSuccess)
                 return RestoreResult.Failure(RestoreError.RecoveryFailed,
@@ -115,7 +115,7 @@ public sealed class RestoreOriginalService
         {
             _logger.Error($"Failed to save installation metadata after restore: {ex.Message}");
             var recoveryResult = await _backupStore
-                .RecoverFromRestorePointAsync(_gameLocFilePath, rpDir, cancellationToken)
+                .RecoverFromRestorePointAsync(_gameLocFilePath, rpDir, CancellationToken.None)
                 .ConfigureAwait(false);
             if (!recoveryResult.IsSuccess)
                 return RestoreResult.Failure(RestoreError.RecoveryFailed,
@@ -203,7 +203,7 @@ public sealed class RestoreOriginalService
         catch (OperationCanceledException)
         {
             var recoveryResult = await _backupStore
-                .RecoverFromRestorePointAsync(_gameLocFilePath, rpDir, cancellationToken)
+                .RecoverFromRestorePointAsync(_gameLocFilePath, rpDir, CancellationToken.None)
                 .ConfigureAwait(false);
             if (!recoveryResult.IsSuccess)
                 return RestoreResult.Failure(RestoreError.RecoveryFailed,
@@ -214,7 +214,7 @@ public sealed class RestoreOriginalService
         {
             _logger.Error($"Failed to save installation metadata after snapshot fallback: {ex.Message}");
             var recoveryResult = await _backupStore
-                .RecoverFromRestorePointAsync(_gameLocFilePath, rpDir, cancellationToken)
+                .RecoverFromRestorePointAsync(_gameLocFilePath, rpDir, CancellationToken.None)
                 .ConfigureAwait(false);
             if (!recoveryResult.IsSuccess)
                 return RestoreResult.Failure(RestoreError.RecoveryFailed,

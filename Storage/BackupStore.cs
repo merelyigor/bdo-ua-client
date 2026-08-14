@@ -62,8 +62,9 @@ public sealed class BackupStore
         {
             throw;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Warning($"Original snapshot integrity check failed: {ex.Message}");
             return (true, false, RestoreError.SnapshotCorrupted);
         }
     }
@@ -122,8 +123,7 @@ public sealed class BackupStore
             await File.WriteAllTextAsync(tempMetadataPath, json, cancellationToken).ConfigureAwait(false);
 
             // Atomic pair: move snapshot first, then metadata.
-            // If metadata move fails, snapshot without metadata is acceptable
-            // because CheckOriginalSnapshot will detect incomplete pair.
+            // If metadata move fails → cleanup both files. Incomplete pair is NOT acceptable.
             File.Move(tempPath, snapshotPath, overwrite: false);
             File.Move(tempMetadataPath, metadataPath, overwrite: false);
 
@@ -178,8 +178,9 @@ public sealed class BackupStore
         {
             throw;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.Warning($"Original snapshot load failed: {ex.Message}");
             return (null, null, RestoreError.SnapshotCorrupted);
         }
     }
@@ -255,26 +256,29 @@ public sealed class BackupStore
         var targetExistedBefore = File.Exists(targetPath);
         CleanupFile(tempTargetPath);
 
+        bool targetReplaced = false;
+
         try
         {
-            // Phase 1: copy source → temp (pre-replace)
+            // Phase 1: copy source → temp (PRE-REPLACE)
             await HashHelper.CopyFileAsync(sourceFilePath, tempTargetPath, cancellationToken).ConfigureAwait(false);
 
             var expectedSha256 = await HashHelper.ComputeFileSha256Async(tempTargetPath, cancellationToken).ConfigureAwait(false);
-            var expectedSize = new FileInfo(tempTargetPath).Length;
 
-            // Phase 2: replace target with temp (post-replace begins here)
+            // Phase 2: replace target (POST-REPLACE boundary)
             if (targetExistedBefore)
                 File.Replace(tempTargetPath, targetPath, null);
             else
                 File.Move(tempTargetPath, targetPath, overwrite: false);
+
+            targetReplaced = true;
 
             // Phase 3: verify replaced target
             var actualSha256 = await HashHelper.ComputeFileSha256Async(targetPath, cancellationToken).ConfigureAwait(false);
             if (!string.Equals(expectedSha256, actualSha256, StringComparison.OrdinalIgnoreCase))
             {
                 _logger.Error("Post-replace verification failed: SHA-256 mismatch");
-                var recoveryResult = await RecoverFromRestorePointAsync(targetPath, restorePointDir, cancellationToken).ConfigureAwait(false);
+                var recoveryResult = await RecoverFromRestorePointAsync(targetPath, restorePointDir, CancellationToken.None).ConfigureAwait(false);
                 if (!recoveryResult.IsSuccess)
                     return RestoreResult.Failure(RestoreError.RecoveryFailed,
                         "Post-replace verification failed and recovery also failed");
@@ -285,17 +289,35 @@ public sealed class BackupStore
             _logger.Info($"Game file replaced: {targetPath}");
             return RestoreResult.Success();
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (!targetReplaced)
         {
+            // PRE-REPLACE cancellation: target untouched
             CleanupFile(tempTargetPath);
             throw;
         }
+        catch (OperationCanceledException)
+        {
+            // POST-REPLACE cancellation: target may be modified
+            CleanupFile(tempTargetPath);
+            var recoveryResult = await RecoverFromRestorePointAsync(targetPath, restorePointDir, CancellationToken.None).ConfigureAwait(false);
+            if (!recoveryResult.IsSuccess)
+                return RestoreResult.Failure(RestoreError.RecoveryFailed,
+                    "Post-replace cancellation and recovery also failed");
+            throw;
+        }
+        catch (Exception ex) when (!targetReplaced)
+        {
+            // PRE-REPLACE failure: target untouched, no recovery needed
+            _logger.Error($"Failed to replace game file (pre-replace): {ex.Message}");
+            CleanupFile(tempTargetPath);
+            return RestoreResult.Failure(RestoreError.ReplaceFailed, ex.Message);
+        }
         catch (Exception ex)
         {
-            _logger.Error($"Failed to replace game file: {ex.Message}");
+            // POST-REPLACE failure: target may be modified
+            _logger.Error($"Failed to replace game file (post-replace): {ex.Message}");
             CleanupFile(tempTargetPath);
-            // Post-replace failure: target may be modified, attempt recovery
-            var recoveryResult = await RecoverFromRestorePointAsync(targetPath, restorePointDir, cancellationToken).ConfigureAwait(false);
+            var recoveryResult = await RecoverFromRestorePointAsync(targetPath, restorePointDir, CancellationToken.None).ConfigureAwait(false);
             if (!recoveryResult.IsSuccess)
                 return RestoreResult.Failure(RestoreError.RecoveryFailed,
                     $"Replace failed and recovery also failed: {ex.Message}");
