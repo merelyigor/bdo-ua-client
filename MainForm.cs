@@ -28,9 +28,7 @@ public partial class MainForm : Form
     };
 
     public MainForm(
-        AppPaths appPaths,
         ConfigStore configStore,
-        InstallationStateStore stateStore,
         BdoUaApiClient apiClient,
         GameDetector gameDetector,
         LocalizationStateService stateService,
@@ -201,25 +199,39 @@ public partial class MainForm : Form
         if (_initializing) return;
         if (sender is not RadioButton rb || !rb.Checked) return;
 
-        var slug = (string)rb.Tag!;
-        string? configWarning = null;
         try
         {
-            var configLoad = _configStore.Load();
-            var config = configLoad.Value ?? new Config();
-            config.LastMode = slug;
-            await _configStore.SaveAsync(config);
+            var slug = (string)rb.Tag!;
+            string? configWarning = null;
+
+            try
+            {
+                var configLoad = _configStore.Load();
+                var config = configLoad.Value ?? new Config();
+                config.LastMode = slug;
+                await _configStore.SaveAsync(config);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"Failed to save mode config: {ex.Message}");
+                configWarning = "Не вдалося зберегти налаштування режиму.";
+            }
+
+            await RefreshStateAsync();
+
+            if (configWarning != null)
+            {
+                var existingMessage = messageTextBox.Text;
+                SetMessage(string.IsNullOrWhiteSpace(existingMessage)
+                    ? configWarning
+                    : $"{configWarning}{Environment.NewLine}{Environment.NewLine}{existingMessage}");
+            }
         }
         catch (Exception ex)
         {
-            _logger.Error($"Failed to save mode config: {ex.Message}");
-            configWarning = "Не вдалося зберегти налаштування режиму.";
+            _logger.Error($"Mode change error: {ex.Message}");
+            SetMessage($"Помилка зміни режиму: {ex.Message}");
         }
-
-        await RefreshStateAsync();
-
-        if (configWarning != null && string.IsNullOrEmpty(messageTextBox.Text))
-            SetMessage(configWarning);
     }
 
     // --- State refresh ---
