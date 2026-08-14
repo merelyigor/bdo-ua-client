@@ -483,17 +483,24 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 
 ### Етап 8: Basic WinForms UI
 
-**Що реалізовано:**
-- `MainForm` з базовим layout
-- Відображення станів
+**Що реалізовано (v8.0):**
+- `MainForm` — одне основне вікно з 4 блоками через TableLayoutPanel
+- Game Detection блок: label game path, buttons "Знайти гру" / "Обрати вручну"
+- Mode Selection блок: 3 RadioButtons з Tag-based slugs (full-ukrainian, full-ukrainian-bosia, english-items)
+- Status блок: state label, details label, ProgressBar, progress %, multiline message TextBox
+- Actions блок: 4 buttons (Install/Update/Restore Original/Restore Backup), disabled by default
+- DPI-aware layout via AutoScaleMode.Font + TableLayoutPanel + AutoSize
+- Resize-safe: MinimumSize, percent-based columns, AutoEllipsis для game path
+- Presentation helper methods: SetGamePathText, SetLocalizationStateText, SetDetailsText, SetProgress, SetMessage, SetActionsEnabled, GetSelectedModeSlug
+- UI без business logic: без HttpClient, без API calls, без file operations, без config/state
 
 **Acceptance criteria:**
-- [ ] Одне вікно, вертикальний layout
-- [ ] Блок Game Detection (пошук + ручний вибір)
-- [ ] Блок Mode Selection (3 radio buttons)
-- [ ] Блок Status (state + progress bar)
-- [ ] Блок Actions (Install / Update / Restore Original / Restore Backup)
-- [ ] UI без бізнес-логіки
+- [x] Одне вікно, вертикальний layout
+- [x] Блок Game Detection (пошук + ручний вибір)
+- [x] Блок Mode Selection (3 radio buttons)
+- [x] Блок Status (state + progress bar)
+- [x] Блок Actions (Install / Update / Restore Original / Restore Backup)
+- [x] UI без бізнес-логіки
 
 **Файли:** `MainForm.cs`, `MainForm.Designer.cs`
 
