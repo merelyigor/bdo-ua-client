@@ -23,6 +23,9 @@ public sealed class BackupStore
     // When set, tests inject cancellation/failure at the destructive boundary.
     internal Action? OnPostReplaceHook { get; set; }
 
+    internal string OriginalBackupDir => _paths.OriginalBackupDir;
+    internal string RestorePointsDir => _paths.RestorePointsDir;
+
     public BackupStore(AppPaths paths, ILogger logger)
     {
         _paths = paths ?? throw new ArgumentNullException(nameof(paths));

@@ -17,6 +17,8 @@ public sealed class InstallationStateStore
     // Test seam: called instead of real save. Allows tests to inject cancellation/failure.
     internal Func<InstallationMetadata, CancellationToken, Task>? OnSaveAsync { get; set; }
 
+    internal string StateDir => _paths.StateDir;
+
     public InstallationStateStore(AppPaths paths, ILogger logger)
     {
         _paths = paths ?? throw new ArgumentNullException(nameof(paths));
