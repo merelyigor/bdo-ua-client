@@ -97,9 +97,10 @@ public class LocalizationStateServiceTests : IDisposable
         var service = CreateService();
         var gamePath = CreateGameFile(Encoding.UTF8.GetBytes("content"));
 
-        var state = await service.ResolveAsync(CreateCurrent(), gamePath);
+        var result = await service.ResolveAsync(CreateCurrent(), gamePath);
 
-        Assert.Equal(LocalizationState.NotInstalled, state);
+        Assert.Equal(LocalizationState.NotInstalled, result.State);
+        Assert.Null(result.Error);
     }
 
     [Fact]
@@ -109,9 +110,10 @@ public class LocalizationStateServiceTests : IDisposable
         var gamePath = CreateGameFile(Encoding.UTF8.GetBytes("content"));
         SaveOfficialMetadata();
 
-        var state = await service.ResolveAsync(CreateCurrent(), gamePath);
+        var result = await service.ResolveAsync(CreateCurrent(), gamePath);
 
-        Assert.Equal(LocalizationState.NotInstalled, state);
+        Assert.Equal(LocalizationState.NotInstalled, result.State);
+        Assert.Null(result.Error);
     }
 
     // --- InstalledVersionUnknown ---
@@ -123,9 +125,10 @@ public class LocalizationStateServiceTests : IDisposable
         var gamePath = CreateGameFile(Encoding.UTF8.GetBytes("content"));
         WriteMalformedMetadata("{not valid json!!!");
 
-        var state = await service.ResolveAsync(CreateCurrent(), gamePath);
+        var result = await service.ResolveAsync(CreateCurrent(), gamePath);
 
-        Assert.Equal(LocalizationState.InstalledVersionUnknown, state);
+        Assert.Equal(LocalizationState.InstalledVersionUnknown, result.State);
+        Assert.Null(result.Error);
     }
 
     [Fact]
@@ -144,9 +147,10 @@ public class LocalizationStateServiceTests : IDisposable
             new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(Path.Combine(_paths.StateDir, "installation.json"), json);
 
-        var state = await service.ResolveAsync(CreateCurrent(), gamePath);
+        var result = await service.ResolveAsync(CreateCurrent(), gamePath);
 
-        Assert.Equal(LocalizationState.InstalledVersionUnknown, state);
+        Assert.Equal(LocalizationState.InstalledVersionUnknown, result.State);
+        Assert.Null(result.Error);
     }
 
     // --- Corrupted ---
@@ -159,12 +163,12 @@ public class LocalizationStateServiceTests : IDisposable
         await SaveApiMetadataAsync("01ABCDEF1234567890ABCDEF", sha);
         var service = CreateService();
 
-        // Game file doesn't exist at path
         var missingPath = Path.Combine(_tempDir, "nonexistent", "ads", "languagedata_en.loc");
 
-        var state = await service.ResolveAsync(CreateCurrent(), missingPath);
+        var result = await service.ResolveAsync(CreateCurrent(), missingPath);
 
-        Assert.Equal(LocalizationState.Corrupted, state);
+        Assert.Equal(LocalizationState.Corrupted, result.State);
+        Assert.Null(result.Error);
     }
 
     [Fact]
@@ -176,15 +180,31 @@ public class LocalizationStateServiceTests : IDisposable
         var gamePath = CreateGameFile(content);
         var service = CreateService();
 
-        var state = await service.ResolveAsync(CreateCurrent(), gamePath);
+        var result = await service.ResolveAsync(CreateCurrent(), gamePath);
 
-        Assert.Equal(LocalizationState.Corrupted, state);
+        Assert.Equal(LocalizationState.Corrupted, result.State);
+        Assert.Null(result.Error);
+    }
+
+    [Fact]
+    public async Task ValidApiMetadata_FileExistsButContentCorrupted_ReturnsCorrupted()
+    {
+        var content = Encoding.UTF8.GetBytes("original content");
+        var sha = HashHelper.ComputeSha256(content);
+        await SaveApiMetadataAsync("01ABCDEF1234567890ABCDEF", sha);
+        var gamePath = CreateGameFile(Encoding.UTF8.GetBytes("corrupted content"));
+        var service = CreateService();
+
+        var result = await service.ResolveAsync(CreateCurrent(), gamePath);
+
+        Assert.Equal(LocalizationState.Corrupted, result.State);
+        Assert.Null(result.Error);
     }
 
     // --- WaitingForRelease ---
 
     [Fact]
-    public async Task ValidApiMetadata_MatchingHash_CurrentNull_ReturnsWaitingForRelease()
+    public async Task ValidApiMetadata_MatchingHash_CurrentNull_ReturnsWaitingForRelease_NoError()
     {
         var content = Encoding.UTF8.GetBytes("content");
         var sha = HashHelper.ComputeSha256(content);
@@ -192,9 +212,10 @@ public class LocalizationStateServiceTests : IDisposable
         var gamePath = CreateGameFile(content);
         var service = CreateService();
 
-        var state = await service.ResolveAsync(null, gamePath);
+        var result = await service.ResolveAsync(null, gamePath);
 
-        Assert.Equal(LocalizationState.WaitingForRelease, state);
+        Assert.Equal(LocalizationState.WaitingForRelease, result.State);
+        Assert.Null(result.Error);
     }
 
     // --- UpToDate ---
@@ -209,9 +230,10 @@ public class LocalizationStateServiceTests : IDisposable
         var gamePath = CreateGameFile(content);
         var service = CreateService();
 
-        var state = await service.ResolveAsync(CreateCurrent(publicId), gamePath);
+        var result = await service.ResolveAsync(CreateCurrent(publicId), gamePath);
 
-        Assert.Equal(LocalizationState.UpToDate, state);
+        Assert.Equal(LocalizationState.UpToDate, result.State);
+        Assert.Null(result.Error);
     }
 
     [Fact]
@@ -224,12 +246,12 @@ public class LocalizationStateServiceTests : IDisposable
         var gamePath = CreateGameFile(content);
         var service = CreateService();
 
-        // Current has different version and patch but same public_id
         var current = CreateCurrent(publicId, version: 99, patch: 999);
 
-        var state = await service.ResolveAsync(current, gamePath);
+        var result = await service.ResolveAsync(current, gamePath);
 
-        Assert.Equal(LocalizationState.UpToDate, state);
+        Assert.Equal(LocalizationState.UpToDate, result.State);
+        Assert.Null(result.Error);
     }
 
     // --- UpdateAvailable ---
@@ -243,9 +265,10 @@ public class LocalizationStateServiceTests : IDisposable
         var gamePath = CreateGameFile(content);
         var service = CreateService();
 
-        var state = await service.ResolveAsync(CreateCurrent("01ZZZZZZZZZZZZZZZZZZZZZZ"), gamePath);
+        var result = await service.ResolveAsync(CreateCurrent("01ZZZZZZZZZZZZZZZZZZZZZZ"), gamePath);
 
-        Assert.Equal(LocalizationState.UpdateAvailable, state);
+        Assert.Equal(LocalizationState.UpdateAvailable, result.State);
+        Assert.Null(result.Error);
     }
 
     [Fact]
@@ -257,12 +280,12 @@ public class LocalizationStateServiceTests : IDisposable
         var gamePath = CreateGameFile(content);
         var service = CreateService();
 
-        // Current has same version and patch but different public_id
         var current = CreateCurrent("01ZZZZZZZZZZZZZZZZZZZZZZ", version: 5, patch: 200);
 
-        var state = await service.ResolveAsync(current, gamePath);
+        var result = await service.ResolveAsync(current, gamePath);
 
-        Assert.Equal(LocalizationState.UpdateAvailable, state);
+        Assert.Equal(LocalizationState.UpdateAvailable, result.State);
+        Assert.Null(result.Error);
     }
 
     // --- Cancellation ---
@@ -295,7 +318,6 @@ public class LocalizationStateServiceTests : IDisposable
         var gamePath = CreateGameFile(content);
         var service = CreateService();
 
-        // Current with same public_id but completely different version/patch
         var current = new CurrentRelease
         {
             PublicId = publicId,
@@ -309,10 +331,10 @@ public class LocalizationStateServiceTests : IDisposable
             PublishedAt = "2026-01-01T00:00:00Z"
         };
 
-        var state = await service.ResolveAsync(current, gamePath);
+        var result = await service.ResolveAsync(current, gamePath);
 
-        // Must be UpToDate because public_id matches, regardless of version/patch
-        Assert.Equal(LocalizationState.UpToDate, state);
+        Assert.Equal(LocalizationState.UpToDate, result.State);
+        Assert.Null(result.Error);
     }
 
     [Fact]
@@ -324,7 +346,6 @@ public class LocalizationStateServiceTests : IDisposable
         var gamePath = CreateGameFile(content);
         var service = CreateService();
 
-        // Current has different public_id but same version/patch
         var current = new CurrentRelease
         {
             PublicId = "01NEWID00000000000000000",
@@ -338,32 +359,47 @@ public class LocalizationStateServiceTests : IDisposable
             PublishedAt = "2026-01-01T00:00:00Z"
         };
 
-        var state = await service.ResolveAsync(current, gamePath);
+        var result = await service.ResolveAsync(current, gamePath);
 
-        Assert.Equal(LocalizationState.UpdateAvailable, state);
+        Assert.Equal(LocalizationState.UpdateAvailable, result.State);
+        Assert.Null(result.Error);
     }
 
-    // --- Corrupted via RollbackFailed scenario ---
+    // --- Invalid current metadata: null PublicId ---
 
     [Fact]
-    public async Task ValidApiMetadata_FileExistsButContentCorrupted_ReturnsCorrupted()
+    public async Task CurrentPublicIdNull_ReturnsWaitingForRelease_WithError()
     {
-        var content = Encoding.UTF8.GetBytes("original content");
+        var content = Encoding.UTF8.GetBytes("content");
         var sha = HashHelper.ComputeSha256(content);
         await SaveApiMetadataAsync("01ABCDEF1234567890ABCDEF", sha);
-        // Write different content to game file
-        var gamePath = CreateGameFile(Encoding.UTF8.GetBytes("corrupted content"));
+        var gamePath = CreateGameFile(content);
         var service = CreateService();
 
-        var state = await service.ResolveAsync(CreateCurrent(), gamePath);
+        var current = new CurrentRelease
+        {
+            PublicId = null,
+            Version = 2,
+            Patch = 101,
+            Filename = "languagedata_en.loc",
+            DownloadUrl = "https://example.com/release.loc",
+            SizeBytes = 100,
+            Sha256 = "abc",
+            CompatibleWithOfficialPatch = true,
+            PublishedAt = "2026-01-01T00:00:00Z"
+        };
 
-        Assert.Equal(LocalizationState.Corrupted, state);
+        var result = await service.ResolveAsync(current, gamePath);
+
+        Assert.Equal(LocalizationState.WaitingForRelease, result.State);
+        Assert.NotNull(result.Error);
+        Assert.Contains("public_id", result.Error);
     }
 
-    // --- Current with empty PublicId ---
+    // --- Invalid current metadata: empty PublicId ---
 
     [Fact]
-    public async Task ValidApiMetadata_MatchingHash_CurrentWithEmptyPublicId_ReturnsWaitingForRelease()
+    public async Task CurrentPublicIdEmpty_ReturnsWaitingForRelease_WithError()
     {
         var content = Encoding.UTF8.GetBytes("content");
         var sha = HashHelper.ComputeSha256(content);
@@ -384,9 +420,42 @@ public class LocalizationStateServiceTests : IDisposable
             PublishedAt = "2026-01-01T00:00:00Z"
         };
 
-        var state = await service.ResolveAsync(current, gamePath);
+        var result = await service.ResolveAsync(current, gamePath);
 
-        Assert.Equal(LocalizationState.WaitingForRelease, state);
+        Assert.Equal(LocalizationState.WaitingForRelease, result.State);
+        Assert.NotNull(result.Error);
+        Assert.Contains("public_id", result.Error);
+    }
+
+    // --- Invalid current metadata: whitespace PublicId ---
+
+    [Fact]
+    public async Task CurrentPublicIdWhitespace_ReturnsWaitingForRelease_WithError()
+    {
+        var content = Encoding.UTF8.GetBytes("content");
+        var sha = HashHelper.ComputeSha256(content);
+        await SaveApiMetadataAsync("01ABCDEF1234567890ABCDEF", sha);
+        var gamePath = CreateGameFile(content);
+        var service = CreateService();
+
+        var current = new CurrentRelease
+        {
+            PublicId = "   ",
+            Version = 2,
+            Patch = 101,
+            Filename = "languagedata_en.loc",
+            DownloadUrl = "https://example.com/release.loc",
+            SizeBytes = 100,
+            Sha256 = "abc",
+            CompatibleWithOfficialPatch = true,
+            PublishedAt = "2026-01-01T00:00:00Z"
+        };
+
+        var result = await service.ResolveAsync(current, gamePath);
+
+        Assert.Equal(LocalizationState.WaitingForRelease, result.State);
+        Assert.NotNull(result.Error);
+        Assert.Contains("public_id", result.Error);
     }
 
     private class NullLogger : ILogger

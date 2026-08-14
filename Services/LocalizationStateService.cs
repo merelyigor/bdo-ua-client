@@ -15,7 +15,7 @@ public sealed class LocalizationStateService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<LocalizationState> ResolveAsync(
+    public async Task<LocalizationStateResult> ResolveAsync(
         CurrentRelease? current,
         string gameLocFilePath,
         CancellationToken cancellationToken = default)
@@ -26,13 +26,13 @@ public sealed class LocalizationStateService
         if (loadResult.Status == FileLoadStatus.Missing)
         {
             _logger.Debug("State resolution: NotInstalled (metadata missing)");
-            return LocalizationState.NotInstalled;
+            return LocalizationStateResult.Success(LocalizationState.NotInstalled);
         }
 
         if (loadResult.Status == FileLoadStatus.Invalid)
         {
             _logger.Warning($"State resolution: InstalledVersionUnknown (metadata invalid: {loadResult.Error})");
-            return LocalizationState.InstalledVersionUnknown;
+            return LocalizationStateResult.Success(LocalizationState.InstalledVersionUnknown);
         }
 
         var metadata = loadResult.Value!;
@@ -40,14 +40,14 @@ public sealed class LocalizationStateService
         if (metadata.Source == "official")
         {
             _logger.Debug("State resolution: NotInstalled (source=official)");
-            return LocalizationState.NotInstalled;
+            return LocalizationStateResult.Success(LocalizationState.NotInstalled);
         }
 
         // Step 2: API-installed — verify actual file
         if (!File.Exists(gameLocFilePath))
         {
             _logger.Error($"State resolution: Corrupted (game file missing: {gameLocFilePath})");
-            return LocalizationState.Corrupted;
+            return LocalizationStateResult.Success(LocalizationState.Corrupted);
         }
 
         string actualSha;
@@ -63,36 +63,37 @@ public sealed class LocalizationStateService
         catch (Exception ex)
         {
             _logger.Error($"State resolution: Corrupted (hash computation failed: {ex.Message})");
-            return LocalizationState.Corrupted;
+            return LocalizationStateResult.Success(LocalizationState.Corrupted);
         }
 
         if (!string.Equals(actualSha, metadata.Sha256, StringComparison.OrdinalIgnoreCase))
         {
             _logger.Error("State resolution: Corrupted (hash mismatch)");
-            return LocalizationState.Corrupted;
+            return LocalizationStateResult.Success(LocalizationState.Corrupted);
         }
 
         // Step 3: File verified — determine release state
         if (current == null)
         {
             _logger.Debug("State resolution: WaitingForRelease (current=null)");
-            return LocalizationState.WaitingForRelease;
+            return LocalizationStateResult.Success(LocalizationState.WaitingForRelease);
         }
 
-        if (string.IsNullOrEmpty(current.PublicId))
+        if (string.IsNullOrWhiteSpace(current.PublicId))
         {
-            _logger.Warning("State resolution: WaitingForRelease (current.PublicId is null/empty)");
-            return LocalizationState.WaitingForRelease;
+            _logger.Warning("State resolution: WaitingForRelease (current.PublicId is empty/null/whitespace — malformed server metadata)");
+            return LocalizationStateResult.WithWarning(LocalizationState.WaitingForRelease,
+                "Current release metadata is invalid: public_id is empty");
         }
 
         // Primary identity: public_id only (ordinal exact)
         if (string.Equals(metadata.PublicId, current.PublicId, StringComparison.Ordinal))
         {
             _logger.Debug($"State resolution: UpToDate (public_id={metadata.PublicId})");
-            return LocalizationState.UpToDate;
+            return LocalizationStateResult.Success(LocalizationState.UpToDate);
         }
 
         _logger.Debug($"State resolution: UpdateAvailable (installed={metadata.PublicId}, current={current.PublicId})");
-        return LocalizationState.UpdateAvailable;
+        return LocalizationStateResult.Success(LocalizationState.UpdateAvailable);
     }
 }

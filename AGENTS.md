@@ -358,7 +358,7 @@ API надає release metadata через `GET /releases`. Клієнт вик�
 - `NotInstalled` — installation.json відсутній; АБО metadata valid і `source == "official"`
 - `UpToDate` — `installed.public_id == current.public_id` (ordinal exact string comparison)
 - `UpdateAvailable` — `installed.public_id != current.public_id`
-- `WaitingForRelease` — встановлено, hash збігається, але `current` відсутній
+- `WaitingForRelease` — встановлено, hash збігається, але `current` відсутній; якщо `current != null` але `PublicId` null/empty/whitespace — теж `WaitingForRelease`, але result містить diagnostic Error
 - `InstalledVersionUnknown` — installation.json існує, але `InstallationStateStore.Load()` повертає Invalid
 - `Corrupted` — API metadata valid, але фактичний файл missing/unreadable/hash mismatch
 

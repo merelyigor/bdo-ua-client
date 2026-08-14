@@ -418,10 +418,12 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 
 **Що реалізовано (v7.0):**
 - `LocalizationStateService` — deterministic state resolution
+- `LocalizationStateResult` — typed result with `State` + diagnostic `Error`
 - Resolution order: metadata load → source check → file existence → SHA-256 verification → public_id comparison
 - Canonical contract: Missing metadata → NotInstalled; Invalid metadata → InstalledVersionUnknown; source=official → NotInstalled
 - Primary release identity: `public_id` (ordinal exact), not version/patch
-- `current == null` або `current.PublicId` empty → WaitingForRelease (no false update decision)
+- `current == null` → WaitingForRelease (Error=null, valid business state)
+- `current != null` але `PublicId` null/empty/whitespace → WaitingForRelease + diagnostic Error (malformed server metadata)
 - Factual hash verification via `HashHelper.ComputeFileSha256Async`
 - `Corrupted`: API metadata valid, but file missing/unreadable/hash mismatch
 - Cancellation propagation during hash computation
@@ -441,16 +443,17 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 - [ ] Download не починається при несумісності
 - [ ] Користувачу показується причина блокування
 
-**Файли:** `Services/LocalizationStateService.cs`, `Services/LocalizationState.cs`
+**Файли:** `Services/LocalizationStateService.cs`, `Services/LocalizationState.cs`, `Services/LocalizationStateResult.cs`
 
-**Тести (v7.0, 16 tests):**
+**Тести (v7.0, 18 tests):**
 - [x] installation.json missing → NotInstalled
 - [x] valid source=official → NotInstalled
 - [x] malformed JSON → InstalledVersionUnknown
 - [x] semantically invalid metadata → InstalledVersionUnknown
 - [x] valid API metadata + game file missing → Corrupted
 - [x] valid API metadata + hash mismatch → Corrupted
-- [x] valid API metadata + matching hash + current=null → WaitingForRelease
+- [x] valid API metadata + matching hash + current=null → WaitingForRelease (Error=null)
+- [x] current.PublicId null/empty/whitespace → WaitingForRelease + diagnostic Error
 - [x] valid API metadata + matching hash + same public_id → UpToDate
 - [x] same public_id + different version/patch → UpToDate
 - [x] valid API metadata + matching hash + different public_id → UpdateAvailable
