@@ -109,9 +109,10 @@ public sealed class LocalizationInstallService
         string downloadTempPath = downloadResult.TempFilePath!;
 
         // --- Phases 4-6: Pre-replace operations ---
-        // All paths after successful download and before replace MUST clean up downloadTempPath.
-        // Structured try/catch/finally ensures cleanup on every exit (cancellation, exception, early return).
+        // Ownership flag: download temp is cleaned on ANY exit (exception, cancellation, early return)
+        // except successful completion (preReplaceCompleted=true), where it's kept for ReplaceGameFileAsync.
         string? restorePointDir = null;
+        bool preReplaceCompleted = false;
         try
         {
             // --- Phase 4: Original snapshot safety ---
@@ -198,11 +199,24 @@ public sealed class LocalizationInstallService
 
                 _logger.Info($"Restore point created: {rpDir}");
             }
+
+            preReplaceCompleted = true;
         }
-        catch
+        catch (OperationCanceledException)
         {
             CleanupDownloadTemp(downloadTempPath);
             throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Pre-replace phase failed: {ex.Message}");
+            CleanupDownloadTemp(downloadTempPath);
+            return InstallResult.Failure(InstallError.ReplaceFailed, ex.Message);
+        }
+        finally
+        {
+            if (!preReplaceCompleted)
+                CleanupDownloadTemp(downloadTempPath);
         }
 
         // --- Phase 7: Replace game file (destructive boundary) ---

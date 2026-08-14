@@ -972,7 +972,165 @@ public class LocalizationInstallServiceTests : IDisposable
         Assert.Equal(101, state.Value!.GamePatch);
     }
 
+    // --- v6.3: Deterministic temp cleanup on pre-replace early returns ---
+
+    [Fact]
+    public async Task InstallReleaseAsync_CorruptedSnapshot_AfterDownload_CleansTemp()
+    {
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("original"));
+        var releaseContent = Encoding.UTF8.GetBytes("new content");
+        var release = CreateRelease(content: releaseContent);
+        var handler = new MockHttpHandler(releaseContent, releaseContent.Length);
+
+        // Create valid snapshot then corrupt it
+        var backupStore = new BackupStore(_paths, _logger);
+        await backupStore.CreateOriginalSnapshotAsync(gameRoot, trustedGamePatch: 100);
+        File.WriteAllText(Path.Combine(_paths.OriginalBackupDir, "languagedata_en.loc"), "corrupted");
+
+        var service = CreateService(handler);
+        var result = await service.InstallReleaseAsync("full-ukrainian", release);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(InstallError.OriginalSnapshotFailed, result.Error);
+
+        // Download temp cleaned via finally
+        var tmpFiles = Directory.Exists(_paths.CacheDir)
+            ? Directory.GetFiles(_paths.CacheDir, "*.tmp", SearchOption.AllDirectories)
+            : Array.Empty<string>();
+        Assert.Empty(tmpFiles);
+        Assert.Equal("original", File.ReadAllText(GameLocFilePath));
+    }
+
+    [Fact]
+    public async Task InstallReleaseAsync_MissingSnapshotWithApiMetadata_AfterDownload_CleansTemp()
+    {
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("original"));
+        var releaseContent = Encoding.UTF8.GetBytes("new content");
+        var release = CreateRelease(content: releaseContent);
+        var handler = new MockHttpHandler(releaseContent, releaseContent.Length);
+
+        // Write valid existing API metadata without snapshot
+        var metadata = new InstallationMetadata
+        {
+            Source = "api",
+            ModeSlug = "full-ukrainian",
+            PublicId = "old-public-id",
+            Version = 1,
+            GamePatch = 100,
+            Sha256 = "abc",
+            InstalledAt = DateTimeOffset.UtcNow
+        };
+        var json = System.Text.Json.JsonSerializer.Serialize(metadata,
+            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(Path.Combine(_paths.StateDir, "installation.json"), json);
+
+        var service = CreateService(handler);
+        var result = await service.InstallReleaseAsync("full-ukrainian", release);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(InstallError.OriginalSnapshotFailed, result.Error);
+
+        // Download temp cleaned via finally
+        var tmpFiles = Directory.Exists(_paths.CacheDir)
+            ? Directory.GetFiles(_paths.CacheDir, "*.tmp", SearchOption.AllDirectories)
+            : Array.Empty<string>();
+        Assert.Empty(tmpFiles);
+        Assert.Equal("original", File.ReadAllText(GameLocFilePath));
+    }
+
+    [Fact]
+    public async Task InstallReleaseAsync_CreateSnapshotReturnsTypedFailure_CleansTemp()
+    {
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("original"));
+        var releaseContent = Encoding.UTF8.GetBytes("new content");
+        var release = CreateRelease(content: releaseContent);
+        var handler = new MockHttpHandler(releaseContent, releaseContent.Length);
+
+        // BackupStore that returns typed Failure from CreateOriginalSnapshotAsync
+        var installer = new LocalizationInstaller(new HttpClient(handler), _paths, _logger);
+        var backupStore = new FailingTypedBackupStore(_paths, _logger)
+        {
+            FailCreateOriginalSnapshot = true
+        };
+        var stateStore = new InstallationStateStore(_paths, _logger);
+
+        var service = new LocalizationInstallService(
+            installer, backupStore, stateStore, _logger,
+            gameRoot: Path.Combine(_tempDir, "game"));
+
+        var result = await service.InstallReleaseAsync("full-ukrainian", release);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(InstallError.OriginalSnapshotFailed, result.Error);
+
+        // Download temp cleaned via finally
+        var tmpFiles = Directory.Exists(_paths.CacheDir)
+            ? Directory.GetFiles(_paths.CacheDir, "*.tmp", SearchOption.AllDirectories)
+            : Array.Empty<string>();
+        Assert.Empty(tmpFiles);
+        Assert.Equal("original", File.ReadAllText(GameLocFilePath));
+        Assert.Empty(Directory.GetDirectories(_paths.RestorePointsDir));
+    }
+
+    [Fact]
+    public async Task InstallReleaseAsync_CreateRestorePointReturnsTypedFailure_CleansTemp()
+    {
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("original"));
+        var releaseContent = Encoding.UTF8.GetBytes("new content");
+        var release = CreateRelease(content: releaseContent);
+        var handler = new MockHttpHandler(releaseContent, releaseContent.Length);
+
+        // BackupStore that returns typed Failure from CreateRestorePointAsync
+        var installer = new LocalizationInstaller(new HttpClient(handler), _paths, _logger);
+        var backupStore = new FailingTypedBackupStore(_paths, _logger)
+        {
+            FailCreateRestorePoint = true
+        };
+        var stateStore = new InstallationStateStore(_paths, _logger);
+
+        var service = new LocalizationInstallService(
+            installer, backupStore, stateStore, _logger,
+            gameRoot: Path.Combine(_tempDir, "game"));
+
+        var result = await service.InstallReleaseAsync("full-ukrainian", release);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(InstallError.BackupFailed, result.Error);
+
+        // Download temp cleaned via finally
+        var tmpFiles = Directory.Exists(_paths.CacheDir)
+            ? Directory.GetFiles(_paths.CacheDir, "*.tmp", SearchOption.AllDirectories)
+            : Array.Empty<string>();
+        Assert.Empty(tmpFiles);
+        Assert.Equal("original", File.ReadAllText(GameLocFilePath));
+        Assert.Empty(Directory.GetDirectories(_paths.RestorePointsDir));
+    }
+
     // --- MockHttpHandler ---
+
+    private class FailingTypedBackupStore : BackupStore
+    {
+        public bool FailCreateOriginalSnapshot { get; set; }
+        public bool FailCreateRestorePoint { get; set; }
+
+        public FailingTypedBackupStore(AppPaths paths, ILogger logger) : base(paths, logger) { }
+
+        public override async Task<RestoreResult> CreateOriginalSnapshotAsync(
+            string gameRoot, int? trustedGamePatch, CancellationToken cancellationToken = default)
+        {
+            if (FailCreateOriginalSnapshot)
+                return RestoreResult.Failure(RestoreError.BackupIo, "Simulated snapshot failure");
+            return await base.CreateOriginalSnapshotAsync(gameRoot, trustedGamePatch, cancellationToken);
+        }
+
+        public override async Task<(string? restorePointDir, RestoreResult result)> CreateRestorePointAsync(
+            string gameFilePath, int? gamePatch, string? operationLabel, CancellationToken cancellationToken = default)
+        {
+            if (FailCreateRestorePoint)
+                return (null, RestoreResult.Failure(RestoreError.BackupIo, "Simulated restore point failure"));
+            return await base.CreateRestorePointAsync(gameFilePath, gamePatch, operationLabel, cancellationToken);
+        }
+    }
 
     private class ThrowingBackupStore : BackupStore
     {
