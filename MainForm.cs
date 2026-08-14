@@ -9,9 +9,7 @@ namespace BdoClient;
 
 public partial class MainForm : Form
 {
-    private readonly AppPaths _appPaths;
     private readonly ConfigStore _configStore;
-    private readonly InstallationStateStore _stateStore;
     private readonly BdoUaApiClient _apiClient;
     private readonly GameDetector _gameDetector;
     private readonly LocalizationStateService _stateService;
@@ -21,6 +19,7 @@ public partial class MainForm : Form
     private string? _gameRoot;
     private ReleasesResponse? _apiResponse;
     private bool _apiLoadedSuccessfully;
+    private string? _apiErrorMessage;
     private bool _initializing;
 
     private static readonly string[] KnownModeSlugs = new[]
@@ -38,9 +37,7 @@ public partial class MainForm : Form
         LocalizationCompatibilityService compatService,
         ILogger logger)
     {
-        _appPaths = appPaths;
         _configStore = configStore;
-        _stateStore = stateStore;
         _apiClient = apiClient;
         _gameDetector = gameDetector;
         _stateService = stateService;
@@ -80,11 +77,12 @@ public partial class MainForm : Form
             {
                 _apiResponse = apiResult.Value;
                 _apiLoadedSuccessfully = true;
+                _apiErrorMessage = null;
             }
             else
             {
                 _apiLoadedSuccessfully = false;
-                SetMessage($"Помилка завантаження API: {apiResult.ErrorMessage}");
+                _apiErrorMessage = apiResult.ErrorMessage ?? "Невідома помилка сервера.";
             }
 
             // 3. Game detection
@@ -149,8 +147,7 @@ public partial class MainForm : Form
             {
                 _gameRoot = null;
                 SetGamePathText("Гру не знайдено");
-                SetMessage("Гру не знайдено. Спробуйте обрати вручну.");
-                SetActionsEnabled(false, false, false, false);
+                await RefreshStateAsync();
             }
         }
         catch (Exception ex)
@@ -168,24 +165,32 @@ public partial class MainForm : Form
 
     private async void BrowseGameButton_Click(object? sender, EventArgs e)
     {
-        using var dialog = new FolderBrowserDialog
+        try
         {
-            Description = "Оберіть папку гри Black Desert Online"
-        };
+            using var dialog = new FolderBrowserDialog
+            {
+                Description = "Оберіть папку гри Black Desert Online"
+            };
 
-        if (dialog.ShowDialog(this) != DialogResult.OK)
-            return;
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+                return;
 
-        var result = await _gameDetector.ValidateAndSaveManualPathAsync(dialog.SelectedPath);
-        if (result.IsFound && result.GamePath != null)
-        {
-            _gameRoot = result.GamePath;
-            SetGamePathText(result.GamePath);
-            await RefreshStateAsync();
+            var result = await _gameDetector.ValidateAndSaveManualPathAsync(dialog.SelectedPath);
+            if (result.IsFound && result.GamePath != null)
+            {
+                _gameRoot = result.GamePath;
+                SetGamePathText(result.GamePath);
+                await RefreshStateAsync();
+            }
+            else
+            {
+                SetMessage("Обрана папка не містить гри Black Desert Online.");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            SetMessage("Обрана папка не містить гри Black Desert Online.");
+            _logger.Error($"Browse error: {ex.Message}");
+            SetMessage($"Помилка вибору папки: {ex.Message}");
         }
     }
 
@@ -197,6 +202,7 @@ public partial class MainForm : Form
         if (sender is not RadioButton rb || !rb.Checked) return;
 
         var slug = (string)rb.Tag!;
+        string? configWarning = null;
         try
         {
             var configLoad = _configStore.Load();
@@ -207,9 +213,13 @@ public partial class MainForm : Form
         catch (Exception ex)
         {
             _logger.Error($"Failed to save mode config: {ex.Message}");
+            configWarning = "Не вдалося зберегти налаштування режиму.";
         }
 
         await RefreshStateAsync();
+
+        if (configWarning != null && string.IsNullOrEmpty(messageTextBox.Text))
+            SetMessage(configWarning);
     }
 
     // --- State refresh ---
@@ -223,7 +233,9 @@ public partial class MainForm : Form
             SetLocalizationStateText("Не визначено");
             SetDetailsText("");
             if (!_apiLoadedSuccessfully)
-                SetMessage("Сервер недоступний. Знайдіть гру та спробуйте пізніше.");
+                SetMessage($"Помилка завантаження API: {_apiErrorMessage}");
+            else
+                SetMessage("Гру не знайдено. Натисніть \"Знайти гру\" або оберіть папку вручну.");
             return;
         }
 
@@ -231,7 +243,7 @@ public partial class MainForm : Form
         {
             SetLocalizationStateText("Не визначено");
             SetDetailsText("");
-            SetMessage("Сервер недоступний. Неможливо визначити стан.");
+            SetMessage($"Помилка завантаження API: {_apiErrorMessage}");
             return;
         }
 
@@ -264,17 +276,14 @@ public partial class MainForm : Form
         var stateResult = await _stateService.ResolveAsync(current, gameLocPath);
         SetLocalizationStateText(GetStateDisplayText(stateResult.State));
 
-        // Diagnostics priority: API mode issue > state error > compatibility reason
-        string? diagnostic = null;
-
-        if (stateResult.Error != null)
-            diagnostic = stateResult.Error;
+        // Diagnostics priority: state error > compatibility reason > Corrupted fallback
+        string? diagnostic = stateResult.Error;
 
         var compatResult = _compatService.Check(current);
-        if (!compatResult.IsAllowed && compatResult.Reason != null)
+        if (diagnostic == null && !compatResult.IsAllowed && compatResult.Reason != null)
             diagnostic = compatResult.Reason;
 
-        if (stateResult.State == LocalizationState.Corrupted && diagnostic == null)
+        if (diagnostic == null && stateResult.State == LocalizationState.Corrupted)
             diagnostic = "Файл локалізації пошкоджено. Спробуйте встановити знову.";
 
         SetMessage(diagnostic ?? "");
