@@ -31,6 +31,7 @@ partial class MainForm
     private Button updateButton = null!;
     private Button restoreOriginalButton = null!;
     private Button restoreBackupButton = null!;
+    private Button cancelButton = null!;
 
     protected override void Dispose(bool disposing)
     {
@@ -308,12 +309,20 @@ partial class MainForm
             Text = "Відновити backup",
             AutoSize = true,
             Enabled = false,
+            Margin = new Padding(0, 0, 8, 0)
+        };
+
+        cancelButton = new Button
+        {
+            Text = "Скасувати",
+            AutoSize = true,
+            Enabled = false,
             Margin = new Padding(0)
         };
 
         actionsPanel.Controls.AddRange(new Control[]
         {
-            installButton, updateButton, restoreOriginalButton, restoreBackupButton
+            installButton, updateButton, restoreOriginalButton, restoreBackupButton, cancelButton
         });
 
         // ==========================================

@@ -27,6 +27,7 @@ public partial class MainForm : Form
     private bool _operationInProgress;
     private LocalizationState _lastResolvedState;
     private OperationState _operationState = OperationState.Idle;
+    private CancellationTokenSource? _operationCts;
 
     private static readonly string[] KnownModeSlugs = new[]
     {
@@ -69,6 +70,8 @@ public partial class MainForm : Form
         installButton.Click += InstallButton_Click;
         updateButton.Click += UpdateButton_Click;
         restoreOriginalButton.Click += RestoreOriginalButton_Click;
+        cancelButton.Click += CancelButton_Click;
+        this.FormClosing += MainForm_FormClosing;
     }
 
     // --- Startup ---
@@ -346,13 +349,16 @@ public partial class MainForm : Form
             SetProgress(0);
             SetOperationState(OperationState.Downloading);
 
+            _operationCts = new CancellationTokenSource();
+            cancelButton.Enabled = true;
+
             var service = new LocalizationInstallService(
                 _localizationInstaller, _backupStore, _stateStore, _logger, _gameRoot);
 
             var progress = new Progress<DownloadProgress>(OnDownloadProgress);
 
             var result = await service.InstallReleaseAsync(
-                GetSelectedModeSlug(), current, progress, cancellationToken: default);
+                GetSelectedModeSlug(), current, progress, _operationCts.Token);
 
             if (result.IsSuccess)
             {
@@ -373,6 +379,14 @@ public partial class MainForm : Form
                     finalMessage = errorText;
             }
         }
+        catch (OperationCanceledException)
+        {
+            _logger.Info("Install/update cancelled by user.");
+            SetOperationState(OperationState.Cancelled);
+            finalMessage = isUpdate
+                ? "Оновлення скасовано."
+                : "Встановлення скасовано.";
+        }
         catch (Exception ex)
         {
             _logger.Error($"Install/update error: {ex.Message}");
@@ -381,6 +395,9 @@ public partial class MainForm : Form
         }
         finally
         {
+            cancelButton.Enabled = false;
+            _operationCts?.Dispose();
+            _operationCts = null;
             _operationInProgress = false;
             SetControlsDuringOperation(true);
 
@@ -450,11 +467,14 @@ public partial class MainForm : Form
             SetProgress(0);
             SetOperationState(OperationState.Restoring);
 
+            _operationCts = new CancellationTokenSource();
+            cancelButton.Enabled = true;
+
             var service = new RestoreOriginalService(
                 _localizationInstaller, _backupStore, _stateStore, _logger,
                 _gameRoot, officialSourceUrl ?? "", officialPatch);
 
-            var result = await service.RestoreOriginalAsync(cancellationToken: default);
+            var result = await service.RestoreOriginalAsync(_operationCts.Token);
 
             if (result.IsSuccess)
             {
@@ -473,6 +493,12 @@ public partial class MainForm : Form
                     finalMessage = errorText;
             }
         }
+        catch (OperationCanceledException)
+        {
+            _logger.Info("Restore Original cancelled by user.");
+            SetOperationState(OperationState.Cancelled);
+            finalMessage = "Відновлення оригіналу скасовано.";
+        }
         catch (Exception ex)
         {
             _logger.Error($"Restore original error: {ex.Message}");
@@ -481,6 +507,9 @@ public partial class MainForm : Form
         }
         finally
         {
+            cancelButton.Enabled = false;
+            _operationCts?.Dispose();
+            _operationCts = null;
             _operationInProgress = false;
             SetControlsDuringOperation(true);
 
@@ -499,6 +528,39 @@ public partial class MainForm : Form
 
             if (finalMessage != null)
                 SetMessage(finalMessage);
+        }
+    }
+
+    // --- Cancel action ---
+
+    private void CancelButton_Click(object? sender, EventArgs e)
+    {
+        if (!_operationInProgress || _operationCts == null)
+            return;
+
+        cancelButton.Enabled = false;
+        SetMessage("Скасування операції...");
+        _operationCts.Cancel();
+    }
+
+    // --- FormClosing safety ---
+
+    private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
+    {
+        if (!_operationInProgress)
+            return;
+
+        e.Cancel = true;
+
+        if (_operationCts != null && !_operationCts.IsCancellationRequested)
+        {
+            cancelButton.Enabled = false;
+            SetMessage("Скасування операції перед закриттям...");
+            _operationCts.Cancel();
+        }
+        else
+        {
+            SetMessage("Дочекайтеся завершення поточної операції.");
         }
     }
 

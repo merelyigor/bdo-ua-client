@@ -596,20 +596,28 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 - Precondition blocked: OperationState stays Idle (not Failed)
 - Unexpected exception: Failed
 - BackingUp/Verifying/Installing enum values exist per contract but NOT faked in UI (service doesn't report phases)
-- Cancelled enum exists per contract but NOT used yet (v10.1)
-- No CancellationTokenSource, no Cancel button, no FormClosing cancellation
+
+**Що реалізовано (v10.1):**
+- Per-operation `CancellationTokenSource` — created before service call, disposed in finally
+- Cancel button ("Скасувати") in actionsPanel, initially disabled
+- Cancel enabled only during active service call (after CTS creation)
+- Cancel handler: disables button, sets "Скасування операції...", calls `_operationCts.Cancel()`
+- `OperationCanceledException` catch: `OperationState.Cancelled` + Ukrainian message
+- Recovery/rollback failure → `OperationState.Failed` + critical message (NOT Cancelled)
+- Cancel button disabled + CTS disposed/null in finally (all paths)
+- `FormClosing` safety: blocks close during active operation, requests cancellation if possible
+- Startup/detection NOT cancellable (Cancel button only for Install/Update/Restore Original)
 - Restore Backup still NOT wired
 
-**НЕ реалізовано у v10.0:**
-- Cancellation UX (v10.1)
+**НЕ реалізовано:**
 - Restore Backup (deferred)
 
 **Acceptance criteria:**
 - [x] Progress bar: % download (real DownloadProgress for Install/Update)
-- [ ] "Скасувати" → cancellation → файл не змінено (до replace) — v10.1
+- [x] "Скасувати" → cancellation → файл не змінено до replace; post-replace recovery delegated to transaction safety
 - [x] OperationState оновлює UI
 
-**Файли:** `Services/OperationState.cs`, `MainForm.cs`
+**Файли:** `Services/OperationState.cs`, `MainForm.cs`, `MainForm.Designer.cs`
 
 ---
 
