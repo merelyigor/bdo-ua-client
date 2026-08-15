@@ -18,4 +18,7 @@ public sealed class BackupMetadata
 
     [JsonPropertyName("source")]
     public string Source { get; set; } = string.Empty;
+
+    [JsonPropertyName("installation_state")]
+    public string? InstallationState { get; set; }
 }

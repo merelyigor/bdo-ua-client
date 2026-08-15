@@ -607,17 +607,36 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 - Cancel button disabled + CTS disposed/null in finally (all paths)
 - `FormClosing` safety: blocks close during active operation, requests cancellation if possible
 - Startup/detection NOT cancellable (Cancel button only for Install/Update/Restore Original)
-- Restore Backup still NOT wired
+
+**Що реалізовано (v10.2):**
+- `BackupMetadata.InstallationState` — nullable string marker: `"present"` / `"absent"` / null (backward compatible)
+- `RestorePointInfo` model — Id, CreatedAt, GamePatch, Source, SizeBytes, Sha256, HasInstallationState, IsRestorable
+- `BackupStore.ListRestorePointsAsync` — catalog: newest-first, hash/size validation, corrupt entries excluded
+- `BackupStore.ResolveRestorePointAsync` — path traversal protection, integrity validation, IsRestorable check
+- `BackupStore.CreateRestorePointAsync` — centralized: writes game file + metadata + state snapshot (if provided) + marker
+- `RestoreOriginalService` — now captures pre-op installation state and passes to CreateRestorePointAsync (gap fixed)
+- `LocalizationInstallService` — uses centralized CreateRestorePointAsync (no manual state snapshot write)
+- `RestoreBackupService` — transactional restore:
+  - Validates selected restore point (existence, integrity, IsRestorable)
+  - Creates pre-operation restore point before destructive change
+  - Replaces game file via BackupStore.ReplaceGameFileAsync
+  - Restores installation state (present → write bytes + verify; absent → delete file)
+  - Rollback on state failure: game + state restored from pre-op restore point
+  - Cancellation: pre-replace → OCE propagated; post-replace → rollback with CancellationToken.None
+- New `RestoreError` values: `RestorePointNotFound`, `RestorePointInvalid`, `StateRestoreFailed`
+- Legacy restore points: no marker + state file → IsRestorable=true; no marker + no state file → IsRestorable=false
+- 14 new tests: catalog, create, restore success, restore failure, path traversal, legacy handling
 
 **НЕ реалізовано:**
-- Restore Backup (deferred)
+- Restore Backup UI wiring (deferred — requires selection dialog)
 
 **Acceptance criteria:**
 - [x] Progress bar: % download (real DownloadProgress for Install/Update)
 - [x] "Скасувати" → cancellation → файл не змінено до replace; post-replace recovery delegated to transaction safety
 - [x] OperationState оновлює UI
 
-**Файли:** `Services/OperationState.cs`, `MainForm.cs`, `MainForm.Designer.cs`
+**Файли v10.0-v10.1:** `Services/OperationState.cs`, `MainForm.cs`, `MainForm.Designer.cs`
+**Файли v10.2:** `Models/BackupMetadata.cs`, `Models/RestoreResult.cs`, `Models/RestorePointInfo.cs`, `Storage/BackupStore.cs`, `Services/RestoreOriginalService.cs`, `Services/LocalizationInstallService.cs`, `Services/RestoreBackupService.cs`, tests
 
 ---
 

@@ -150,17 +150,18 @@ public sealed class LocalizationInstallService
 
             // --- Phase 5: Capture pre-operation state (after download, before restore point) ---
             preStateBytes = ReadRawInstallationState();
+            bool stateWasPresent = preStateBytes != null;
 
             // --- Phase 6: Create restore point (after verified download, before replace) ---
             if (File.Exists(gameLocFilePath))
             {
-                // Restore point contains the PRE-OPERATION game file, so use pre-operation patch
                 var restorePointGamePatch = preStateLoad.Status == FileLoadStatus.Valid
                     ? preStateLoad.Value?.GamePatch
                     : null;
 
                 var (rpDir, rpResult) = await _backupStore
-                    .CreateRestorePointAsync(gameLocFilePath, restorePointGamePatch, "pre_install", cancellationToken)
+                    .CreateRestorePointAsync(gameLocFilePath, restorePointGamePatch, "pre_install",
+                        preStateBytes, stateWasPresent, cancellationToken)
                     .ConfigureAwait(false);
 
                 if (!rpResult.IsSuccess || rpDir == null)
@@ -171,31 +172,6 @@ public sealed class LocalizationInstallService
                 }
 
                 restorePointDir = rpDir;
-
-                // Persist raw installation-state snapshot into restore point directory
-                if (preStateBytes != null)
-                {
-                    var stateSnapshotPath = Path.Combine(rpDir, "installation-state.json");
-                    var tempStatePath = stateSnapshotPath + ".tmp";
-                    try
-                    {
-                        await File.WriteAllBytesAsync(tempStatePath, preStateBytes, cancellationToken)
-                            .ConfigureAwait(false);
-                        File.Move(tempStatePath, stateSnapshotPath, overwrite: false);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        CleanupFile(tempStatePath);
-                        throw;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.Error($"Failed to persist installation-state snapshot: {ex.Message}");
-                        CleanupFile(tempStatePath);
-                        return InstallResult.Failure(InstallError.BackupFailed,
-                            $"Failed to persist installation-state snapshot: {ex.Message}");
-                    }
-                }
 
                 _logger.Info($"Restore point created: {rpDir}");
             }

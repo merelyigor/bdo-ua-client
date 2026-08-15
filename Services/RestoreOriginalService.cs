@@ -63,9 +63,12 @@ public sealed class RestoreOriginalService
     private async Task<RestoreResult> ApplyOfficialRestoreAsync(
         string officialTempFilePath, CancellationToken cancellationToken)
     {
-        // Create restore point BEFORE replace
+        var preStateBytes = ReadRawInstallationState();
+        bool stateWasPresent = preStateBytes != null;
+
         var (rpDir, rpResult) = await _backupStore
-            .CreateRestorePointAsync(_gameLocFilePath, _currentOfficialPatch, "restore_original", cancellationToken)
+            .CreateRestorePointAsync(_gameLocFilePath, _currentOfficialPatch, "restore_original",
+                preStateBytes, stateWasPresent, cancellationToken)
             .ConfigureAwait(false);
 
         if (!rpResult.IsSuccess || rpDir == null)
@@ -166,9 +169,12 @@ public sealed class RestoreOriginalService
     private async Task<RestoreResult> ApplySnapshotRestoreAsync(
         string snapshotPath, BackupMetadata snapshotMetadata, CancellationToken cancellationToken)
     {
-        // Create restore point BEFORE replace
+        var preStateBytes = ReadRawInstallationState();
+        bool stateWasPresent = preStateBytes != null;
+
         var (rpDir, rpResult) = await _backupStore
-            .CreateRestorePointAsync(_gameLocFilePath, _currentOfficialPatch, "restore_original_fallback", cancellationToken)
+            .CreateRestorePointAsync(_gameLocFilePath, _currentOfficialPatch, "restore_original_fallback",
+                preStateBytes, stateWasPresent, cancellationToken)
             .ConfigureAwait(false);
 
         if (!rpResult.IsSuccess || rpDir == null)
@@ -237,5 +243,11 @@ public sealed class RestoreOriginalService
         {
             _logger.Warning($"Failed to cleanup download temp: {ex.Message}");
         }
+    }
+
+    private byte[]? ReadRawInstallationState()
+    {
+        var path = Path.Combine(_stateStore.StateDir, "installation.json");
+        return File.Exists(path) ? File.ReadAllBytes(path) : null;
     }
 }

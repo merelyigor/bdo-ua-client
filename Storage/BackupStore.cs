@@ -195,7 +195,9 @@ public class BackupStore
     // --- Restore points ---
 
     public virtual async Task<(string? restorePointDir, RestoreResult result)> CreateRestorePointAsync(
-        string gameFilePath, int? gamePatch, string? operationLabel, CancellationToken cancellationToken = default)
+        string gameFilePath, int? gamePatch, string? operationLabel,
+        byte[]? preOperationStateBytes = null, bool stateWasPresent = false,
+        CancellationToken cancellationToken = default)
     {
         if (!File.Exists(gameFilePath))
         {
@@ -207,8 +209,16 @@ public class BackupStore
         var restorePointDir = Path.Combine(_paths.RestorePointsDir, dirName);
         var fileCopyPath = Path.Combine(restorePointDir, SnapshotFile);
         var metadataPath = Path.Combine(restorePointDir, MetadataFile);
+        var stateSnapshotPath = Path.Combine(restorePointDir, "installation-state.json");
         var tempCopyPath = fileCopyPath + ".tmp";
         var tempMetadataPath = metadataPath + ".tmp";
+        var tempStatePath = stateSnapshotPath + ".tmp";
+
+        string installationStateMarker;
+        if (stateWasPresent && preOperationStateBytes != null)
+            installationStateMarker = "present";
+        else
+            installationStateMarker = "absent";
 
         try
         {
@@ -225,7 +235,8 @@ public class BackupStore
                 GamePatch = gamePatch,
                 Sha256 = sha256,
                 SizeBytes = sizeBytes,
-                Source = operationLabel ?? "restore_point"
+                Source = operationLabel ?? "restore_point",
+                InstallationState = installationStateMarker
             };
 
             var json = JsonSerializer.Serialize(metadata, JsonOptions);
@@ -234,13 +245,21 @@ public class BackupStore
             File.Move(tempCopyPath, fileCopyPath, overwrite: false);
             File.Move(tempMetadataPath, metadataPath, overwrite: false);
 
-            _logger.Info($"Restore point created: {dirName} ({sizeBytes} bytes)");
+            if (stateWasPresent && preOperationStateBytes != null)
+            {
+                await File.WriteAllBytesAsync(tempStatePath, preOperationStateBytes, cancellationToken)
+                    .ConfigureAwait(false);
+                File.Move(tempStatePath, stateSnapshotPath, overwrite: false);
+            }
+
+            _logger.Info($"Restore point created: {dirName} ({sizeBytes} bytes, state={installationStateMarker})");
             return (restorePointDir, RestoreResult.Success());
         }
         catch (OperationCanceledException)
         {
             CleanupFile(tempCopyPath);
             CleanupFile(tempMetadataPath);
+            CleanupFile(tempStatePath);
             CleanupDirectory(restorePointDir);
             throw;
         }
@@ -249,9 +268,146 @@ public class BackupStore
             _logger.Error($"Failed to create restore point: {ex.Message}");
             CleanupFile(tempCopyPath);
             CleanupFile(tempMetadataPath);
+            CleanupFile(tempStatePath);
             CleanupDirectory(restorePointDir);
             return (null, RestoreResult.Failure(RestoreError.BackupIo, ex.Message));
         }
+    }
+
+    // --- Restore point catalog ---
+
+    public async Task<List<RestorePointInfo>> ListRestorePointsAsync(CancellationToken cancellationToken = default)
+    {
+        var result = new List<RestorePointInfo>();
+
+        if (!Directory.Exists(_paths.RestorePointsDir))
+            return result;
+
+        string[] directories;
+        try
+        {
+            directories = Directory.GetDirectories(_paths.RestorePointsDir);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"Failed to enumerate restore points: {ex.Message}");
+            return result;
+        }
+
+        Array.Sort(directories, StringComparer.OrdinalIgnoreCase);
+        Array.Reverse(directories);
+
+        foreach (var dir in directories)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                var info = await LoadRestorePointInfoAsync(dir, cancellationToken).ConfigureAwait(false);
+                if (info != null)
+                    result.Add(info);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning($"Skipping corrupt restore point {Path.GetFileName(dir)}: {ex.Message}");
+            }
+        }
+
+        return result;
+    }
+
+    public async Task<RestorePointInfo?> LoadRestorePointInfoAsync(
+        string restorePointDir, CancellationToken cancellationToken = default)
+    {
+        var metadataPath = Path.Combine(restorePointDir, MetadataFile);
+        var gameFilePath = Path.Combine(restorePointDir, SnapshotFile);
+        var stateFilePath = Path.Combine(restorePointDir, "installation-state.json");
+
+        if (!File.Exists(metadataPath) || !File.Exists(gameFilePath))
+            return null;
+
+        var json = await File.ReadAllTextAsync(metadataPath, cancellationToken).ConfigureAwait(false);
+        var metadata = JsonSerializer.Deserialize<BackupMetadata>(json, JsonOptions);
+        if (metadata == null)
+            return null;
+
+        var fileInfo = new FileInfo(gameFilePath);
+        if (metadata.SizeBytes != fileInfo.Length)
+            return null;
+
+        var actualSha256 = await HashHelper.ComputeFileSha256Async(gameFilePath, cancellationToken)
+            .ConfigureAwait(false);
+        if (!string.Equals(metadata.Sha256, actualSha256, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        bool hasStateFile = File.Exists(stateFilePath);
+        bool isRestorable;
+
+        if (metadata.InstallationState == "present")
+        {
+            isRestorable = hasStateFile;
+        }
+        else if (metadata.InstallationState == "absent")
+        {
+            isRestorable = true;
+        }
+        else
+        {
+            isRestorable = hasStateFile;
+        }
+
+        var dirName = Path.GetFileName(restorePointDir);
+
+        return new RestorePointInfo
+        {
+            Id = dirName,
+            CreatedAt = metadata.CreatedAt,
+            GamePatch = metadata.GamePatch,
+            Source = metadata.Source,
+            SizeBytes = metadata.SizeBytes,
+            Sha256 = metadata.Sha256,
+            HasInstallationState = hasStateFile,
+            IsRestorable = isRestorable
+        };
+    }
+
+    public async Task<(string? restorePointDir, BackupMetadata? metadata, RestoreError? error)> ResolveRestorePointAsync(
+        string restorePointId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(restorePointId))
+            return (null, null, RestoreError.RestorePointNotFound);
+
+        if (restorePointId.Contains("..") || restorePointId.Contains('/') || restorePointId.Contains('\\')
+            || Path.IsPathRooted(restorePointId))
+            return (null, null, RestoreError.RestorePointNotFound);
+
+        var restorePointDir = Path.Combine(_paths.RestorePointsDir, restorePointId);
+        var normalizedDir = Path.GetFullPath(restorePointDir);
+        var normalizedBase = Path.GetFullPath(_paths.RestorePointsDir);
+
+        if (!normalizedDir.StartsWith(normalizedBase + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            && !normalizedDir.StartsWith(normalizedBase + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            return (null, null, RestoreError.RestorePointNotFound);
+
+        if (!Directory.Exists(restorePointDir))
+            return (null, null, RestoreError.RestorePointNotFound);
+
+        var info = await LoadRestorePointInfoAsync(restorePointDir, cancellationToken).ConfigureAwait(false);
+        if (info == null)
+            return (null, null, RestoreError.RestorePointInvalid);
+
+        if (!info.IsRestorable)
+            return (null, null, RestoreError.RestorePointInvalid);
+
+        var metadataPath = Path.Combine(restorePointDir, MetadataFile);
+        var metadataJson = await File.ReadAllTextAsync(metadataPath, cancellationToken).ConfigureAwait(false);
+        var metadata = JsonSerializer.Deserialize<BackupMetadata>(metadataJson, JsonOptions);
+
+        return (restorePointDir, metadata, null);
     }
 
     // --- Replace game file ---

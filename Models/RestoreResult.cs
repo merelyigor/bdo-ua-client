@@ -13,7 +13,10 @@ public enum RestoreError
     ReplaceFailed,
     VerificationFailed,
     StateSaveFailed,
-    RecoveryFailed
+    RecoveryFailed,
+    RestorePointNotFound,
+    RestorePointInvalid,
+    StateRestoreFailed
 }
 
 public sealed class RestoreResult

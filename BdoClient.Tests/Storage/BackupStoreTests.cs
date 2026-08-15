@@ -579,7 +579,7 @@ public class BackupStoreTests : IDisposable
 
         try
         {
-            await _store.CreateRestorePointAsync(gameFile, 100, "test", cts.Token);
+            await _store.CreateRestorePointAsync(gameFile, 100, "test", cancellationToken: cts.Token);
         }
         catch (OperationCanceledException) { }
 

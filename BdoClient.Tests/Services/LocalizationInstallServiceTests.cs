@@ -1124,11 +1124,14 @@ public class LocalizationInstallServiceTests : IDisposable
         }
 
         public override async Task<(string? restorePointDir, RestoreResult result)> CreateRestorePointAsync(
-            string gameFilePath, int? gamePatch, string? operationLabel, CancellationToken cancellationToken = default)
+            string gameFilePath, int? gamePatch, string? operationLabel,
+            byte[]? preOperationStateBytes = null, bool stateWasPresent = false,
+            CancellationToken cancellationToken = default)
         {
             if (FailCreateRestorePoint)
                 return (null, RestoreResult.Failure(RestoreError.BackupIo, "Simulated restore point failure"));
-            return await base.CreateRestorePointAsync(gameFilePath, gamePatch, operationLabel, cancellationToken);
+            return await base.CreateRestorePointAsync(gameFilePath, gamePatch, operationLabel,
+                preOperationStateBytes, stateWasPresent, cancellationToken);
         }
     }
 
@@ -1148,11 +1151,14 @@ public class LocalizationInstallServiceTests : IDisposable
         }
 
         public override async Task<(string? restorePointDir, RestoreResult result)> CreateRestorePointAsync(
-            string gameFilePath, int? gamePatch, string? operationLabel, CancellationToken cancellationToken = default)
+            string gameFilePath, int? gamePatch, string? operationLabel,
+            byte[]? preOperationStateBytes = null, bool stateWasPresent = false,
+            CancellationToken cancellationToken = default)
         {
             if (ThrowOnCreateRestorePoint)
                 throw new OperationCanceledException();
-            return await base.CreateRestorePointAsync(gameFilePath, gamePatch, operationLabel, cancellationToken);
+            return await base.CreateRestorePointAsync(gameFilePath, gamePatch, operationLabel,
+                preOperationStateBytes, stateWasPresent, cancellationToken);
         }
     }
 
@@ -1161,18 +1167,19 @@ public class LocalizationInstallServiceTests : IDisposable
         public FailingAfterRestorePointBackupStore(AppPaths paths, ILogger logger) : base(paths, logger) { }
 
         public override async Task<(string? restorePointDir, RestoreResult result)> CreateRestorePointAsync(
-            string gameFilePath, int? gamePatch, string? operationLabel, CancellationToken cancellationToken = default)
+            string gameFilePath, int? gamePatch, string? operationLabel,
+            byte[]? preOperationStateBytes = null, bool stateWasPresent = false,
+            CancellationToken cancellationToken = default)
         {
-            var (rpDir, rpResult) = await base.CreateRestorePointAsync(
-                gameFilePath, gamePatch, operationLabel, cancellationToken);
-
-            if (rpResult.IsSuccess && rpDir != null)
+            if (stateWasPresent && preOperationStateBytes != null)
             {
-                // Pre-create installation-state.json so File.Move(overwrite:false) throws IOException
-                File.WriteAllText(Path.Combine(rpDir, "installation-state.json"), "{}");
+                return (null, RestoreResult.Failure(RestoreError.BackupIo,
+                    "Simulated state snapshot write failure"));
             }
 
-            return (rpDir, rpResult);
+            return await base.CreateRestorePointAsync(
+                gameFilePath, gamePatch, operationLabel,
+                preOperationStateBytes, stateWasPresent, cancellationToken);
         }
     }
 
