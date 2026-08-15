@@ -26,6 +26,7 @@ public partial class MainForm : Form
     private bool _initializing;
     private bool _operationInProgress;
     private LocalizationState _lastResolvedState;
+    private OperationState _operationState = OperationState.Idle;
 
     private static readonly string[] KnownModeSlugs = new[]
     {
@@ -83,6 +84,7 @@ public partial class MainForm : Form
             RestoreLastMode(config);
 
             // 2. Load API
+            SetOperationState(OperationState.LoadingApi);
             SetMessage("Завантаження даних з сервера...");
             var apiResult = await _apiClient.GetReleasesAsync();
             if (apiResult.IsSuccess && apiResult.Value?.Data?.Modes != null)
@@ -98,6 +100,7 @@ public partial class MainForm : Form
             }
 
             // 3. Game detection
+            SetOperationState(OperationState.DetectingGame);
             var patterns = _apiResponse?.Data?.InstallPathPatterns;
             var detection = await _gameDetector.DetectAsync(patterns);
             if (detection.IsFound && detection.GamePath != null)
@@ -121,6 +124,7 @@ public partial class MainForm : Form
         finally
         {
             _initializing = false;
+            SetOperationState(OperationState.Idle);
         }
     }
 
@@ -144,6 +148,7 @@ public partial class MainForm : Form
     private async void DetectGameButton_Click(object? sender, EventArgs e)
     {
         detectGameButton.Enabled = false;
+        SetOperationState(OperationState.DetectingGame);
         SetMessage("Пошук гри...");
         try
         {
@@ -170,6 +175,7 @@ public partial class MainForm : Form
         finally
         {
             detectGameButton.Enabled = true;
+            SetOperationState(OperationState.Idle);
         }
     }
 
@@ -336,21 +342,27 @@ public partial class MainForm : Form
 
             var actionLabel = isUpdate ? "Оновлення" : "Встановлення";
             SetMessage($"{actionLabel}...");
+            SetProgress(0);
+            SetOperationState(OperationState.Downloading);
 
             var service = new LocalizationInstallService(
                 _localizationInstaller, _backupStore, _stateStore, _logger, _gameRoot);
 
+            var progress = new Progress<DownloadProgress>(OnDownloadProgress);
+
             var result = await service.InstallReleaseAsync(
-                GetSelectedModeSlug(), current, progress: null, cancellationToken: default);
+                GetSelectedModeSlug(), current, progress, cancellationToken: default);
 
             if (result.IsSuccess)
             {
+                SetOperationState(OperationState.Completed);
                 finalMessage = isUpdate
                     ? "Локалізацію успішно оновлено."
                     : "Локалізацію успішно встановлено.";
             }
             else
             {
+                SetOperationState(OperationState.Failed);
                 _logger.Error($"Install failed: {result.Error} — {result.ErrorMessage}");
                 var errorText = MapInstallError(result.Error!.Value);
 
@@ -363,6 +375,7 @@ public partial class MainForm : Form
         catch (Exception ex)
         {
             _logger.Error($"Install/update error: {ex.Message}");
+            SetOperationState(OperationState.Failed);
             finalMessage = $"Помилка операції: {ex.Message}";
         }
         finally
@@ -432,6 +445,8 @@ public partial class MainForm : Form
             int? officialPatch = data.OfficialPatch > 0 ? data.OfficialPatch : null;
 
             SetMessage("Відновлення оригінального файлу...");
+            SetProgress(0);
+            SetOperationState(OperationState.Restoring);
 
             var service = new RestoreOriginalService(
                 _localizationInstaller, _backupStore, _stateStore, _logger,
@@ -441,10 +456,12 @@ public partial class MainForm : Form
 
             if (result.IsSuccess)
             {
+                SetOperationState(OperationState.Completed);
                 finalMessage = "Оригінальні файли відновлено.";
             }
             else
             {
+                SetOperationState(OperationState.Failed);
                 _logger.Error($"Restore original failed: {result.Error} — {result.ErrorMessage}");
                 var errorText = MapRestoreError(result.Error!.Value);
 
@@ -457,6 +474,7 @@ public partial class MainForm : Form
         catch (Exception ex)
         {
             _logger.Error($"Restore original error: {ex.Message}");
+            SetOperationState(OperationState.Failed);
             finalMessage = $"Помилка відновлення: {ex.Message}";
         }
         finally
@@ -489,6 +507,37 @@ public partial class MainForm : Form
         fullUkrainianRadioButton.Enabled = enabled;
         bosiaRadioButton.Enabled = enabled;
         englishItemsRadioButton.Enabled = enabled;
+    }
+
+    private void SetOperationState(OperationState state)
+    {
+        _operationState = state;
+        progressLabel.Text = state switch
+        {
+            OperationState.Idle => "0%",
+            OperationState.DetectingGame => "Пошук гри...",
+            OperationState.LoadingApi => "Завантаження даних...",
+            OperationState.Downloading => "Завантаження...",
+            OperationState.Verifying => "Перевірка...",
+            OperationState.BackingUp => "Створення резервної копії...",
+            OperationState.Installing => "Встановлення...",
+            OperationState.Restoring => "Відновлення...",
+            OperationState.Completed => "Завершено",
+            OperationState.Failed => "Помилка",
+            OperationState.Cancelled => "Скасовано",
+            _ => "0%"
+        };
+    }
+
+    private void OnDownloadProgress(DownloadProgress progress)
+    {
+        var percent = progress.Percentage;
+        if (percent.HasValue)
+        {
+            var clamped = (int)Math.Clamp(Math.Round(percent.Value), 0, 100);
+            progressBar.Value = clamped;
+            progressLabel.Text = $"{clamped}%";
+        }
     }
 
     // --- State refresh ---

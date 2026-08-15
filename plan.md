@@ -582,17 +582,34 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 
 ### Етап 10: Progress + cancellation UX
 
-**Що реалізовано:**
-- UI progress bar для download
-- UI cancellation button
-- Інтеграція з `CancellationToken` з Етапу 1
+**Що реалізовано (v10.0):**
+- `OperationState` enum — `Services/OperationState.cs` (11 states: Idle, DetectingGame, LoadingApi, Downloading, Verifying, BackingUp, Installing, Restoring, Completed, Failed, Cancelled)
+- `SetOperationState` helper — maps state to Ukrainian UI text in `progressLabel`
+- OperationState ≠ LocalizationState (temporary operation vs persistent factual state)
+- Startup: LoadingApi → DetectingGame → Idle
+- Detect button: DetectingGame → Idle
+- Install/Update: real `IProgress<DownloadProgress>` wired — progressBar shows actual download %
+- `OnDownloadProgress` handler: reads `DownloadProgress.Percentage`, clamps 0..100
+- Progress reset: 0% at start of Install/Update/Restore; actual % during download; 100% only on real completion
+- Install/Update: Downloading → Completed/Failed
+- Restore Original: Restoring → Completed/Failed (no real download progress — progress:null in service)
+- Precondition blocked: OperationState stays Idle (not Failed)
+- Unexpected exception: Failed
+- BackingUp/Verifying/Installing enum values exist per contract but NOT faked in UI (service doesn't report phases)
+- Cancelled enum exists per contract but NOT used yet (v10.1)
+- No CancellationTokenSource, no Cancel button, no FormClosing cancellation
+- Restore Backup still NOT wired
+
+**НЕ реалізовано у v10.0:**
+- Cancellation UX (v10.1)
+- Restore Backup (deferred)
 
 **Acceptance criteria:**
-- [ ] Progress bar: % download
-- [ ] "Скасувати" → cancellation → файл не змінено (до replace)
-- [ ] OperationState оновлює UI
+- [x] Progress bar: % download (real DownloadProgress for Install/Update)
+- [ ] "Скасувати" → cancellation → файл не змінено (до replace) — v10.1
+- [x] OperationState оновлює UI
 
-**Файли:** `MainForm.cs`, `Services/*.cs`
+**Файли:** `Services/OperationState.cs`, `MainForm.cs`
 
 ---
 
