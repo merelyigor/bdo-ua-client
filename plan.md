@@ -526,6 +526,35 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 - API failure ≠ current=null (separate `_apiLoadedSuccessfully` flag)
 - All action buttons disabled in v9.0 (install/update/restore not wired)
 
+**Що реалізовано (v9.1):**
+- Install button → `LocalizationInstallService.InstallReleaseAsync` (progress: null)
+- Update button → same `InstallReleaseAsync` (Stage 6 distinguishes first-install/update)
+- Restore Original → `RestoreOriginalService.RestoreOriginalAsync`
+- Shared `HandleInstallOrUpdateAsync(isUpdate)` helper (no duplication)
+- `_operationInProgress` bool guard — prevents concurrent operations
+- UI controls disabled during operation (game detection, mode selection, action buttons)
+- Real action availability in `RefreshStateAsync`:
+  - Install: NotInstalled + compatible + current exists
+  - Update: UpdateAvailable + compatible + current exists
+  - Restore Original: UpToDate/UpdateAvailable/WaitingForRelease/Corrupted/InstalledVersionUnknown
+  - Restore Backup: always disabled (deferred)
+- Compatibility defense-in-depth: UI check + existing Stage 6 `InstallError.Incompatible` guard
+- `GetSelectedApiMode()` helper — centralized mode lookup (ordinal slug comparison)
+- Error mapping: `InstallError`/`RestoreError` → concise Ukrainian messages
+- Critical errors (`RollbackFailed`, `RecoveryFailed`) shown with "КРИТИЧНО:" prefix
+- Post-operation `RefreshStateAsync()` — always, even after failure
+- Operation result message set AFTER refresh (so refresh doesn't erase it)
+- Event exception safety: full outer try/catch/finally on all async void handlers
+- `LocalizationInstaller` + `BackupStore` + `InstallationStateStore` passed to MainForm
+- Shared `HttpClient` reused for `BdoUaApiClient` and `LocalizationInstaller`
+- `LocalizationInstallService` constructed per-operation (gameRoot known after detection)
+- `RestoreOriginalService` constructed per-operation from cached API `OfficialSourceUrl`/`OfficialPatch`
+
+**НЕ реалізовано у v9.1:**
+- Restore Backup (deferred — requires restore-point selection contract/UI)
+- Progress/cancellation UX (Stage 10)
+- OperationState enum/UI (Stage 10)
+
 **Acceptance criteria (v9.0):**
 - [x] `Знайти гру` → GameDetector.DetectAsync → UI update
 - [x] Manual path selection/validation via FolderBrowserDialog
@@ -533,10 +562,18 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 - [x] API + state + compatibility refresh on startup and mode change
 - [x] Errors shown in UI
 
-**Acceptance criteria (v9.1, НЕ реалізовано):**
-- [ ] "Встановити" → LocalizationInstallService.InstallReleaseAsync → progress → UI
-- [ ] OperationState оновлює UI
-- [ ] Помилки зрозумілою мовою
+**Acceptance criteria (v9.1):**
+- [x] "Встановити" → LocalizationInstallService.InstallReleaseAsync → UI result
+- [x] "Оновити" → LocalizationInstallService.InstallReleaseAsync → UI result
+- [x] "Відновити оригінал" → RestoreOriginalService.RestoreOriginalAsync → UI result
+- [x] Operation guard prevents concurrent operations
+- [x] UI controls disabled during operation
+- [x] Помилки зрозумілою мовою (InstallError/RestoreError → Ukrainian)
+- [x] Critical errors (RollbackFailed/RecoveryFailed) marked explicitly
+- [x] Post-operation state refresh
+- [x] Action availability based on factual state + compatibility
+- [ ] OperationState оновлює UI (Stage 10)
+- [ ] Restore Backup (deferred)
 
 **Файли:** `Program.cs`, `MainForm.cs`
 

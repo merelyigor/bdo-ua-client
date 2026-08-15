@@ -14,6 +14,9 @@ public partial class MainForm : Form
     private readonly GameDetector _gameDetector;
     private readonly LocalizationStateService _stateService;
     private readonly LocalizationCompatibilityService _compatService;
+    private readonly LocalizationInstaller _localizationInstaller;
+    private readonly BackupStore _backupStore;
+    private readonly InstallationStateStore _stateStore;
     private readonly ILogger _logger;
 
     private string? _gameRoot;
@@ -21,6 +24,8 @@ public partial class MainForm : Form
     private bool _apiLoadedSuccessfully;
     private string? _apiErrorMessage;
     private bool _initializing;
+    private bool _operationInProgress;
+    private LocalizationState _lastResolvedState;
 
     private static readonly string[] KnownModeSlugs = new[]
     {
@@ -33,6 +38,9 @@ public partial class MainForm : Form
         GameDetector gameDetector,
         LocalizationStateService stateService,
         LocalizationCompatibilityService compatService,
+        LocalizationInstaller localizationInstaller,
+        BackupStore backupStore,
+        InstallationStateStore stateStore,
         ILogger logger)
     {
         _configStore = configStore;
@@ -40,6 +48,9 @@ public partial class MainForm : Form
         _gameDetector = gameDetector;
         _stateService = stateService;
         _compatService = compatService;
+        _localizationInstaller = localizationInstaller;
+        _backupStore = backupStore;
+        _stateStore = stateStore;
         _logger = logger;
 
         InitializeComponent();
@@ -54,6 +65,9 @@ public partial class MainForm : Form
         fullUkrainianRadioButton.CheckedChanged += ModeRadioButton_CheckedChanged;
         bosiaRadioButton.CheckedChanged += ModeRadioButton_CheckedChanged;
         englishItemsRadioButton.CheckedChanged += ModeRadioButton_CheckedChanged;
+        installButton.Click += InstallButton_Click;
+        updateButton.Click += UpdateButton_Click;
+        restoreOriginalButton.Click += RestoreOriginalButton_Click;
     }
 
     // --- Startup ---
@@ -234,6 +248,170 @@ public partial class MainForm : Form
         }
     }
 
+    // --- Install / Update action ---
+
+    private async void InstallButton_Click(object? sender, EventArgs e)
+        => await HandleInstallOrUpdateAsync(isUpdate: false);
+
+    private async void UpdateButton_Click(object? sender, EventArgs e)
+        => await HandleInstallOrUpdateAsync(isUpdate: true);
+
+    private async Task HandleInstallOrUpdateAsync(bool isUpdate)
+    {
+        if (_operationInProgress) return;
+
+        try
+        {
+            _operationInProgress = true;
+            SetActionsEnabled(false, false, false, false);
+            SetControlsDuringOperation(false);
+
+            if (_gameRoot == null)
+            {
+                SetMessage("Гру не знайдено.");
+                return;
+            }
+
+            if (!_apiLoadedSuccessfully)
+            {
+                SetMessage($"Помилка завантаження API: {_apiErrorMessage}");
+                return;
+            }
+
+            var mode = GetSelectedApiMode();
+            if (mode?.Current == null)
+            {
+                SetMessage("Актуальний реліз відсутній.");
+                return;
+            }
+
+            var current = mode.Current;
+
+            var compatResult = _compatService.Check(current);
+            if (!compatResult.IsAllowed)
+            {
+                SetMessage(compatResult.Reason ?? "Операція заблокована.");
+                return;
+            }
+
+            var actionLabel = isUpdate ? "Оновлення" : "Встановлення";
+            SetMessage($"{actionLabel}...");
+
+            var service = new LocalizationInstallService(
+                _localizationInstaller, _backupStore, _stateStore, _logger, _gameRoot);
+
+            var result = await service.InstallReleaseAsync(
+                GetSelectedModeSlug(), current, progress: null, cancellationToken: default);
+
+            await RefreshStateAsync();
+
+            if (result.IsSuccess)
+            {
+                SetMessage(isUpdate
+                    ? "Локалізацію успішно оновлено."
+                    : "Локалізацію успішно встановлено.");
+            }
+            else
+            {
+                var errorText = MapInstallError(result.Error!.Value);
+                _logger.Error($"Install failed: {result.Error} — {result.ErrorMessage}");
+
+                if (result.Error == InstallError.RollbackFailed)
+                    SetMessage($"КРИТИЧНО: {errorText}");
+                else
+                    SetMessage(errorText);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Install/update error: {ex.Message}");
+            SetMessage($"Помилка операції: {ex.Message}");
+            try { await RefreshStateAsync(); } catch { }
+        }
+        finally
+        {
+            _operationInProgress = false;
+            SetControlsDuringOperation(true);
+            await RefreshStateAsync();
+        }
+    }
+
+    // --- Restore Original action ---
+
+    private async void RestoreOriginalButton_Click(object? sender, EventArgs e)
+    {
+        if (_operationInProgress) return;
+
+        try
+        {
+            _operationInProgress = true;
+            SetActionsEnabled(false, false, false, false);
+            SetControlsDuringOperation(false);
+
+            if (_gameRoot == null)
+            {
+                SetMessage("Гру не знайдено.");
+                return;
+            }
+
+            if (!_apiLoadedSuccessfully || _apiResponse?.Data == null)
+            {
+                SetMessage("Дані API недоступні для відновлення оригіналу.");
+                return;
+            }
+
+            var data = _apiResponse.Data;
+            var officialSourceUrl = data.OfficialSourceUrl;
+            int? officialPatch = data.OfficialPatch > 0 ? data.OfficialPatch : null;
+
+            SetMessage("Відновлення оригінального файлу...");
+
+            var service = new RestoreOriginalService(
+                _localizationInstaller, _backupStore, _stateStore, _logger,
+                _gameRoot, officialSourceUrl ?? "", officialPatch);
+
+            var result = await service.RestoreOriginalAsync(cancellationToken: default);
+
+            await RefreshStateAsync();
+
+            if (result.IsSuccess)
+            {
+                SetMessage("Оригінальні файли відновлено.");
+            }
+            else
+            {
+                var errorText = MapRestoreError(result.Error!.Value);
+                _logger.Error($"Restore original failed: {result.Error} — {result.ErrorMessage}");
+
+                if (result.Error == RestoreError.RecoveryFailed)
+                    SetMessage($"КРИТИЧНО: {errorText}");
+                else
+                    SetMessage(errorText);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Restore original error: {ex.Message}");
+            SetMessage($"Помилка відновлення: {ex.Message}");
+            try { await RefreshStateAsync(); } catch { }
+        }
+        finally
+        {
+            _operationInProgress = false;
+            SetControlsDuringOperation(true);
+            await RefreshStateAsync();
+        }
+    }
+
+    private void SetControlsDuringOperation(bool enabled)
+    {
+        detectGameButton.Enabled = enabled;
+        browseGameButton.Enabled = enabled;
+        fullUkrainianRadioButton.Enabled = enabled;
+        bosiaRadioButton.Enabled = enabled;
+        englishItemsRadioButton.Enabled = enabled;
+    }
+
     // --- State refresh ---
 
     private async Task RefreshStateAsync()
@@ -244,6 +422,7 @@ public partial class MainForm : Form
         {
             SetLocalizationStateText("Не визначено");
             SetDetailsText("");
+            _lastResolvedState = LocalizationState.NotInstalled;
             if (!_apiLoadedSuccessfully)
                 SetMessage($"Помилка завантаження API: {_apiErrorMessage}");
             else
@@ -255,19 +434,19 @@ public partial class MainForm : Form
         {
             SetLocalizationStateText("Не визначено");
             SetDetailsText("");
+            _lastResolvedState = LocalizationState.NotInstalled;
             SetMessage($"Помилка завантаження API: {_apiErrorMessage}");
             return;
         }
 
-        var selectedSlug = GetSelectedModeSlug();
-        var mode = _apiResponse!.Data!.Modes?
-            .FirstOrDefault(m => string.Equals(m.Slug, selectedSlug, StringComparison.Ordinal));
+        var mode = GetSelectedApiMode();
 
         if (mode == null)
         {
             SetLocalizationStateText("Не визначено");
             SetDetailsText("");
-            SetMessage($"Режим \"{selectedSlug}\" не знайдено на сервері.");
+            _lastResolvedState = LocalizationState.NotInstalled;
+            SetMessage($"Режим \"{GetSelectedModeSlug()}\" не знайдено на сервері.");
             return;
         }
 
@@ -276,16 +455,17 @@ public partial class MainForm : Form
         // Details
         if (current != null)
         {
-            SetDetailsText($"{mode.PublicName ?? selectedSlug} | v{current.Version} | patch {current.Patch}");
+            SetDetailsText($"{mode.PublicName ?? GetSelectedModeSlug()} | v{current.Version} | patch {current.Patch}");
         }
         else
         {
-            SetDetailsText($"{mode.PublicName ?? selectedSlug} | реліз ще не опубліковано");
+            SetDetailsText($"{mode.PublicName ?? GetSelectedModeSlug()} | реліз ще не опубліковано");
         }
 
         // Localization state
         var gameLocPath = Path.Combine(_gameRoot, "ads", "languagedata_en.loc");
         var stateResult = await _stateService.ResolveAsync(current, gameLocPath);
+        _lastResolvedState = stateResult.State;
         SetLocalizationStateText(GetStateDisplayText(stateResult.State));
 
         // Diagnostics priority: state error > compatibility reason > Corrupted fallback
@@ -300,10 +480,25 @@ public partial class MainForm : Form
 
         SetMessage(diagnostic ?? "");
 
-        // Action availability (computed but buttons stay disabled in v9.0)
-        // Install: NotInstalled + compatible + current exists
-        // Update: UpdateAvailable + compatible + current exists
-        // These will be enabled in v9.1 when click handlers are wired.
+        // Action availability
+        var canInstall = !_operationInProgress
+            && current != null
+            && compatResult.IsAllowed
+            && stateResult.State == LocalizationState.NotInstalled;
+
+        var canUpdate = !_operationInProgress
+            && current != null
+            && compatResult.IsAllowed
+            && stateResult.State == LocalizationState.UpdateAvailable;
+
+        var canRestoreOriginal = !_operationInProgress
+            && stateResult.State is LocalizationState.UpToDate
+                or LocalizationState.UpdateAvailable
+                or LocalizationState.WaitingForRelease
+                or LocalizationState.Corrupted
+                or LocalizationState.InstalledVersionUnknown;
+
+        SetActionsEnabled(canInstall, canUpdate, canRestoreOriginal, false);
     }
 
     private static string GetStateDisplayText(LocalizationState state) => state switch
@@ -339,6 +534,46 @@ public partial class MainForm : Form
         if (englishItemsRadioButton.Checked) return (string)englishItemsRadioButton.Tag!;
         return (string)fullUkrainianRadioButton.Tag!;
     }
+
+    private LocalizationMode? GetSelectedApiMode()
+    {
+        if (_apiResponse?.Data?.Modes == null) return null;
+        var slug = GetSelectedModeSlug();
+        return _apiResponse.Data.Modes
+            .FirstOrDefault(m => string.Equals(m.Slug, slug, StringComparison.Ordinal));
+    }
+
+    private static string MapInstallError(InstallError error) => error switch
+    {
+        InstallError.InvalidGamePath => "Шлях до гри недійсний або файл локалізації відсутній.",
+        InstallError.InvalidRelease => "Метадані релізу пошкоджено або неповні.",
+        InstallError.Incompatible => "Реліз не сумісний з поточним офіційним патчем гри.",
+        InstallError.DownloadFailed => "Не вдалося завантажити файл локалізації. Перевірте з'єднання з Інтернетом.",
+        InstallError.OriginalSnapshotFailed => "Не вдалося створити резервну копію оригінального файлу.",
+        InstallError.PreOperationStateFailed => "Стан встановлення пошкоджено. Спробуйте перезапустити програму.",
+        InstallError.BackupFailed => "Не вдалося створити точку відновлення.",
+        InstallError.ReplaceFailed => "Не вдалося замінити файл локалізації у папці гри.",
+        InstallError.VerificationFailed => "Перевірка встановленого файлу не пройдена. Файл може бути пошкоджено.",
+        InstallError.StateSaveFailed => "Не вдалося зберегти стан встановлення. Зміни відкочено.",
+        InstallError.RollbackFailed => "Не вдалося повністю відкотити зміни. Перевірте файли гри та журнал.",
+        _ => "Невідома помилка встановлення."
+    };
+
+    private static string MapRestoreError(RestoreError error) => error switch
+    {
+        RestoreError.InvalidGamePath => "Шлях до гри недійсний або файл локалізації відсутній.",
+        RestoreError.SourceMissing => "Вихідний файл відсутній.",
+        RestoreError.SnapshotCorrupted => "Резервна копія пошкоджена.",
+        RestoreError.BackupIo => "Помилка запису резервної копії.",
+        RestoreError.OfficialDownloadFailed => "Не вдалося завантажити оригінальний файл з сервера.",
+        RestoreError.FallbackNotAllowed => "Відновлення з локальної копії неможливе (патч не збігається або копія відсутня).",
+        RestoreError.PatchMismatch => "Патч локальної копії не збігається з поточним офіційним патчем.",
+        RestoreError.ReplaceFailed => "Не вдалося замінити файл локалізації у папці гри.",
+        RestoreError.VerificationFailed => "Перевірка відновленого файлу не пройдена.",
+        RestoreError.StateSaveFailed => "Не вдалося зберегти стан встановлення після відновлення.",
+        RestoreError.RecoveryFailed => "Не вдалося відновити попередній стан. Перевірте файли гри та журнал.",
+        _ => "Невідома помилка відновлення."
+    };
 
     public void SetActionsEnabled(bool install, bool update, bool restoreOriginal, bool restoreBackup)
     {

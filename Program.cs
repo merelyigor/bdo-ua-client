@@ -18,6 +18,8 @@ static class Program
         var stateStore = new InstallationStateStore(appPaths, logger);
         var httpClient = new HttpClient();
         var apiClient = new Api.BdoUaApiClient(httpClient, logger);
+        var localizationInstaller = new LocalizationInstaller(httpClient, appPaths, logger);
+        var backupStore = new BackupStore(appPaths, logger);
         var gameDetector = new GameDetector(configStore, logger);
         var stateService = new LocalizationStateService(stateStore, logger);
         var compatService = new LocalizationCompatibilityService();
@@ -25,8 +27,9 @@ static class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         Application.Run(new MainForm(
-            configStore, apiClient,
-            gameDetector, stateService, compatService, logger));
+            configStore, apiClient, gameDetector,
+            stateService, compatService,
+            localizationInstaller, backupStore, stateStore, logger));
     }
 }
 
