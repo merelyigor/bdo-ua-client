@@ -251,14 +251,36 @@ public partial class MainForm : Form
     // --- Install / Update action ---
 
     private async void InstallButton_Click(object? sender, EventArgs e)
-        => await HandleInstallOrUpdateAsync(isUpdate: false);
+    {
+        try
+        {
+            await HandleInstallOrUpdateAsync(isUpdate: false);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"InstallButton_Click unexpected: {ex.Message}");
+            SetMessage($"Помилка: {ex.Message}");
+        }
+    }
 
     private async void UpdateButton_Click(object? sender, EventArgs e)
-        => await HandleInstallOrUpdateAsync(isUpdate: true);
+    {
+        try
+        {
+            await HandleInstallOrUpdateAsync(isUpdate: true);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"UpdateButton_Click unexpected: {ex.Message}");
+            SetMessage($"Помилка: {ex.Message}");
+        }
+    }
 
     private async Task HandleInstallOrUpdateAsync(bool isUpdate)
     {
         if (_operationInProgress) return;
+
+        string? finalMessage = null;
 
         try
         {
@@ -268,20 +290,20 @@ public partial class MainForm : Form
 
             if (_gameRoot == null)
             {
-                SetMessage("Гру не знайдено.");
+                finalMessage = "Гру не знайдено.";
                 return;
             }
 
             if (!_apiLoadedSuccessfully)
             {
-                SetMessage($"Помилка завантаження API: {_apiErrorMessage}");
+                finalMessage = $"Помилка завантаження API: {_apiErrorMessage}";
                 return;
             }
 
             var mode = GetSelectedApiMode();
             if (mode?.Current == null)
             {
-                SetMessage("Актуальний реліз відсутній.");
+                finalMessage = "Актуальний реліз відсутній.";
                 return;
             }
 
@@ -290,8 +312,26 @@ public partial class MainForm : Form
             var compatResult = _compatService.Check(current);
             if (!compatResult.IsAllowed)
             {
-                SetMessage(compatResult.Reason ?? "Операція заблокована.");
+                finalMessage = compatResult.Reason ?? "Операція заблокована.";
                 return;
+            }
+
+            // Factual state precondition
+            var expectedState = isUpdate
+                ? LocalizationState.UpdateAvailable
+                : LocalizationState.NotInstalled;
+
+            if (_lastResolvedState != expectedState)
+            {
+                await RefreshStateAsync();
+
+                if (_lastResolvedState != expectedState)
+                {
+                    finalMessage = isUpdate
+                        ? "Оновлення недоступне для поточного стану локалізації."
+                        : "Встановлення недоступне для поточного стану локалізації.";
+                    return;
+                }
             }
 
             var actionLabel = isUpdate ? "Оновлення" : "Встановлення";
@@ -303,36 +343,48 @@ public partial class MainForm : Form
             var result = await service.InstallReleaseAsync(
                 GetSelectedModeSlug(), current, progress: null, cancellationToken: default);
 
-            await RefreshStateAsync();
-
             if (result.IsSuccess)
             {
-                SetMessage(isUpdate
+                finalMessage = isUpdate
                     ? "Локалізацію успішно оновлено."
-                    : "Локалізацію успішно встановлено.");
+                    : "Локалізацію успішно встановлено.";
             }
             else
             {
-                var errorText = MapInstallError(result.Error!.Value);
                 _logger.Error($"Install failed: {result.Error} — {result.ErrorMessage}");
+                var errorText = MapInstallError(result.Error!.Value);
 
                 if (result.Error == InstallError.RollbackFailed)
-                    SetMessage($"КРИТИЧНО: {errorText}");
+                    finalMessage = $"КРИТИЧНО: {errorText}";
                 else
-                    SetMessage(errorText);
+                    finalMessage = errorText;
             }
         }
         catch (Exception ex)
         {
             _logger.Error($"Install/update error: {ex.Message}");
-            SetMessage($"Помилка операції: {ex.Message}");
-            try { await RefreshStateAsync(); } catch { }
+            finalMessage = $"Помилка операції: {ex.Message}";
         }
         finally
         {
             _operationInProgress = false;
             SetControlsDuringOperation(true);
-            await RefreshStateAsync();
+
+            try
+            {
+                await RefreshStateAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"Post-operation refresh failed: {ex.Message}");
+                if (finalMessage == null)
+                    finalMessage = $"Не вдалося оновити стан: {ex.Message}";
+                else
+                    finalMessage += $"{Environment.NewLine}{Environment.NewLine}Не вдалося оновити стан: {ex.Message}";
+            }
+
+            if (finalMessage != null)
+                SetMessage(finalMessage);
         }
     }
 
@@ -340,7 +392,22 @@ public partial class MainForm : Form
 
     private async void RestoreOriginalButton_Click(object? sender, EventArgs e)
     {
+        try
+        {
+            await HandleRestoreOriginalAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"RestoreOriginalButton_Click unexpected: {ex.Message}");
+            SetMessage($"Помилка: {ex.Message}");
+        }
+    }
+
+    private async Task HandleRestoreOriginalAsync()
+    {
         if (_operationInProgress) return;
+
+        string? finalMessage = null;
 
         try
         {
@@ -350,13 +417,13 @@ public partial class MainForm : Form
 
             if (_gameRoot == null)
             {
-                SetMessage("Гру не знайдено.");
+                finalMessage = "Гру не знайдено.";
                 return;
             }
 
             if (!_apiLoadedSuccessfully || _apiResponse?.Data == null)
             {
-                SetMessage("Дані API недоступні для відновлення оригіналу.");
+                finalMessage = "Дані API недоступні для відновлення оригіналу.";
                 return;
             }
 
@@ -372,34 +439,46 @@ public partial class MainForm : Form
 
             var result = await service.RestoreOriginalAsync(cancellationToken: default);
 
-            await RefreshStateAsync();
-
             if (result.IsSuccess)
             {
-                SetMessage("Оригінальні файли відновлено.");
+                finalMessage = "Оригінальні файли відновлено.";
             }
             else
             {
-                var errorText = MapRestoreError(result.Error!.Value);
                 _logger.Error($"Restore original failed: {result.Error} — {result.ErrorMessage}");
+                var errorText = MapRestoreError(result.Error!.Value);
 
                 if (result.Error == RestoreError.RecoveryFailed)
-                    SetMessage($"КРИТИЧНО: {errorText}");
+                    finalMessage = $"КРИТИЧНО: {errorText}";
                 else
-                    SetMessage(errorText);
+                    finalMessage = errorText;
             }
         }
         catch (Exception ex)
         {
             _logger.Error($"Restore original error: {ex.Message}");
-            SetMessage($"Помилка відновлення: {ex.Message}");
-            try { await RefreshStateAsync(); } catch { }
+            finalMessage = $"Помилка відновлення: {ex.Message}";
         }
         finally
         {
             _operationInProgress = false;
             SetControlsDuringOperation(true);
-            await RefreshStateAsync();
+
+            try
+            {
+                await RefreshStateAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"Post-operation refresh failed: {ex.Message}");
+                if (finalMessage == null)
+                    finalMessage = $"Не вдалося оновити стан: {ex.Message}";
+                else
+                    finalMessage += $"{Environment.NewLine}{Environment.NewLine}Не вдалося оновити стан: {ex.Message}";
+            }
+
+            if (finalMessage != null)
+                SetMessage(finalMessage);
         }
     }
 

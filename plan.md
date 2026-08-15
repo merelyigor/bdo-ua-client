@@ -539,6 +539,7 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
   - Restore Original: UpToDate/UpdateAvailable/WaitingForRelease/Corrupted/InstalledVersionUnknown
   - Restore Backup: always disabled (deferred)
 - Compatibility defense-in-depth: UI check + existing Stage 6 `InstallError.Incompatible` guard
+- Factual state precondition: Install requires `_lastResolvedState == NotInstalled`, Update requires `UpdateAvailable` — checked before service call, not just button Enabled
 - `GetSelectedApiMode()` helper — centralized mode lookup (ordinal slug comparison)
 - Error mapping: `InstallError`/`RestoreError` → concise Ukrainian messages
 - Critical errors (`RollbackFailed`, `RecoveryFailed`) shown with "КРИТИЧНО:" prefix
