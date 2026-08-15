@@ -205,6 +205,18 @@ public class BackupStore
                 $"Game file not found: {gameFilePath}"));
         }
 
+        if (stateWasPresent && preOperationStateBytes == null)
+        {
+            return (null, RestoreResult.Failure(RestoreError.BackupIo,
+                "Contradictory input: stateWasPresent=true but preOperationStateBytes is null"));
+        }
+
+        if (!stateWasPresent && preOperationStateBytes != null)
+        {
+            return (null, RestoreResult.Failure(RestoreError.BackupIo,
+                "Contradictory input: stateWasPresent=false but preOperationStateBytes is not null"));
+        }
+
         var dirName = $"{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}_{Guid.NewGuid():N}".Substring(0, 35);
         var restorePointDir = Path.Combine(_paths.RestorePointsDir, dirName);
         var fileCopyPath = Path.Combine(restorePointDir, SnapshotFile);
@@ -214,11 +226,7 @@ public class BackupStore
         var tempMetadataPath = metadataPath + ".tmp";
         var tempStatePath = stateSnapshotPath + ".tmp";
 
-        string installationStateMarker;
-        if (stateWasPresent && preOperationStateBytes != null)
-            installationStateMarker = "present";
-        else
-            installationStateMarker = "absent";
+        string installationStateMarker = stateWasPresent ? "present" : "absent";
 
         try
         {
@@ -320,7 +328,7 @@ public class BackupStore
         return result;
     }
 
-    public async Task<RestorePointInfo?> LoadRestorePointInfoAsync(
+    internal async Task<RestorePointInfo?> LoadRestorePointInfoAsync(
         string restorePointDir, CancellationToken cancellationToken = default)
     {
         var metadataPath = Path.Combine(restorePointDir, MetadataFile);
@@ -353,11 +361,15 @@ public class BackupStore
         }
         else if (metadata.InstallationState == "absent")
         {
-            isRestorable = true;
+            isRestorable = !hasStateFile;
+        }
+        else if (metadata.InstallationState == null)
+        {
+            isRestorable = hasStateFile;
         }
         else
         {
-            isRestorable = hasStateFile;
+            isRestorable = false;
         }
 
         var dirName = Path.GetFileName(restorePointDir);
@@ -412,7 +424,7 @@ public class BackupStore
 
     // --- Replace game file ---
 
-    public async Task<RestoreResult> ReplaceGameFileAsync(
+    public virtual async Task<RestoreResult> ReplaceGameFileAsync(
         string targetPath, string sourceFilePath, string restorePointDir, CancellationToken cancellationToken = default)
     {
         var tempTargetPath = targetPath + ".tmp";

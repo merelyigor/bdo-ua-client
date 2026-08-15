@@ -85,6 +85,21 @@ public class RestoreBackupServiceTests : IDisposable
         File.WriteAllText(metadataPath, JsonSerializer.Serialize(metadata, options));
     }
 
+    private static void WriteMetadata(string restorePointDir, BackupMetadata metadata)
+    {
+        var metadataPath = Path.Combine(restorePointDir, "metadata.json");
+        var options = new JsonSerializerOptions { WriteIndented = true, PropertyNameCaseInsensitive = true };
+        File.WriteAllText(metadataPath, JsonSerializer.Serialize(metadata, options));
+    }
+
+    private static BackupMetadata ReadMetadata(string restorePointDir)
+    {
+        var metadataPath = Path.Combine(restorePointDir, "metadata.json");
+        var json = File.ReadAllText(metadataPath);
+        return JsonSerializer.Deserialize<BackupMetadata>(json,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+    }
+
     // --- Catalog tests ---
 
     [Fact]
@@ -333,6 +348,183 @@ public class RestoreBackupServiceTests : IDisposable
 
         Assert.False(result.IsSuccess);
         Assert.Equal(RestoreError.RestorePointNotFound, result.Error);
+    }
+
+    // --- New tests: marker/contradictory/cancellation ---
+
+    [Fact]
+    public async Task Legacy_MarkerNull_StateFileExists_RestoresSuccessfully()
+    {
+        var legacyStateBytes = Encoding.UTF8.GetBytes("{\"mode_slug\":\"full\",\"public_id\":\"legacy-01\",\"version\":1}");
+
+        var (rpDir, _) = await CreateRestorePointAsync(
+            gameContent: Encoding.UTF8.GetBytes("original"),
+            stateBytes: legacyStateBytes,
+            stateWasPresent: true);
+
+        var metadata = ReadMetadata(rpDir);
+        metadata.InstallationState = null;
+        WriteMetadata(rpDir, metadata);
+
+        var stateFilePath = Path.Combine(rpDir, "installation-state.json");
+        Assert.True(File.Exists(stateFilePath));
+
+        File.WriteAllText(GameLocFilePath, "current");
+        var installedPath = Path.Combine(_paths.StateDir, "installation.json");
+        File.WriteAllText(installedPath, "{\"public_id\":\"current-id\"}");
+
+        var service = CreateService();
+        var result = await service.RestoreAsync(Path.GetFileName(rpDir));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("original", File.ReadAllText(GameLocFilePath));
+        Assert.Equal(legacyStateBytes, File.ReadAllBytes(installedPath));
+    }
+
+    [Fact]
+    public async Task Contradictory_AbsentMarker_StateFileExists_ReturnsInvalid()
+    {
+        var stateBytes = Encoding.UTF8.GetBytes("{\"public_id\":\"01ABC\"}");
+        var (rpDir, _) = await CreateRestorePointAsync(
+            stateBytes: stateBytes, stateWasPresent: true);
+
+        var metadata = ReadMetadata(rpDir);
+        Assert.Equal("present", metadata.InstallationState);
+
+        metadata.InstallationState = "absent";
+        WriteMetadata(rpDir, metadata);
+
+        var store = new BackupStore(_paths, _logger);
+        var (_, _, error) = await store.ResolveRestorePointAsync(Path.GetFileName(rpDir));
+
+        Assert.Equal(RestoreError.RestorePointInvalid, error);
+    }
+
+    [Fact]
+    public async Task CreateRestorePoint_ContradictoryInput_StateTrue_BytesNull_ReturnsFailure()
+    {
+        var store = new BackupStore(_paths, _logger);
+        var gameRoot = CreateGameRoot();
+        var gameLocPath = GameLocFilePath;
+
+        var (rpDir, result) = await store.CreateRestorePointAsync(
+            gameLocPath, 100, "test", preOperationStateBytes: null, stateWasPresent: true);
+
+        Assert.Null(rpDir);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(RestoreError.BackupIo, result.Error);
+    }
+
+    [Fact]
+    public async Task CreateRestorePoint_ContradictoryInput_StateFalse_BytesNotNull_ReturnsFailure()
+    {
+        var store = new BackupStore(_paths, _logger);
+        var gameRoot = CreateGameRoot();
+        var gameLocPath = GameLocFilePath;
+        var someBytes = Encoding.UTF8.GetBytes("{\"public_id\":\"01ABC\"}");
+
+        var (rpDir, result) = await store.CreateRestorePointAsync(
+            gameLocPath, 100, "test", preOperationStateBytes: someBytes, stateWasPresent: false);
+
+        Assert.Null(rpDir);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(RestoreError.BackupIo, result.Error);
+    }
+
+    [Fact]
+    public async Task RestorePointCreation_ContradictoryInput_NoPartialDirectory()
+    {
+        var store = new BackupStore(_paths, _logger);
+        var gameRoot = CreateGameRoot();
+        var gameLocPath = GameLocFilePath;
+
+        var (rpDir, result) = await store.CreateRestorePointAsync(
+            gameLocPath, 100, "test", preOperationStateBytes: null, stateWasPresent: true);
+
+        Assert.Null(rpDir);
+        Assert.False(result.IsSuccess);
+
+        Assert.Empty(Directory.GetDirectories(_paths.RestorePointsDir));
+    }
+
+    [Fact]
+    public async Task PreReplaceCancellation_GameAndStateUnchanged()
+    {
+        var originalContent = Encoding.UTF8.GetBytes("original game content");
+        var gameRoot = CreateGameRoot(originalContent);
+        var gameLocPath = GameLocFilePath;
+
+        var stateBytes = Encoding.UTF8.GetBytes("{\"public_id\":\"old\"}");
+        var installedPath = Path.Combine(_paths.StateDir, "installation.json");
+        File.WriteAllBytes(installedPath, stateBytes);
+
+        var rpStore = new BackupStore(_paths, _logger);
+        var (rpDir, rpResult) = await rpStore.CreateRestorePointAsync(
+            gameLocPath, 100, "target", stateBytes, stateWasPresent: true);
+        Assert.True(rpResult.IsSuccess);
+        Assert.NotNull(rpDir);
+
+        var cancellingStore = new PreReplaceCancellationBackupStore(_paths, _logger);
+        var stateStore = new InstallationStateStore(_paths, _logger);
+        var service = new RestoreBackupService(cancellingStore, stateStore, _logger, gameRoot);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => service.RestoreAsync(Path.GetFileName(rpDir!)));
+
+        Assert.Equal(originalContent, File.ReadAllBytes(GameLocFilePath));
+        Assert.Equal(stateBytes, File.ReadAllBytes(installedPath));
+    }
+
+    [Fact]
+    public async Task PostReplaceStateFailure_RollbackSucceeds_ReturnsStateRestoreFailed()
+    {
+        var originalContent = Encoding.UTF8.GetBytes("original game content");
+        var gameRoot = CreateGameRoot(originalContent);
+        var gameLocPath = GameLocFilePath;
+
+        var oldStateBytes = Encoding.UTF8.GetBytes("{\"public_id\":\"old\"}");
+        var installedPath = Path.Combine(_paths.StateDir, "installation.json");
+        File.WriteAllBytes(installedPath, oldStateBytes);
+
+        var store = new BackupStore(_paths, _logger);
+        var (rpDir, rpResult) = await store.CreateRestorePointAsync(
+            gameLocPath, 100, "target", oldStateBytes, stateWasPresent: true);
+        Assert.True(rpResult.IsSuccess);
+
+        var modifiedContent = Encoding.UTF8.GetBytes("modified current content");
+        File.WriteAllBytes(GameLocFilePath, modifiedContent);
+        File.SetAttributes(installedPath, FileAttributes.ReadOnly);
+
+        try
+        {
+            var service = CreateService(gameRoot);
+            var result = await service.RestoreAsync(Path.GetFileName(rpDir!));
+
+            Assert.False(result.IsSuccess);
+            Assert.Equal(RestoreError.RecoveryFailed, result.Error);
+
+            Assert.Equal(modifiedContent, File.ReadAllBytes(GameLocFilePath));
+
+            File.SetAttributes(installedPath, FileAttributes.Normal);
+            Assert.Equal(oldStateBytes, File.ReadAllBytes(installedPath));
+        }
+        finally
+        {
+            File.SetAttributes(installedPath, FileAttributes.Normal);
+        }
+    }
+
+    private class PreReplaceCancellationBackupStore : BackupStore
+    {
+        public PreReplaceCancellationBackupStore(AppPaths paths, ILogger logger) : base(paths, logger) { }
+
+        public override async Task<RestoreResult> ReplaceGameFileAsync(
+            string targetPath, string sourceFilePath, string restorePointDir,
+            CancellationToken cancellationToken = default)
+        {
+            await Task.Yield();
+            throw new OperationCanceledException("Pre-replace cancellation test");
+        }
     }
 
     private class NullLogger : ILogger

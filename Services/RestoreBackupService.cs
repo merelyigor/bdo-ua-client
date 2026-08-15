@@ -48,22 +48,40 @@ public sealed class RestoreBackupService
 
         var selectedGameFile = Path.Combine(restorePointDir, "languagedata_en.loc");
         var selectedStateFile = Path.Combine(restorePointDir, "installation-state.json");
+        bool hasStateFile = File.Exists(selectedStateFile);
 
-        bool stateIsPresent = metadata.InstallationState == "present";
-        bool stateIsAbsent = metadata.InstallationState == "absent";
+        bool stateIsPresent;
 
-        if (!stateIsPresent && !stateIsAbsent)
+        if (metadata.InstallationState == "present")
         {
-            _logger.Error($"Restore point has unknown installation_state: {metadata.InstallationState}");
-            return RestoreResult.Failure(RestoreError.RestorePointInvalid,
-                "Restore point has unknown installation state status");
+            if (!hasStateFile)
+                return RestoreResult.Failure(RestoreError.RestorePointInvalid,
+                    "Marker 'present' but installation-state.json missing");
+            stateIsPresent = true;
         }
-
-        if (stateIsPresent && !File.Exists(selectedStateFile))
+        else if (metadata.InstallationState == "absent")
         {
-            _logger.Error("Restore point marked as state=present but installation-state.json missing");
+            if (hasStateFile)
+                return RestoreResult.Failure(RestoreError.RestorePointInvalid,
+                    "Marker 'absent' but installation-state.json exists");
+            stateIsPresent = false;
+        }
+        else if (metadata.InstallationState == null)
+        {
+            if (hasStateFile)
+            {
+                stateIsPresent = true;
+            }
+            else
+            {
+                return RestoreResult.Failure(RestoreError.RestorePointInvalid,
+                    "Legacy restore point without state snapshot — not safely restorable");
+            }
+        }
+        else
+        {
             return RestoreResult.Failure(RestoreError.RestorePointInvalid,
-                "Installation state snapshot missing from restore point");
+                $"Unknown installation_state marker: {metadata.InstallationState}");
         }
 
         byte[]? selectedStateBytes = null;
@@ -76,8 +94,13 @@ public sealed class RestoreBackupService
         var preOpStateBytes = ReadRawInstallationState();
         bool preOpStateWasPresent = preOpStateBytes != null;
 
+        var currentLoad = _stateStore.Load();
+        int? currentGamePatch = currentLoad.Status == FileLoadStatus.Valid
+            ? currentLoad.Value?.GamePatch
+            : null;
+
         var (preRpDir, preRpResult) = await _backupStore
-            .CreateRestorePointAsync(gameLocFilePath, metadata.GamePatch, "pre_restore_backup",
+            .CreateRestorePointAsync(gameLocFilePath, currentGamePatch, "pre_restore_backup",
                 preOpStateBytes, preOpStateWasPresent, cancellationToken)
             .ConfigureAwait(false);
 
@@ -119,8 +142,11 @@ public sealed class RestoreBackupService
                     || !verifyBytes.AsSpan().SequenceEqual(selectedStateBytes))
                 {
                     _logger.Error("Installation state verification failed after restore");
-                    await RollbackBothAsync(gameLocFilePath, preRpDir, preOpStateBytes, preOpStateWasPresent, CancellationToken.None)
+                    var rollbackResult = await RollbackBothAsync(gameLocFilePath, preRpDir, preOpStateBytes, preOpStateWasPresent, CancellationToken.None)
                         .ConfigureAwait(false);
+                    if (!rollbackResult.IsSuccess)
+                        return RestoreResult.Failure(RestoreError.RecoveryFailed,
+                            "State verification failed and rollback also failed");
                     return RestoreResult.Failure(RestoreError.StateRestoreFailed,
                         "Installation state verification failed after restore");
                 }
@@ -134,8 +160,11 @@ public sealed class RestoreBackupService
                     if (File.Exists(statePath))
                     {
                         _logger.Error("Failed to delete installation state file for absent-state restore");
-                        await RollbackBothAsync(gameLocFilePath, preRpDir, preOpStateBytes, preOpStateWasPresent, CancellationToken.None)
+                        var rollbackResult = await RollbackBothAsync(gameLocFilePath, preRpDir, preOpStateBytes, preOpStateWasPresent, CancellationToken.None)
                             .ConfigureAwait(false);
+                        if (!rollbackResult.IsSuccess)
+                            return RestoreResult.Failure(RestoreError.RecoveryFailed,
+                                "State delete failed and rollback also failed");
                         return RestoreResult.Failure(RestoreError.StateRestoreFailed,
                             "Failed to remove installation state file");
                     }
