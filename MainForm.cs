@@ -291,6 +291,7 @@ public partial class MainForm : Form
         try
         {
             _operationInProgress = true;
+            SetOperationState(OperationState.Idle);
             SetActionsEnabled(false, false, false, false);
             SetControlsDuringOperation(false);
 
@@ -425,6 +426,7 @@ public partial class MainForm : Form
         try
         {
             _operationInProgress = true;
+            SetOperationState(OperationState.Idle);
             SetActionsEnabled(false, false, false, false);
             SetControlsDuringOperation(false);
 
