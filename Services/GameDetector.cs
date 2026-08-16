@@ -138,6 +138,58 @@ public sealed class GameDetector
         }
     }
 
+    public static ManualResolveResult ResolveManualGameRoot(string selectedPath)
+    {
+        if (string.IsNullOrWhiteSpace(selectedPath))
+            return ManualResolveResult.NotFound();
+
+        try
+        {
+            var fullPath = Path.GetFullPath(selectedPath);
+
+            // 1. Exact root
+            if (ValidateGamePath(fullPath))
+                return ManualResolveResult.Found(fullPath);
+
+            // 2. Immediate child directories
+            string[] children;
+            try
+            {
+                children = Directory.GetDirectories(fullPath);
+            }
+            catch
+            {
+                return ManualResolveResult.NotFound();
+            }
+
+            var validChildren = new List<string>();
+            foreach (var child in children)
+            {
+                try
+                {
+                    if (ValidateGamePath(child))
+                        validChildren.Add(Path.GetFullPath(child));
+                }
+                catch
+                {
+                    // Skip inaccessible directories
+                }
+            }
+
+            if (validChildren.Count == 1)
+                return ManualResolveResult.Found(validChildren[0]);
+
+            if (validChildren.Count > 1)
+                return ManualResolveResult.Ambiguous();
+
+            return ManualResolveResult.NotFound();
+        }
+        catch
+        {
+            return ManualResolveResult.NotFound();
+        }
+    }
+
     private Task<DetectionResult?> DetectFromSavedConfigAsync(CancellationToken cancellationToken)
     {
         try

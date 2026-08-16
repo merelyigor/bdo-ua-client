@@ -672,3 +672,11 @@ BDO-UA-Client/
 §38.1 Користувач запускає → знаходить гру → вибирає локалізацію → встановлює без розуміння internals.
 
 §38.2 **Ніколи не залишати гру у пошкодженому стані заради "успішної" операції.**
+
+---
+
+## §39 📋 Плани
+
+§39.1 `/plan.md` — canonical ACTIVE plan. `docs/plans/archive/` — historical plans, never active instructions.
+
+§39.2 Archived plans must not override AGENTS.md or active plan.md.

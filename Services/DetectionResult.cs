@@ -30,3 +30,31 @@ public sealed class DetectionResult
     public static DetectionResult NotFound() =>
         new(false, null, null, false);
 }
+
+public enum ManualResolveStatus
+{
+    Found,
+    NotFound,
+    Ambiguous
+}
+
+public sealed class ManualResolveResult
+{
+    public ManualResolveStatus Status { get; }
+    public string? GamePath { get; }
+
+    private ManualResolveResult(ManualResolveStatus status, string? gamePath)
+    {
+        Status = status;
+        GamePath = gamePath;
+    }
+
+    public static ManualResolveResult Found(string gamePath) =>
+        new(ManualResolveStatus.Found, gamePath);
+
+    public static ManualResolveResult NotFound() =>
+        new(ManualResolveStatus.NotFound, null);
+
+    public static ManualResolveResult Ambiguous() =>
+        new(ManualResolveStatus.Ambiguous, null);
+}

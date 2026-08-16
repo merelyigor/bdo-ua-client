@@ -29,6 +29,8 @@ public partial class MainForm : Form
     private OperationState _operationState = OperationState.Idle;
     private CancellationTokenSource? _operationCts;
 
+    private static readonly Color SuccessGreen = Color.FromArgb(0, 128, 0);
+
     public MainForm(
         ConfigStore configStore,
         BdoUaApiClient apiClient,
@@ -99,11 +101,11 @@ public partial class MainForm : Form
             if (detection.IsFound && detection.GamePath != null)
             {
                 _gameRoot = detection.GamePath;
-                SetGamePathText(detection.GamePath);
+                SetGameFound(detection.GamePath, detection.Source);
             }
             else
             {
-                SetGamePathText("Гру не знайдено");
+                SetGameNotFound("Гру не знайдено");
             }
 
             await RefreshStateAsync();
@@ -134,33 +136,19 @@ public partial class MainForm : Form
             var displayName = DynamicModePolicy.GetDisplayName(mode);
             var releaseLine = DynamicModePolicy.FormatReleaseLine(mode);
 
-            var panel = new FlowLayoutPanel
-            {
-                AutoSize = true,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false,
-                Margin = new Padding(0, 0, 0, 2)
-            };
+            var text = string.IsNullOrEmpty(releaseLine)
+                ? displayName
+                : $"{displayName}\n{releaseLine}";
 
             var rb = new RadioButton
             {
+                Text = text,
                 Tag = mode.Slug,
                 AutoSize = true,
-                Margin = new Padding(0, 0, 4, 0)
+                Margin = new Padding(0, 0, 0, 6)
             };
-
-            var label = new Label
-            {
-                Text = string.IsNullOrEmpty(releaseLine)
-                    ? displayName
-                    : $"{displayName}\n{releaseLine}",
-                AutoSize = true,
-                Margin = new Padding(0)
-            };
-
-            panel.Controls.Add(rb);
-            panel.Controls.Add(label);
-            modesFlowPanel.Controls.Add(panel);
+            rb.CheckedChanged += ModeRadioButton_CheckedChanged;
+            modesFlowPanel.Controls.Add(rb);
         }
     }
 
@@ -178,50 +166,45 @@ public partial class MainForm : Form
     {
         foreach (Control c in modesFlowPanel.Controls)
         {
-            if (c is FlowLayoutPanel panel)
+            if (c is RadioButton rb && rb.Tag is string tag && tag == slug)
             {
-                foreach (Control child in panel.Controls)
-                {
-                    if (child is RadioButton rb && rb.Tag is string tag && tag == slug)
-                    {
-                        rb.Checked = true;
-                        return;
-                    }
-                }
+                rb.Checked = true;
+                return;
             }
         }
 
         // Fallback: first available
         foreach (Control c in modesFlowPanel.Controls)
         {
-            if (c is FlowLayoutPanel panel)
+            if (c is RadioButton rb)
             {
-                foreach (Control child in panel.Controls)
-                {
-                    if (child is RadioButton rb)
-                    {
-                        rb.Checked = true;
-                        return;
-                    }
-                }
+                rb.Checked = true;
+                return;
             }
         }
     }
 
     private string? GetSelectedModeSlug()
     {
+        string? found = null;
+        int count = 0;
+
         foreach (Control c in modesFlowPanel.Controls)
         {
-            if (c is FlowLayoutPanel panel)
+            if (c is RadioButton rb && rb.Checked)
             {
-                foreach (Control child in panel.Controls)
-                {
-                    if (child is RadioButton rb && rb.Checked)
-                        return rb.Tag as string;
-                }
+                found = rb.Tag as string;
+                count++;
             }
         }
-        return null;
+
+        if (count > 1)
+        {
+            _logger.Error($"Ambiguous mode selection: {count} RadioButtons checked");
+            return null;
+        }
+
+        return found;
     }
 
     private LocalizationMode? GetSelectedApiMode()
@@ -238,7 +221,7 @@ public partial class MainForm : Form
     {
         detectGameButton.Enabled = false;
         SetOperationState(OperationState.DetectingGame);
-        SetMessage("Пошук гри...");
+        SetGameSearching();
         try
         {
             var patterns = _apiResponse?.Data?.InstallPathPatterns;
@@ -246,13 +229,13 @@ public partial class MainForm : Form
             if (result.IsFound && result.GamePath != null)
             {
                 _gameRoot = result.GamePath;
-                SetGamePathText(result.GamePath);
+                SetGameFound(result.GamePath, result.Source);
                 await RefreshStateAsync();
             }
             else
             {
                 _gameRoot = null;
-                SetGamePathText("Гру не знайдено");
+                SetGameNotFound("Гру не знайдено");
                 await RefreshStateAsync();
             }
         }
@@ -276,22 +259,36 @@ public partial class MainForm : Form
         {
             using var dialog = new FolderBrowserDialog
             {
-                Description = "Оберіть папку гри Black Desert Online"
+                Description = "Оберіть папку гри Black Desert Online або її батьківську папку"
             };
 
             if (dialog.ShowDialog(this) != DialogResult.OK)
                 return;
 
-            var result = await _gameDetector.ValidateAndSaveManualPathAsync(dialog.SelectedPath);
-            if (result.IsFound && result.GamePath != null)
+            var resolved = GameDetector.ResolveManualGameRoot(dialog.SelectedPath);
+
+            if (resolved.Status == ManualResolveStatus.Found && resolved.GamePath != null)
             {
-                _gameRoot = result.GamePath;
-                SetGamePathText(result.GamePath);
-                await RefreshStateAsync();
+                var result = await _gameDetector.ValidateAndSaveManualPathAsync(resolved.GamePath);
+                if (result.IsFound && result.GamePath != null)
+                {
+                    _gameRoot = result.GamePath;
+                    SetGameFound(result.GamePath, result.Source);
+                    SetMessage("Папку гри успішно визначено.");
+                    await RefreshStateAsync();
+                }
+                else
+                {
+                    SetGameNotFound("У вибраній папці гру не знайдено.");
+                }
+            }
+            else if (resolved.Status == ManualResolveStatus.Ambiguous)
+            {
+                SetGameNotFound("Знайдено кілька папок з грою. Оберіть точну папку гри.");
             }
             else
             {
-                SetMessage("Обрана папка не містить гри Black Desert Online.");
+                SetGameNotFound("У вибраній папці гру не знайдено.");
             }
         }
         catch (Exception ex)
@@ -326,6 +323,7 @@ public partial class MainForm : Form
                 configWarning = "Не вдалося зберегти налаштування режиму.";
             }
 
+            SetProgress(0);
             await RefreshStateAsync();
 
             if (configWarning != null)
@@ -424,7 +422,7 @@ public partial class MainForm : Form
             if (!policy.CanInstall)
             {
                 if (policy.AlreadyInstalledExactTarget)
-                    finalMessage = "Актуальна версія вже встановлена.";
+                    finalMessage = "Цей реліз уже встановлено.";
                 else
                     finalMessage = "Встановлення недоступне для поточного стану.";
                 return;
@@ -651,15 +649,36 @@ public partial class MainForm : Form
         browseGameButton.Enabled = enabled;
         foreach (Control c in modesFlowPanel.Controls)
         {
-            if (c is FlowLayoutPanel panel)
-            {
-                foreach (Control child in panel.Controls)
-                {
-                    if (child is RadioButton rb) rb.Enabled = enabled;
-                }
-            }
+            if (c is RadioButton rb) rb.Enabled = enabled;
         }
     }
+
+    // --- Game status presentation ---
+
+    private void SetGameFound(string path, DetectionSource? source)
+    {
+        gameStatusLabel.Text = source == DetectionSource.Manual
+            ? "✓ Гру знайдено вручну"
+            : "✓ Гру знайдено";
+        gameStatusLabel.ForeColor = SuccessGreen;
+        gamePathLabel.Text = path;
+    }
+
+    private void SetGameNotFound(string reason)
+    {
+        gameStatusLabel.Text = reason;
+        gameStatusLabel.ForeColor = SystemColors.GrayText;
+        gamePathLabel.Text = "";
+    }
+
+    private void SetGameSearching()
+    {
+        gameStatusLabel.Text = "Пошук гри...";
+        gameStatusLabel.ForeColor = SystemColors.GrayText;
+        gamePathLabel.Text = "";
+    }
+
+    // --- Operation state ---
 
     private void SetOperationState(OperationState state)
     {
@@ -702,7 +721,7 @@ public partial class MainForm : Form
         {
             SetLocalizationStateText("Не визначено");
             SetInstalledInfo("");
-            SetDetailsText("");
+            SetSelectedInfo("");
             _lastResolvedState = LocalizationState.NotInstalled;
             if (!_apiLoadedSuccessfully)
                 SetMessage($"Помилка завантаження API: {_apiErrorMessage}");
@@ -715,7 +734,7 @@ public partial class MainForm : Form
         {
             SetLocalizationStateText("Не визначено");
             SetInstalledInfo("");
-            SetDetailsText("");
+            SetSelectedInfo("");
             _lastResolvedState = LocalizationState.NotInstalled;
             SetMessage($"Помилка завантаження API: {_apiErrorMessage}");
             SetActionsEnabled(false, !_operationInProgress);
@@ -735,7 +754,6 @@ public partial class MainForm : Form
             installedPublicId = installedLoad.Value.PublicId;
             installedAt = installedLoad.Value.InstalledAt;
 
-            // Find display name from API modes
             var installedApiMode = _apiResponse?.Data?.Modes?
                 .FirstOrDefault(m => string.Equals(m.Slug, installedModeSlug, StringComparison.Ordinal));
             installedModeDisplayName = installedApiMode?.PublicName ?? installedModeSlug;
@@ -768,11 +786,8 @@ public partial class MainForm : Form
                 info += $"  |  {dateStr}";
             SetInstalledInfo(info);
         }
-        else if (installedLoad.Status == FileLoadStatus.Valid && installedLoad.Value?.Source == "official")
-        {
-            SetInstalledInfo("Локалізацію не встановлено");
-        }
-        else if (installedLoad.Status == FileLoadStatus.Missing)
+        else if (installedLoad.Status == FileLoadStatus.Missing
+            || (installedLoad.Status == FileLoadStatus.Valid && installedLoad.Value?.Source == "official"))
         {
             SetInstalledInfo("Локалізацію не встановлено");
         }
@@ -787,18 +802,19 @@ public partial class MainForm : Form
 
         if (selectedCurrent != null)
         {
-            var details = $"{selectedMode!.PublicName ?? GetSelectedModeSlug()} | v{selectedCurrent.Version} | patch {selectedCurrent.Patch}";
-            if (!string.IsNullOrEmpty(selectedCurrent.PublishedAt)
-                && DateTimeOffset.TryParse(selectedCurrent.PublishedAt, out var pubDate))
-            {
-                details += $" | реліз {pubDate.ToLocalTime():dd.MM.yyyy}";
-            }
-            SetDetailsText(details);
+            var selName = DynamicModePolicy.GetDisplayName(selectedMode!);
+            var selLine = DynamicModePolicy.FormatReleaseLine(selectedMode!);
+            SetSelectedInfo(string.IsNullOrEmpty(selLine)
+                ? $"Обрано: {selName}"
+                : $"Обрано: {selName} | {selLine}");
         }
         else
         {
-            SetDetailsText($"{selectedMode?.PublicName ?? GetSelectedModeSlug() ?? ""} | реліз ще не опубліковано");
+            SetSelectedInfo("");
         }
+
+        // Installed marker on matching RadioButton
+        UpdateInstalledMarkers(installedModeSlug, installedPublicId);
 
         // Diagnostics
         string? diagnostic = stateResult.Error;
@@ -810,14 +826,61 @@ public partial class MainForm : Form
         if (diagnostic == null && stateResult.State == LocalizationState.Corrupted)
             diagnostic = "Файл локалізації пошкоджено. Спробуйте встановити знову.";
 
+        // Exact-installed informational message
+        if (diagnostic == null)
+        {
+            var policy = InstallActionPolicy.Evaluate(
+                stateResult.State, installedModeSlug, installedPublicId,
+                selectedMode, selectedCurrent, compatResult, _operationInProgress);
+
+            if (policy.AlreadyInstalledExactTarget)
+                diagnostic = "Цей реліз уже встановлено.";
+        }
+
         SetMessage(diagnostic ?? "");
 
         // Action availability
-        var policy = InstallActionPolicy.Evaluate(
+        var actionPolicy = InstallActionPolicy.Evaluate(
             stateResult.State, installedModeSlug, installedPublicId,
             selectedMode, selectedCurrent, compatResult, _operationInProgress);
 
-        SetActionsEnabled(policy.CanInstall, policy.CanRestoreOriginal);
+        SetActionsEnabled(actionPolicy.CanInstall, actionPolicy.CanRestoreOriginal);
+    }
+
+    private void UpdateInstalledMarkers(string? installedModeSlug, string? installedPublicId)
+    {
+        foreach (Control c in modesFlowPanel.Controls)
+        {
+            if (c is not RadioButton rb) continue;
+
+            var slug = rb.Tag as string;
+            var isExactInstalled = installedModeSlug != null
+                && installedPublicId != null
+                && string.Equals(slug, installedModeSlug, StringComparison.Ordinal);
+
+            // We can't easily add sub-labels to RadioButton text dynamically,
+            // so we update the text to include marker when it's the installed mode.
+            // Rebuild text from API mode data.
+            if (_apiResponse?.Data?.Modes != null)
+            {
+                var mode = _apiResponse.Data.Modes
+                    .FirstOrDefault(m => string.Equals(m.Slug, slug, StringComparison.Ordinal));
+                if (mode != null)
+                {
+                    var displayName = DynamicModePolicy.GetDisplayName(mode);
+                    var releaseLine = DynamicModePolicy.FormatReleaseLine(mode);
+
+                    var text = string.IsNullOrEmpty(releaseLine)
+                        ? displayName
+                        : $"{displayName}\n{releaseLine}";
+
+                    if (isExactInstalled)
+                        text += "\n✓ Встановлено";
+
+                    rb.Text = text;
+                }
+            }
+        }
     }
 
     private static string GetStateDisplayText(LocalizationState state) => state switch
@@ -839,7 +902,7 @@ public partial class MainForm : Form
 
     public void SetInstalledInfo(string text) => installedInfoLabel.Text = text;
 
-    public void SetDetailsText(string text) => detailsLabel.Text = text;
+    public void SetSelectedInfo(string text) => detailsLabel.Text = text;
 
     public void SetProgress(int percent)
     {

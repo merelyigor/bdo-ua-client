@@ -7,6 +7,7 @@ partial class MainForm
 
     // --- Game Detection ---
     private GroupBox gameGroupBox = null!;
+    private Label gameStatusLabel = null!;
     private Label gamePathLabel = null!;
     private Button detectGameButton = null!;
     private Button browseGameButton = null!;
@@ -82,16 +83,26 @@ partial class MainForm
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 1,
+            RowCount = 2,
             AutoSize = true
         };
         gameLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         gameLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         gameLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        gameLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        gameStatusLabel = new Label
+        {
+            Text = "Гра ще не перевірена",
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            ForeColor = System.Drawing.SystemColors.GrayText,
+            Margin = new Padding(0, 0, 0, 2)
+        };
 
         gamePathLabel = new Label
         {
-            Text = "Гру не знайдено",
+            Text = "",
             Dock = DockStyle.Fill,
             AutoSize = false,
             AutoEllipsis = true,
@@ -122,8 +133,9 @@ partial class MainForm
         };
 
         gameButtonsPanel.Controls.AddRange(new Control[] { detectGameButton, browseGameButton });
-        gameLayout.Controls.Add(gamePathLabel, 0, 0);
-        gameLayout.Controls.Add(gameButtonsPanel, 1, 0);
+        gameLayout.Controls.Add(gameStatusLabel, 0, 0);
+        gameLayout.Controls.Add(gamePathLabel, 0, 1);
+        gameLayout.Controls.Add(gameButtonsPanel, 1, 1);
         gameGroupBox.Controls.Add(gameLayout);
 
         // ==========================================

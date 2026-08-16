@@ -437,6 +437,58 @@ public class GameDetectorTests : IDisposable
         Assert.Null(result.Source);
     }
 
+    // ResolveManualGameRoot
+
+    [Fact]
+    public void ResolveManualGameRoot_ExactRoot_ReturnsFound()
+    {
+        var gamePath = CreateFakeGamePath();
+        var result = GameDetector.ResolveManualGameRoot(gamePath);
+        Assert.Equal(ManualResolveStatus.Found, result.Status);
+        Assert.Equal(Path.GetFullPath(gamePath), result.GamePath);
+    }
+
+    [Fact]
+    public void ResolveManualGameRoot_ChildRoot_ReturnsChild()
+    {
+        var childName = "BlackDesert";
+        var childPath = CreateFakeGamePath(childName);
+        var result = GameDetector.ResolveManualGameRoot(_tempDir);
+        Assert.Equal(ManualResolveStatus.Found, result.Status);
+        Assert.Equal(Path.GetFullPath(childPath), result.GamePath);
+    }
+
+    [Fact]
+    public void ResolveManualGameRoot_NoValidChild_ReturnsNotFound()
+    {
+        Directory.CreateDirectory(Path.Combine(_tempDir, "OtherGame"));
+        var result = GameDetector.ResolveManualGameRoot(_tempDir);
+        Assert.Equal(ManualResolveStatus.NotFound, result.Status);
+    }
+
+    [Fact]
+    public void ResolveManualGameRoot_MultipleChildren_ReturnsAmbiguous()
+    {
+        CreateFakeGamePath("Game1");
+        CreateFakeGamePath("Game2");
+        var result = GameDetector.ResolveManualGameRoot(_tempDir);
+        Assert.Equal(ManualResolveStatus.Ambiguous, result.Status);
+    }
+
+    [Fact]
+    public void ResolveManualGameRoot_EmptyPath_ReturnsNotFound()
+    {
+        var result = GameDetector.ResolveManualGameRoot("");
+        Assert.Equal(ManualResolveStatus.NotFound, result.Status);
+    }
+
+    [Fact]
+    public void ResolveManualGameRoot_NullPath_ReturnsNotFound()
+    {
+        var result = GameDetector.ResolveManualGameRoot(null!);
+        Assert.Equal(ManualResolveStatus.NotFound, result.Status);
+    }
+
     private string CreateFakeGamePath(string? subDir = null)
     {
         var dirName = subDir ?? "BDO";
