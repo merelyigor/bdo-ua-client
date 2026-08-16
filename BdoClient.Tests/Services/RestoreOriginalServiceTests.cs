@@ -363,6 +363,51 @@ public class RestoreOriginalServiceTests : IDisposable
         Assert.Equal("original bytes", File.ReadAllText(GameLocFilePath));
     }
 
+    // --- Fallback: restore point contains pre-operation state snapshot ---
+
+    [Fact]
+    public async Task RestoreOriginal_Fallback_CreatesRestorePointWithStateSnapshot()
+    {
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("original game"));
+
+        var stateStore = new InstallationStateStore(_paths, _logger);
+        var oldMetadata = new InstallationMetadata
+        {
+            Source = "api",
+            ModeSlug = "full-ukrainian",
+            PublicId = "old-id",
+            Version = 1,
+            GamePatch = 100,
+            Sha256 = "old-sha",
+            InstalledAt = DateTimeOffset.UtcNow
+        };
+        await stateStore.SaveAsync(oldMetadata);
+        var preOpStateBytes = File.ReadAllBytes(Path.Combine(_paths.StateDir, "installation.json"));
+
+        await CreateValidSnapshot(gamePatch: 100, content: Encoding.UTF8.GetBytes("original snapshot"));
+
+        var handler = new MockHttpHandler(null, 0, statusCode: 500);
+        handler.FailUntilAttempt = 10;
+        var service = CreateService(handler, currentOfficialPatch: 100);
+
+        var result = await service.RestoreOriginalAsync();
+        Assert.True(result.IsSuccess);
+
+        var rpDirs = Directory.GetDirectories(_paths.RestorePointsDir);
+        Assert.Single(rpDirs);
+
+        var metadataJson = File.ReadAllText(Path.Combine(rpDirs[0], "metadata.json"));
+        var metadata = System.Text.Json.JsonSerializer.Deserialize<BackupMetadata>(metadataJson,
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+
+        Assert.Equal("restore_original_fallback", metadata.Source);
+        Assert.Equal("present", metadata.InstallationState);
+
+        var stateFilePath = Path.Combine(rpDirs[0], "installation-state.json");
+        Assert.True(File.Exists(stateFilePath));
+        Assert.Equal(preOpStateBytes, File.ReadAllBytes(stateFilePath));
+    }
+
     // --- MockHttpHandler ---
 
     private class MockHttpHandler : HttpMessageHandler

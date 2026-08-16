@@ -353,24 +353,8 @@ public class BackupStore
             return null;
 
         bool hasStateFile = File.Exists(stateFilePath);
-        bool isRestorable;
-
-        if (metadata.InstallationState == "present")
-        {
-            isRestorable = hasStateFile;
-        }
-        else if (metadata.InstallationState == "absent")
-        {
-            isRestorable = !hasStateFile;
-        }
-        else if (metadata.InstallationState == null)
-        {
-            isRestorable = hasStateFile;
-        }
-        else
-        {
-            isRestorable = false;
-        }
+        var stateKind = ClassifyRestorePointState(metadata.InstallationState, hasStateFile);
+        bool isRestorable = stateKind != RestorePointStateKind.Invalid;
 
         var dirName = Path.GetFileName(restorePointDir);
 
@@ -572,5 +556,21 @@ public class BackupStore
         {
             _logger.Warning($"Failed to cleanup directory {path}: {ex.Message}");
         }
+    }
+
+    internal enum RestorePointStateKind { Present, Absent, Invalid }
+
+    internal static RestorePointStateKind ClassifyRestorePointState(string? marker, bool hasStateFile)
+    {
+        if (marker == "present")
+            return hasStateFile ? RestorePointStateKind.Present : RestorePointStateKind.Invalid;
+
+        if (marker == "absent")
+            return hasStateFile ? RestorePointStateKind.Invalid : RestorePointStateKind.Absent;
+
+        if (marker == null)
+            return hasStateFile ? RestorePointStateKind.Present : RestorePointStateKind.Invalid;
+
+        return RestorePointStateKind.Invalid;
     }
 }

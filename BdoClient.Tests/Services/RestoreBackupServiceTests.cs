@@ -476,7 +476,7 @@ public class RestoreBackupServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PostReplaceStateFailure_RollbackSucceeds_ReturnsStateRestoreFailed()
+    public async Task PostReplaceStateFailure_ReadOnlyFile_RollbackSucceeds_ReturnsRecoveryFailed()
     {
         var originalContent = Encoding.UTF8.GetBytes("original game content");
         var gameRoot = CreateGameRoot(originalContent);
@@ -512,6 +512,215 @@ public class RestoreBackupServiceTests : IDisposable
         {
             File.SetAttributes(installedPath, FileAttributes.Normal);
         }
+    }
+
+    [Fact]
+    public async Task Restore_PostReplaceCancellation_RollbackSucceeds_PropagatesCancellation()
+    {
+        var originalContent = Encoding.UTF8.GetBytes("game-A");
+        var gameRoot = CreateGameRoot(originalContent);
+        var gameLocPath = GameLocFilePath;
+
+        var stateStore = new InstallationStateStore(_paths, _logger);
+        await stateStore.SaveAsync(new InstallationMetadata
+        {
+            Source = "api",
+            ModeSlug = "full-ukrainian",
+            PublicId = "state-A",
+            Version = 1,
+            GamePatch = 100,
+            Sha256 = "a",
+            InstalledAt = DateTimeOffset.UtcNow
+        });
+        var stateABytes = File.ReadAllBytes(Path.Combine(_paths.StateDir, "installation.json"));
+
+        var stateBBytes = Encoding.UTF8.GetBytes("{\"mode_slug\":\"full-ukrainian\",\"public_id\":\"state-B\",\"version\":2,\"game_patch\":101,\"sha256\":\"b\",\"installed_at\":\"2026-01-01T00:00:00+00:00\",\"source\":\"api\"}");
+
+        var store = new BackupStore(_paths, _logger);
+        var (rpDir, rpResult) = await store.CreateRestorePointAsync(
+            gameLocPath, 100, "selected", stateBBytes, stateWasPresent: true);
+        Assert.True(rpResult.IsSuccess);
+
+        var service = CreateService(gameRoot);
+        service.OnPostGameReplaceHook = () => throw new OperationCanceledException("test cancel");
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => service.RestoreAsync(Path.GetFileName(rpDir!)));
+
+        Assert.Equal(originalContent, File.ReadAllBytes(GameLocFilePath));
+        Assert.Equal(stateABytes, File.ReadAllBytes(Path.Combine(_paths.StateDir, "installation.json")));
+    }
+
+    [Fact]
+    public async Task Restore_PostReplaceCancellation_RollbackFails_ReturnsRecoveryFailed()
+    {
+        var originalContent = Encoding.UTF8.GetBytes("game-A");
+        var gameRoot = CreateGameRoot(originalContent);
+        var gameLocPath = GameLocFilePath;
+
+        var stateStore = new InstallationStateStore(_paths, _logger);
+        await stateStore.SaveAsync(new InstallationMetadata
+        {
+            Source = "api",
+            ModeSlug = "full-ukrainian",
+            PublicId = "state-A",
+            Version = 1,
+            GamePatch = 100,
+            Sha256 = "a",
+            InstalledAt = DateTimeOffset.UtcNow
+        });
+
+        var installedPath = Path.Combine(_paths.StateDir, "installation.json");
+
+        var stateBBytes = Encoding.UTF8.GetBytes("{\"public_id\":\"state-B\"}");
+
+        var store = new BackupStore(_paths, _logger);
+        var (rpDir, rpResult) = await store.CreateRestorePointAsync(
+            gameLocPath, 100, "selected", stateBBytes, stateWasPresent: true);
+        Assert.True(rpResult.IsSuccess);
+
+        File.SetAttributes(installedPath, FileAttributes.ReadOnly);
+
+        try
+        {
+            var service = CreateService(gameRoot);
+            service.OnPostGameReplaceHook = () =>
+            {
+                foreach (var dir in Directory.GetDirectories(_paths.RestorePointsDir))
+                {
+                    var metaPath = Path.Combine(dir, "metadata.json");
+                    if (File.Exists(metaPath) && File.ReadAllText(metaPath).Contains("pre_restore_backup"))
+                    {
+                        var gameFile = Path.Combine(dir, "languagedata_en.loc");
+                        if (File.Exists(gameFile)) File.Delete(gameFile);
+                    }
+                }
+            };
+
+            var result = await service.RestoreAsync(Path.GetFileName(rpDir!));
+
+            Assert.False(result.IsSuccess);
+            Assert.Equal(RestoreError.RecoveryFailed, result.Error);
+        }
+        finally
+        {
+            File.SetAttributes(installedPath, FileAttributes.Normal);
+        }
+    }
+
+    [Fact]
+    public async Task Restore_StateApplyFails_RollbackSucceeds_ReturnsStateRestoreFailed()
+    {
+        var originalContent = Encoding.UTF8.GetBytes("game-A");
+        var gameRoot = CreateGameRoot(originalContent);
+        var gameLocPath = GameLocFilePath;
+
+        var stateStore = new InstallationStateStore(_paths, _logger);
+        await stateStore.SaveAsync(new InstallationMetadata
+        {
+            Source = "api",
+            ModeSlug = "full-ukrainian",
+            PublicId = "state-A",
+            Version = 1,
+            GamePatch = 100,
+            Sha256 = "a",
+            InstalledAt = DateTimeOffset.UtcNow
+        });
+        var stateABytes = File.ReadAllBytes(Path.Combine(_paths.StateDir, "installation.json"));
+
+        var stateBBytes = Encoding.UTF8.GetBytes("{\"public_id\":\"state-B\"}");
+
+        var store = new BackupStore(_paths, _logger);
+        var (rpDir, rpResult) = await store.CreateRestorePointAsync(
+            gameLocPath, 100, "selected", stateBBytes, stateWasPresent: true);
+        Assert.True(rpResult.IsSuccess);
+
+        var service = CreateService(gameRoot);
+        service.OnPostGameReplaceHook = () =>
+        {
+            var tempStatePath = Path.Combine(_paths.StateDir, "installation.json.tmp");
+            File.WriteAllText(tempStatePath, "block");
+            File.SetAttributes(tempStatePath, FileAttributes.ReadOnly);
+        };
+
+        try
+        {
+            var result = await service.RestoreAsync(Path.GetFileName(rpDir!));
+
+            Assert.False(result.IsSuccess);
+            Assert.Equal(RestoreError.StateRestoreFailed, result.Error);
+            Assert.Equal(originalContent, File.ReadAllBytes(GameLocFilePath));
+            Assert.Equal(stateABytes, File.ReadAllBytes(Path.Combine(_paths.StateDir, "installation.json")));
+        }
+        finally
+        {
+            var tempStatePath = Path.Combine(_paths.StateDir, "installation.json.tmp");
+            if (File.Exists(tempStatePath))
+            {
+                File.SetAttributes(tempStatePath, FileAttributes.Normal);
+                File.Delete(tempStatePath);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Restore_PreOperationRestorePoint_UsesCurrentStateGamePatch()
+    {
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("game-A"));
+        var gameLocPath = GameLocFilePath;
+
+        var stateStore = new InstallationStateStore(_paths, _logger);
+        await stateStore.SaveAsync(new InstallationMetadata
+        {
+            Source = "api",
+            ModeSlug = "full-ukrainian",
+            PublicId = "state-A",
+            Version = 1,
+            GamePatch = 200,
+            Sha256 = "a",
+            InstalledAt = DateTimeOffset.UtcNow
+        });
+
+        var selectedStateBytes = Encoding.UTF8.GetBytes("{\"public_id\":\"state-B\"}");
+        var store = new BackupStore(_paths, _logger);
+        var (rpDir, rpResult) = await store.CreateRestorePointAsync(
+            gameLocPath, 100, "selected", selectedStateBytes, stateWasPresent: true);
+        Assert.True(rpResult.IsSuccess);
+
+        var service = CreateService(gameRoot);
+        var result = await service.RestoreAsync(Path.GetFileName(rpDir!));
+        Assert.True(result.IsSuccess);
+
+        string? preRpDir = null;
+        foreach (var dir in Directory.GetDirectories(_paths.RestorePointsDir))
+        {
+            var metaPath = Path.Combine(dir, "metadata.json");
+            if (File.Exists(metaPath) && File.ReadAllText(metaPath).Contains("pre_restore_backup"))
+            {
+                preRpDir = dir;
+                break;
+            }
+        }
+        Assert.NotNull(preRpDir);
+
+        var metadata = ReadMetadata(preRpDir!);
+        Assert.Equal(200, metadata.GamePatch);
+    }
+
+    [Theory]
+    [InlineData("present", true, 0)]
+    [InlineData("present", false, 2)]
+    [InlineData("absent", true, 2)]
+    [InlineData("absent", false, 1)]
+    [InlineData(null, true, 0)]
+    [InlineData(null, false, 2)]
+    [InlineData("unknown", true, 2)]
+    [InlineData("unknown", false, 2)]
+    public void ClassifyRestorePoint_AllCombinations(string? marker, bool hasStateFile, int expectedKind)
+    {
+        var expected = (BackupStore.RestorePointStateKind)expectedKind;
+        var result = BackupStore.ClassifyRestorePointState(marker, hasStateFile);
+        Assert.Equal(expected, result);
     }
 
     private class PreReplaceCancellationBackupStore : BackupStore

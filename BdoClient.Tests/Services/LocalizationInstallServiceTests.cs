@@ -1106,6 +1106,86 @@ public class LocalizationInstallServiceTests : IDisposable
         Assert.Empty(Directory.GetDirectories(_paths.RestorePointsDir));
     }
 
+    // --- v6.3: Restore point InstallationState marker and state file ---
+
+    [Fact]
+    public async Task InstallReleaseAsync_Update_CentralizedRestorePoint_StatePresent()
+    {
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("old localization"));
+
+        var oldMetadata = new InstallationMetadata
+        {
+            Source = "api",
+            ModeSlug = "full-ukrainian",
+            PublicId = "old-id",
+            Version = 1,
+            GamePatch = 100,
+            Sha256 = "old-sha",
+            InstalledAt = DateTimeOffset.UtcNow
+        };
+        var stateStore = new InstallationStateStore(_paths, _logger);
+        await stateStore.SaveAsync(oldMetadata);
+        var preOpStateBytes = File.ReadAllBytes(Path.Combine(_paths.StateDir, "installation.json"));
+
+        var backupStore = new BackupStore(_paths, _logger);
+        await backupStore.CreateOriginalSnapshotAsync(gameRoot, trustedGamePatch: 100);
+
+        var newContent = Encoding.UTF8.GetBytes("new localization v2");
+        var release = CreateRelease(version: 2, content: newContent);
+        var handler = new MockHttpHandler(newContent, newContent.Length);
+
+        var service = CreateService(handler);
+        var result = await service.InstallReleaseAsync("full-ukrainian", release);
+        Assert.True(result.IsSuccess);
+
+        string? preInstallDir = null;
+        foreach (var dir in Directory.GetDirectories(_paths.RestorePointsDir))
+        {
+            var metaJson = File.ReadAllText(Path.Combine(dir, "metadata.json"));
+            if (metaJson.Contains("pre_install"))
+            {
+                preInstallDir = dir;
+                break;
+            }
+        }
+        Assert.NotNull(preInstallDir);
+
+        var metadataJson = File.ReadAllText(Path.Combine(preInstallDir!, "metadata.json"));
+        var metadata = System.Text.Json.JsonSerializer.Deserialize<BackupMetadata>(metadataJson,
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+
+        Assert.Equal("present", metadata.InstallationState);
+
+        var stateFilePath = Path.Combine(preInstallDir!, "installation-state.json");
+        Assert.True(File.Exists(stateFilePath));
+        Assert.Equal(preOpStateBytes, File.ReadAllBytes(stateFilePath));
+    }
+
+    [Fact]
+    public async Task InstallReleaseAsync_FirstInstall_CentralizedRestorePoint_StateAbsent()
+    {
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("original"));
+        var releaseContent = Encoding.UTF8.GetBytes("new content");
+        var release = CreateRelease(content: releaseContent);
+        var handler = new MockHttpHandler(releaseContent, releaseContent.Length);
+
+        var service = CreateService(handler);
+        var result = await service.InstallReleaseAsync("full-ukrainian", release);
+        Assert.True(result.IsSuccess);
+
+        var rpDirs = Directory.GetDirectories(_paths.RestorePointsDir);
+        Assert.Single(rpDirs);
+
+        var metadataJson = File.ReadAllText(Path.Combine(rpDirs[0], "metadata.json"));
+        var metadata = System.Text.Json.JsonSerializer.Deserialize<BackupMetadata>(metadataJson,
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+
+        Assert.Equal("absent", metadata.InstallationState);
+
+        var stateFilePath = Path.Combine(rpDirs[0], "installation-state.json");
+        Assert.False(File.Exists(stateFilePath));
+    }
+
     // --- MockHttpHandler ---
 
     private class FailingTypedBackupStore : BackupStore

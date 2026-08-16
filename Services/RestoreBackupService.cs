@@ -11,6 +11,9 @@ public sealed class RestoreBackupService
     private readonly ILogger _logger;
     private readonly string _gameRoot;
 
+    // Test seam: called after successful game replace, before state apply.
+    internal Action? OnPostGameReplaceHook { get; set; }
+
     public RestoreBackupService(
         BackupStore backupStore,
         InstallationStateStore stateStore,
@@ -50,39 +53,16 @@ public sealed class RestoreBackupService
         var selectedStateFile = Path.Combine(restorePointDir, "installation-state.json");
         bool hasStateFile = File.Exists(selectedStateFile);
 
-        bool stateIsPresent;
+        var stateKind = BackupStore.ClassifyRestorePointState(metadata.InstallationState, hasStateFile);
 
-        if (metadata.InstallationState == "present")
+        if (stateKind == BackupStore.RestorePointStateKind.Invalid)
         {
-            if (!hasStateFile)
-                return RestoreResult.Failure(RestoreError.RestorePointInvalid,
-                    "Marker 'present' but installation-state.json missing");
-            stateIsPresent = true;
-        }
-        else if (metadata.InstallationState == "absent")
-        {
-            if (hasStateFile)
-                return RestoreResult.Failure(RestoreError.RestorePointInvalid,
-                    "Marker 'absent' but installation-state.json exists");
-            stateIsPresent = false;
-        }
-        else if (metadata.InstallationState == null)
-        {
-            if (hasStateFile)
-            {
-                stateIsPresent = true;
-            }
-            else
-            {
-                return RestoreResult.Failure(RestoreError.RestorePointInvalid,
-                    "Legacy restore point without state snapshot — not safely restorable");
-            }
-        }
-        else
-        {
+            _logger.Error($"Restore point has invalid state: marker={metadata.InstallationState}, hasStateFile={hasStateFile}");
             return RestoreResult.Failure(RestoreError.RestorePointInvalid,
-                $"Unknown installation_state marker: {metadata.InstallationState}");
+                $"Restore point has invalid installation state: marker={metadata.InstallationState}, hasStateFile={hasStateFile}");
         }
+
+        bool stateIsPresent = stateKind == BackupStore.RestorePointStateKind.Present;
 
         byte[]? selectedStateBytes = null;
         if (stateIsPresent)
@@ -120,6 +100,8 @@ public sealed class RestoreBackupService
             _logger.Error($"Game file replace failed: {replaceResult.Error}");
             return replaceResult;
         }
+
+        OnPostGameReplaceHook?.Invoke();
 
         try
         {
