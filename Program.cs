@@ -13,7 +13,7 @@ static class Program
         var appPaths = new AppPaths();
         appPaths.EnsureDirectories();
 
-        ILogger logger = new SimpleLogger();
+        ILogger logger = new FileLogger(appPaths.LogsDir);
         var configStore = new ConfigStore(appPaths, logger);
         var stateStore = new InstallationStateStore(appPaths, logger);
         var httpClient = new HttpClient();
@@ -24,19 +24,26 @@ static class Program
         var stateService = new LocalizationStateService(stateStore, logger);
         var compatService = new LocalizationCompatibilityService();
 
+        logger.Info("Application started.");
+
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
-        Application.Run(new MainForm(
-            configStore, apiClient, gameDetector,
-            stateService, compatService,
-            localizationInstaller, backupStore, stateStore, logger));
-    }
-}
 
-internal sealed class SimpleLogger : ILogger
-{
-    public void Debug(string message) { }
-    public void Info(string message) { }
-    public void Warning(string message) => Console.Error.WriteLine($"[WARN] {message}");
-    public void Error(string message) => Console.Error.WriteLine($"[ERROR] {message}");
+        try
+        {
+            Application.Run(new MainForm(
+                configStore, apiClient, gameDetector,
+                stateService, compatService,
+                localizationInstaller, backupStore, stateStore, logger));
+        }
+        catch (Exception ex)
+        {
+            logger.Error($"Unhandled application exception: {ex.Message}");
+            throw;
+        }
+        finally
+        {
+            logger.Info("Application exited.");
+        }
+    }
 }

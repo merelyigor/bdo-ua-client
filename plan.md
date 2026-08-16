@@ -655,16 +655,27 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 
 ### Етап 11: Logging finalization
 
-**Що реалізовано:**
-- Повноцінне persistent file logging в `%LocalAppData%\BDO-UA-Client\logs\`
+**Що реалізовано (v11.0):**
+- `FileLogger` implementing `ILogger` — `Logging/FileLogger.cs`
+- Daily log file: `bdo-ua-client_yyyy-MM-dd.log` in `%LocalAppData%\BDO-UA-Client\logs\`
+- Format: `yyyy-MM-dd HH:mm:ss.fff [LEVEL] message`
+- All four levels: DEBUG, INFO, WARN, ERROR
+- Thread-safe append via `lock`
+- Multiline normalization (CR/LF → space)
+- Non-throwing failure policy (catch all)
+- UTF-8 encoding
+- Program.cs: one shared `FileLogger`, startup/exit logs
+- SimpleLogger removed
+- Existing service log coverage verified: detection, API, download, install, restore, rollback, errors
+- 10 FileLogger tests (format, levels, filename, append, multiline, concurrency, invalid path)
 
 **Acceptance criteria:**
-- [ ] Логи: запуск, detection, API calls, download, install, errors, rollback
-- [ ] Формат: `{timestamp} [{level}] {message}`
-- [ ] Ротація: по днях
-- [ ] Logger contract визначено в Етапі 1, тут — реалізація
+- [x] Логи: запуск, detection, API calls, download, install, errors, rollback
+- [x] Формат: `{timestamp} [{level}] {message}`
+- [x] Ротація: по днях
+- [x] Logger contract визначено в Етапі 1, тут — реалізація
 
-**Файли:** новий клас або `Program.cs`
+**Файли:** `Logging/FileLogger.cs`, `Program.cs`, `BdoClient.Tests/Logging/FileLoggerTests.cs`
 
 ---
 
