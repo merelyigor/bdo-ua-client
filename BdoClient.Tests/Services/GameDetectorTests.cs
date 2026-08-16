@@ -489,6 +489,27 @@ public class GameDetectorTests : IDisposable
         Assert.Equal(ManualResolveStatus.NotFound, result.Status);
     }
 
+    [Fact]
+    public async Task ResolveManualGameRoot_ChildRoot_PersistedAsGamePath()
+    {
+        var childName = "BlackDesert";
+        var childPath = CreateFakeGamePath(childName);
+
+        var resolved = GameDetector.ResolveManualGameRoot(_tempDir);
+        Assert.Equal(ManualResolveStatus.Found, resolved.Status);
+        Assert.Equal(Path.GetFullPath(childPath), resolved.GamePath);
+
+        var store = new ConfigStore(_paths, _logger);
+        var gameDetector = new GameDetector(store, _logger);
+        var result = await gameDetector.ValidateAndSaveManualPathAsync(resolved.GamePath!);
+
+        Assert.True(result.IsFound);
+        Assert.Equal(Path.GetFullPath(childPath), result.GamePath);
+
+        var config = store.Load();
+        Assert.Equal(Path.GetFullPath(childPath), config.Value!.GamePath);
+    }
+
     private string CreateFakeGamePath(string? subDir = null)
     {
         var dirName = subDir ?? "BDO";

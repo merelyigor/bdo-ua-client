@@ -18,6 +18,18 @@ internal sealed class InstallActionPolicyResult
 
 internal static class InstallActionPolicy
 {
+    public static bool IsExactInstalledTarget(
+        string? installedModeSlug,
+        string? installedPublicId,
+        LocalizationMode? mode)
+    {
+        if (installedModeSlug == null || installedPublicId == null) return false;
+        if (mode?.Slug == null || mode.Current?.PublicId == null) return false;
+
+        return string.Equals(installedModeSlug, mode.Slug, StringComparison.Ordinal)
+            && string.Equals(installedPublicId, mode.Current.PublicId, StringComparison.Ordinal);
+    }
+
     public static InstallActionPolicyResult Evaluate(
         LocalizationState factualState,
         string? installedModeSlug,

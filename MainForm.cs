@@ -220,6 +220,7 @@ public partial class MainForm : Form
     private async void DetectGameButton_Click(object? sender, EventArgs e)
     {
         detectGameButton.Enabled = false;
+        var previousGameRoot = _gameRoot;
         SetOperationState(OperationState.DetectingGame);
         SetGameSearching();
         try
@@ -242,7 +243,18 @@ public partial class MainForm : Form
         catch (Exception ex)
         {
             _logger.Error($"Detection error: {ex.Message}");
-            SetMessage($"Помилка пошуку: {ex.Message}");
+            if (previousGameRoot != null && GameDetector.ValidateGamePath(previousGameRoot))
+            {
+                _gameRoot = previousGameRoot;
+                SetGameFound(previousGameRoot, null);
+                SetMessage($"Помилка пошуку: {ex.Message}");
+            }
+            else
+            {
+                _gameRoot = null;
+                SetGameNotFound("Помилка пошуку гри");
+                SetMessage($"Помилка пошуку: {ex.Message}");
+            }
         }
         finally
         {
@@ -279,22 +291,35 @@ public partial class MainForm : Form
                 }
                 else
                 {
-                    SetGameNotFound("У вибраній папці гру не знайдено.");
+                    SetManualFailureMessage("У вибраній папці гру не знайдено.");
                 }
             }
             else if (resolved.Status == ManualResolveStatus.Ambiguous)
             {
-                SetGameNotFound("Знайдено кілька папок з грою. Оберіть точну папку гри.");
+                SetManualFailureMessage("Знайдено кілька папок з грою. Оберіть точну папку гри.");
             }
             else
             {
-                SetGameNotFound("У вибраній папці гру не знайдено.");
+                SetManualFailureMessage("У вибраній папці гру не знайдено.");
             }
         }
         catch (Exception ex)
         {
             _logger.Error($"Browse error: {ex.Message}");
             SetMessage($"Помилка вибору папки: {ex.Message}");
+        }
+    }
+
+    private void SetManualFailureMessage(string message)
+    {
+        if (_gameRoot != null && GameDetector.ValidateGamePath(_gameRoot))
+        {
+            // Keep existing valid game status, show transient error only
+            SetMessage(message);
+        }
+        else
+        {
+            SetGameNotFound(message);
         }
     }
 
@@ -854,31 +879,28 @@ public partial class MainForm : Form
             if (c is not RadioButton rb) continue;
 
             var slug = rb.Tag as string;
-            var isExactInstalled = installedModeSlug != null
-                && installedPublicId != null
-                && string.Equals(slug, installedModeSlug, StringComparison.Ordinal);
 
-            // We can't easily add sub-labels to RadioButton text dynamically,
-            // so we update the text to include marker when it's the installed mode.
-            // Rebuild text from API mode data.
-            if (_apiResponse?.Data?.Modes != null)
+            // Find the API mode for this RadioButton
+            var mode = _apiResponse?.Data?.Modes?
+                .FirstOrDefault(m => string.Equals(m.Slug, slug, StringComparison.Ordinal));
+
+            // Exact installed: same ModeSlug AND same PublicId of current release
+            bool isExactInstalled = InstallActionPolicy.IsExactInstalledTarget(
+                installedModeSlug, installedPublicId, mode);
+
+            if (mode != null)
             {
-                var mode = _apiResponse.Data.Modes
-                    .FirstOrDefault(m => string.Equals(m.Slug, slug, StringComparison.Ordinal));
-                if (mode != null)
-                {
-                    var displayName = DynamicModePolicy.GetDisplayName(mode);
-                    var releaseLine = DynamicModePolicy.FormatReleaseLine(mode);
+                var displayName = DynamicModePolicy.GetDisplayName(mode);
+                var releaseLine = DynamicModePolicy.FormatReleaseLine(mode);
 
-                    var text = string.IsNullOrEmpty(releaseLine)
-                        ? displayName
-                        : $"{displayName}\n{releaseLine}";
+                var text = string.IsNullOrEmpty(releaseLine)
+                    ? displayName
+                    : $"{displayName}\n{releaseLine}";
 
-                    if (isExactInstalled)
-                        text += "\n✓ Встановлено";
+                if (isExactInstalled)
+                    text += "\n✓ Встановлено";
 
-                    rb.Text = text;
-                }
+                rb.Text = text;
             }
         }
     }

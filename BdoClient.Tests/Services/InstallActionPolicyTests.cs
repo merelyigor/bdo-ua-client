@@ -153,4 +153,51 @@ public class InstallActionPolicyTests
 
         Assert.False(policy.CanRestoreOriginal);
     }
+
+    // --- IsExactInstalledTarget ---
+
+    [Fact]
+    public void IsExactInstalled_SameSlugSamePublicId_True()
+    {
+        var mode = MakeMode("english-items", current: MakeCurrent(publicId: "01ABC"));
+        Assert.True(InstallActionPolicy.IsExactInstalledTarget("english-items", "01ABC", mode));
+    }
+
+    [Fact]
+    public void IsExactInstalled_SameSlugDifferentPublicId_False()
+    {
+        var mode = MakeMode("english-items", current: MakeCurrent(publicId: "01NEW"));
+        Assert.False(InstallActionPolicy.IsExactInstalledTarget("english-items", "01OLD", mode));
+    }
+
+    [Fact]
+    public void IsExactInstalled_DifferentSlugSamePublicId_False()
+    {
+        var mode = MakeMode("full-ukrainian", current: MakeCurrent(publicId: "01ABC"));
+        Assert.False(InstallActionPolicy.IsExactInstalledTarget("english-items", "01ABC", mode));
+    }
+
+    [Fact]
+    public void IsExactInstalled_NullInputs_False()
+    {
+        var mode = MakeMode("english-items", current: MakeCurrent(publicId: "01ABC"));
+        Assert.False(InstallActionPolicy.IsExactInstalledTarget(null, "01ABC", mode));
+        Assert.False(InstallActionPolicy.IsExactInstalledTarget("english-items", null, mode));
+        Assert.False(InstallActionPolicy.IsExactInstalledTarget("english-items", "01ABC", null));
+    }
+
+    [Fact]
+    public void IsExactInstalled_BlankInputs_False()
+    {
+        var mode = MakeMode("english-items", current: MakeCurrent(publicId: "01ABC"));
+        Assert.False(InstallActionPolicy.IsExactInstalledTarget("", "01ABC", mode));
+        Assert.False(InstallActionPolicy.IsExactInstalledTarget("english-items", "", mode));
+    }
+
+    [Fact]
+    public void IsExactInstalled_ModeCurrentNull_False()
+    {
+        var mode = MakeMode("english-items", current: null);
+        Assert.False(InstallActionPolicy.IsExactInstalledTarget("english-items", "01ABC", mode));
+    }
 }

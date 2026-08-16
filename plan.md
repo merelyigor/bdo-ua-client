@@ -1,23 +1,26 @@
 # BDO UA Client — Active Plan
 
-## Поточний baseline
+## Accepted baseline (before E2E iteration)
 
 - **Accepted through:** v12.2
-- **Baseline SHA:** `5d79f567f8b1937a53ae68173021d89f0c813c5d`
-- **Automated tests:** 306
-- **Platform:** win-x64, self-contained, single-file
-- **Executable:** `BDO-UA-Client.exe`
-- **Release Build #2:** manually verified successful
-- **Actions artifact:** verified as one EXE
-- **Real Windows E2E:** in progress
+- **SHA:** `5d79f567f8b1937a53ae68173021d89f0c813c5d`
+- **Automated tests:** 300
+
+## Current implementation
+
+- **v12.3 / v12.3.1** — mode selection, game detection UX, installed marker fixes
+- **Latest SHA:** (see git log)
+- **Automated tests:** 313
+- **Normal CI:** PENDING
+- **Windows E2E:** PENDING
 
 ## Поточна фаза
 
 **Stage 12 — Real Windows E2E stabilization**
 
-### v12.3 — fix mode selection and game detection UX
+### v12.3 / v12.3.1 — fix mode selection and game detection UX
 
-**Status:** IN PROGRESS
+**Status:** IMPLEMENTED — E2E PENDING
 
 **E2E findings (confirmed in real Windows test):**
 - Multiple localization RadioButtons could be selected simultaneously (each had separate parent FlowLayoutPanel)
