@@ -336,6 +336,7 @@ public class RestoreBackupServiceTests : IDisposable
         File.SetAttributes(installedPath, FileAttributes.Normal);
 
         Assert.False(result.IsSuccess);
+        Assert.True(result.Error == RestoreError.StateRestoreFailed || result.Error == RestoreError.RecoveryFailed);
         Assert.Equal(Encoding.UTF8.GetBytes("modified game content"), File.ReadAllBytes(GameLocFilePath));
     }
 
@@ -475,24 +476,34 @@ public class RestoreBackupServiceTests : IDisposable
         Assert.Equal(stateBytes, File.ReadAllBytes(installedPath));
     }
 
+    private string CreateSeparateGameRoot(byte[] content, string label = "separate")
+    {
+        var gameDir = Path.Combine(_tempDir, $"{label}_game", "ads");
+        Directory.CreateDirectory(gameDir);
+        var path = Path.Combine(gameDir, "languagedata_en.loc");
+        File.WriteAllBytes(path, content);
+        return Path.Combine(_tempDir, $"{label}_game");
+    }
+
     [Fact]
     public async Task PostReplaceStateFailure_ReadOnlyFile_RollbackSucceeds_ReturnsRecoveryFailed()
     {
-        var originalContent = Encoding.UTF8.GetBytes("original game content");
-        var gameRoot = CreateGameRoot(originalContent);
-        var gameLocPath = GameLocFilePath;
+        var gameA = Encoding.UTF8.GetBytes("game-A");
+        var gameRoot = CreateGameRoot(gameA);
 
-        var oldStateBytes = Encoding.UTF8.GetBytes("{\"public_id\":\"old\"}");
+        var stateABytes = Encoding.UTF8.GetBytes("{\"public_id\":\"state-A\"}");
         var installedPath = Path.Combine(_paths.StateDir, "installation.json");
-        File.WriteAllBytes(installedPath, oldStateBytes);
+        File.WriteAllBytes(installedPath, stateABytes);
 
+        var gameB = Encoding.UTF8.GetBytes("game-B");
+        var stateBBytes = Encoding.UTF8.GetBytes("{\"public_id\":\"state-B\"}");
         var store = new BackupStore(_paths, _logger);
+        var separateGameB = CreateSeparateGameRoot(gameB, "selected");
+        var separateGameBPath = Path.Combine(separateGameB, "ads", "languagedata_en.loc");
         var (rpDir, rpResult) = await store.CreateRestorePointAsync(
-            gameLocPath, 100, "target", oldStateBytes, stateWasPresent: true);
+            separateGameBPath, 100, "selected", stateBBytes, stateWasPresent: true);
         Assert.True(rpResult.IsSuccess);
 
-        var modifiedContent = Encoding.UTF8.GetBytes("modified current content");
-        File.WriteAllBytes(GameLocFilePath, modifiedContent);
         File.SetAttributes(installedPath, FileAttributes.ReadOnly);
 
         try
@@ -503,10 +514,8 @@ public class RestoreBackupServiceTests : IDisposable
             Assert.False(result.IsSuccess);
             Assert.Equal(RestoreError.RecoveryFailed, result.Error);
 
-            Assert.Equal(modifiedContent, File.ReadAllBytes(GameLocFilePath));
-
             File.SetAttributes(installedPath, FileAttributes.Normal);
-            Assert.Equal(oldStateBytes, File.ReadAllBytes(installedPath));
+            Assert.Equal(stateABytes, File.ReadAllBytes(installedPath));
         }
         finally
         {
@@ -517,127 +526,103 @@ public class RestoreBackupServiceTests : IDisposable
     [Fact]
     public async Task Restore_PostReplaceCancellation_RollbackSucceeds_PropagatesCancellation()
     {
-        var originalContent = Encoding.UTF8.GetBytes("game-A");
-        var gameRoot = CreateGameRoot(originalContent);
-        var gameLocPath = GameLocFilePath;
+        var gameA = Encoding.UTF8.GetBytes("game-A");
+        var gameRoot = CreateGameRoot(gameA);
 
         var stateStore = new InstallationStateStore(_paths, _logger);
         await stateStore.SaveAsync(new InstallationMetadata
         {
-            Source = "api",
-            ModeSlug = "full-ukrainian",
-            PublicId = "state-A",
-            Version = 1,
-            GamePatch = 100,
-            Sha256 = "a",
-            InstalledAt = DateTimeOffset.UtcNow
+            Source = "api", ModeSlug = "full-ukrainian", PublicId = "state-A",
+            Version = 1, GamePatch = 100, Sha256 = "a", InstalledAt = DateTimeOffset.UtcNow
         });
         var stateABytes = File.ReadAllBytes(Path.Combine(_paths.StateDir, "installation.json"));
 
-        var stateBBytes = Encoding.UTF8.GetBytes("{\"mode_slug\":\"full-ukrainian\",\"public_id\":\"state-B\",\"version\":2,\"game_patch\":101,\"sha256\":\"b\",\"installed_at\":\"2026-01-01T00:00:00+00:00\",\"source\":\"api\"}");
-
+        var gameB = Encoding.UTF8.GetBytes("game-B");
+        var stateBBytes = Encoding.UTF8.GetBytes("{\"mode_slug\":\"full\",\"public_id\":\"state-B\",\"version\":2,\"sha256\":\"b\",\"installed_at\":\"2026-01-01T00:00:00+00:00\",\"source\":\"api\"}");
         var store = new BackupStore(_paths, _logger);
+        var separateGameB = CreateSeparateGameRoot(gameB, "selected");
+        var separateGameBPath = Path.Combine(separateGameB, "ads", "languagedata_en.loc");
         var (rpDir, rpResult) = await store.CreateRestorePointAsync(
-            gameLocPath, 100, "selected", stateBBytes, stateWasPresent: true);
+            separateGameBPath, 100, "selected", stateBBytes, stateWasPresent: true);
         Assert.True(rpResult.IsSuccess);
 
         var service = CreateService(gameRoot);
-        service.OnPostGameReplaceHook = () => throw new OperationCanceledException("test cancel");
+        service.OnPostGameReplaceHook = () =>
+        {
+            Assert.Equal(gameB, File.ReadAllBytes(GameLocFilePath));
+            throw new OperationCanceledException("test cancel");
+        };
 
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => service.RestoreAsync(Path.GetFileName(rpDir!)));
 
-        Assert.Equal(originalContent, File.ReadAllBytes(GameLocFilePath));
+        Assert.Equal(gameA, File.ReadAllBytes(GameLocFilePath));
         Assert.Equal(stateABytes, File.ReadAllBytes(Path.Combine(_paths.StateDir, "installation.json")));
     }
 
     [Fact]
     public async Task Restore_PostReplaceCancellation_RollbackFails_ReturnsRecoveryFailed()
     {
-        var originalContent = Encoding.UTF8.GetBytes("game-A");
-        var gameRoot = CreateGameRoot(originalContent);
-        var gameLocPath = GameLocFilePath;
+        var gameA = Encoding.UTF8.GetBytes("game-A");
+        var gameRoot = CreateGameRoot(gameA);
 
         var stateStore = new InstallationStateStore(_paths, _logger);
         await stateStore.SaveAsync(new InstallationMetadata
         {
-            Source = "api",
-            ModeSlug = "full-ukrainian",
-            PublicId = "state-A",
-            Version = 1,
-            GamePatch = 100,
-            Sha256 = "a",
-            InstalledAt = DateTimeOffset.UtcNow
+            Source = "api", ModeSlug = "full-ukrainian", PublicId = "state-A",
+            Version = 1, GamePatch = 100, Sha256 = "a", InstalledAt = DateTimeOffset.UtcNow
         });
 
-        var installedPath = Path.Combine(_paths.StateDir, "installation.json");
-
+        var gameB = Encoding.UTF8.GetBytes("game-B");
         var stateBBytes = Encoding.UTF8.GetBytes("{\"public_id\":\"state-B\"}");
-
         var store = new BackupStore(_paths, _logger);
+        var separateGameB = CreateSeparateGameRoot(gameB, "selected");
+        var separateGameBPath = Path.Combine(separateGameB, "ads", "languagedata_en.loc");
         var (rpDir, rpResult) = await store.CreateRestorePointAsync(
-            gameLocPath, 100, "selected", stateBBytes, stateWasPresent: true);
+            separateGameBPath, 100, "selected", stateBBytes, stateWasPresent: true);
         Assert.True(rpResult.IsSuccess);
 
-        File.SetAttributes(installedPath, FileAttributes.ReadOnly);
-
-        try
+        var noRecoveryStore = new NoRecoveryBackupStore(_paths, _logger);
+        var service = new RestoreBackupService(noRecoveryStore, stateStore, _logger, gameRoot);
+        service.OnPostGameReplaceHook = () =>
         {
-            var service = CreateService(gameRoot);
-            service.OnPostGameReplaceHook = () =>
-            {
-                foreach (var dir in Directory.GetDirectories(_paths.RestorePointsDir))
-                {
-                    var metaPath = Path.Combine(dir, "metadata.json");
-                    if (File.Exists(metaPath) && File.ReadAllText(metaPath).Contains("pre_restore_backup"))
-                    {
-                        var gameFile = Path.Combine(dir, "languagedata_en.loc");
-                        if (File.Exists(gameFile)) File.Delete(gameFile);
-                    }
-                }
-            };
+            Assert.Equal(gameB, File.ReadAllBytes(GameLocFilePath));
+            throw new OperationCanceledException("test cancel");
+        };
 
-            var result = await service.RestoreAsync(Path.GetFileName(rpDir!));
+        var result = await service.RestoreAsync(Path.GetFileName(rpDir!));
 
-            Assert.False(result.IsSuccess);
-            Assert.Equal(RestoreError.RecoveryFailed, result.Error);
-        }
-        finally
-        {
-            File.SetAttributes(installedPath, FileAttributes.Normal);
-        }
+        Assert.False(result.IsSuccess);
+        Assert.Equal(RestoreError.RecoveryFailed, result.Error);
     }
 
     [Fact]
     public async Task Restore_StateApplyFails_RollbackSucceeds_ReturnsStateRestoreFailed()
     {
-        var originalContent = Encoding.UTF8.GetBytes("game-A");
-        var gameRoot = CreateGameRoot(originalContent);
-        var gameLocPath = GameLocFilePath;
+        var gameA = Encoding.UTF8.GetBytes("game-A");
+        var gameRoot = CreateGameRoot(gameA);
 
         var stateStore = new InstallationStateStore(_paths, _logger);
         await stateStore.SaveAsync(new InstallationMetadata
         {
-            Source = "api",
-            ModeSlug = "full-ukrainian",
-            PublicId = "state-A",
-            Version = 1,
-            GamePatch = 100,
-            Sha256 = "a",
-            InstalledAt = DateTimeOffset.UtcNow
+            Source = "api", ModeSlug = "full-ukrainian", PublicId = "state-A",
+            Version = 1, GamePatch = 100, Sha256 = "a", InstalledAt = DateTimeOffset.UtcNow
         });
         var stateABytes = File.ReadAllBytes(Path.Combine(_paths.StateDir, "installation.json"));
 
+        var gameB = Encoding.UTF8.GetBytes("game-B");
         var stateBBytes = Encoding.UTF8.GetBytes("{\"public_id\":\"state-B\"}");
-
         var store = new BackupStore(_paths, _logger);
+        var separateGameB = CreateSeparateGameRoot(gameB, "selected");
+        var separateGameBPath = Path.Combine(separateGameB, "ads", "languagedata_en.loc");
         var (rpDir, rpResult) = await store.CreateRestorePointAsync(
-            gameLocPath, 100, "selected", stateBBytes, stateWasPresent: true);
+            separateGameBPath, 100, "selected", stateBBytes, stateWasPresent: true);
         Assert.True(rpResult.IsSuccess);
 
         var service = CreateService(gameRoot);
         service.OnPostGameReplaceHook = () =>
         {
+            Assert.Equal(gameB, File.ReadAllBytes(GameLocFilePath));
             var tempStatePath = Path.Combine(_paths.StateDir, "installation.json.tmp");
             File.WriteAllText(tempStatePath, "block");
             File.SetAttributes(tempStatePath, FileAttributes.ReadOnly);
@@ -649,8 +634,58 @@ public class RestoreBackupServiceTests : IDisposable
 
             Assert.False(result.IsSuccess);
             Assert.Equal(RestoreError.StateRestoreFailed, result.Error);
-            Assert.Equal(originalContent, File.ReadAllBytes(GameLocFilePath));
+            Assert.Equal(gameA, File.ReadAllBytes(GameLocFilePath));
             Assert.Equal(stateABytes, File.ReadAllBytes(Path.Combine(_paths.StateDir, "installation.json")));
+        }
+        finally
+        {
+            var tempStatePath = Path.Combine(_paths.StateDir, "installation.json.tmp");
+            if (File.Exists(tempStatePath))
+            {
+                File.SetAttributes(tempStatePath, FileAttributes.Normal);
+                File.Delete(tempStatePath);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Restore_StateApplyFails_RollbackFails_ReturnsRecoveryFailed()
+    {
+        var gameA = Encoding.UTF8.GetBytes("game-A");
+        var gameRoot = CreateGameRoot(gameA);
+
+        var stateStore = new InstallationStateStore(_paths, _logger);
+        await stateStore.SaveAsync(new InstallationMetadata
+        {
+            Source = "api", ModeSlug = "full-ukrainian", PublicId = "state-A",
+            Version = 1, GamePatch = 100, Sha256 = "a", InstalledAt = DateTimeOffset.UtcNow
+        });
+
+        var gameB = Encoding.UTF8.GetBytes("game-B");
+        var stateBBytes = Encoding.UTF8.GetBytes("{\"public_id\":\"state-B\"}");
+        var store = new BackupStore(_paths, _logger);
+        var separateGameB = CreateSeparateGameRoot(gameB, "selected");
+        var separateGameBPath = Path.Combine(separateGameB, "ads", "languagedata_en.loc");
+        var (rpDir, rpResult) = await store.CreateRestorePointAsync(
+            separateGameBPath, 100, "selected", stateBBytes, stateWasPresent: true);
+        Assert.True(rpResult.IsSuccess);
+
+        var noRecoveryStore = new NoRecoveryBackupStore(_paths, _logger);
+        var service = new RestoreBackupService(noRecoveryStore, stateStore, _logger, gameRoot);
+        service.OnPostGameReplaceHook = () =>
+        {
+            Assert.Equal(gameB, File.ReadAllBytes(GameLocFilePath));
+            var tempStatePath = Path.Combine(_paths.StateDir, "installation.json.tmp");
+            File.WriteAllText(tempStatePath, "block");
+            File.SetAttributes(tempStatePath, FileAttributes.ReadOnly);
+        };
+
+        try
+        {
+            var result = await service.RestoreAsync(Path.GetFileName(rpDir!));
+
+            Assert.False(result.IsSuccess);
+            Assert.Equal(RestoreError.RecoveryFailed, result.Error);
         }
         finally
         {
@@ -733,6 +768,18 @@ public class RestoreBackupServiceTests : IDisposable
         {
             await Task.Yield();
             throw new OperationCanceledException("Pre-replace cancellation test");
+        }
+    }
+
+    private class NoRecoveryBackupStore : BackupStore
+    {
+        public NoRecoveryBackupStore(AppPaths paths, ILogger logger) : base(paths, logger) { }
+
+        public override async Task<RestoreResult> RecoverFromRestorePointAsync(
+            string targetPath, string restorePointDir, CancellationToken cancellationToken = default)
+        {
+            await Task.Yield();
+            return RestoreResult.Failure(RestoreError.RecoveryFailed, "Simulated recovery failure");
         }
     }
 

@@ -101,10 +101,10 @@ public sealed class RestoreBackupService
             return replaceResult;
         }
 
-        OnPostGameReplaceHook?.Invoke();
-
         try
         {
+            OnPostGameReplaceHook?.Invoke();
+
             if (stateIsPresent && selectedStateBytes != null)
             {
                 var statePath = Path.Combine(_stateStore.StateDir, "installation.json");

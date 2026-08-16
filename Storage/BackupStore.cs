@@ -489,7 +489,7 @@ public class BackupStore
 
     // --- Recovery ---
 
-    public async Task<RestoreResult> RecoverFromRestorePointAsync(
+    public virtual async Task<RestoreResult> RecoverFromRestorePointAsync(
         string targetPath, string restorePointDir, CancellationToken cancellationToken = default)
     {
         var restoreFile = Path.Combine(restorePointDir, SnapshotFile);
