@@ -8,6 +8,7 @@ obj/
 
 ## Build
 publish/
+artifacts/
 *.nupkg
 *.snupkg
 

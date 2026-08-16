@@ -1,0 +1,60 @@
+name: Release Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Restore
+      run: dotnet restore BdoUaClient.sln
+
+    - name: Build Release
+      run: dotnet build BdoUaClient.sln -c Release --no-restore
+
+    - name: Test Release
+      run: dotnet test BdoUaClient.sln -c Release --no-build
+
+    - name: Publish win-x64
+      run: >
+        dotnet publish BdoClient.csproj
+        -c Release
+        -r win-x64
+        --self-contained true
+        -o artifacts/publish/win-x64
+
+    - name: Generate build-info
+      shell: pwsh
+      run: |
+        $info = @"
+        commit_sha=${{ github.sha }}
+        build_configuration=Release
+        runtime=win-x64
+        self_contained=true
+        "@
+        Set-Content -Path "artifacts/publish/win-x64/build-info.txt" -Value $info -Encoding UTF8
+
+    - name: Create ZIP
+      shell: pwsh
+      run: |
+        $source = "artifacts/publish/win-x64"
+        $staging = "artifacts/staging/BDO-UA-Client"
+        New-Item -ItemType Directory -Path $staging -Force | Out-Null
+        Copy-Item -Path "$source/*" -Destination $staging -Recurse
+        Compress-Archive -Path $staging -DestinationPath "artifacts/BDO-UA-Client-win-x64.zip"
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: BDO-UA-Client-win-x64
+        path: artifacts/BDO-UA-Client-win-x64.zip

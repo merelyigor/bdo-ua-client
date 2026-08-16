@@ -681,11 +681,22 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 
 ### Етап 12: Release build + E2E перевірка
 
-**Що реалізовано:**
-- `dotnet publish -c Release -r win-x64 --self-contained true`
-- Ручна перевірка
+**Що реалізовано (v12.0):**
+- `dotnet publish BdoClient.csproj -c Release -r win-x64 --self-contained true`
+- GitHub Actions release-build.yml workflow (workflow_dispatch)
+- Pre-publish: restore → build Release → test Release → publish
+- ZIP artifact: `BDO-UA-Client-win-x64.zip` with flat structure
+- `build-info.txt` with commit SHA, configuration, runtime, self-contained
+- Artifact uploaded: `BDO-UA-Client-win-x64`
+- Local publish verified: 464 files, ~160 MB, BdoClient.exe present, no test assemblies
+- `.gitignore` updated: `artifacts/` excluded
+- No SingleFile, no trimming, no installer, no signing
 
-**Acceptance criteria:**
+**Technical acceptance (v12.0):**
+- [x] win-x64 self-contained publish succeeds
+- [x] release workflow produces downloadable ZIP
+
+**Acceptance criteria (v12.1 manual E2E):**
 - [ ] `.exe` без .NET Runtime на чистій Windows
 - [ ] Detection знаходить гру (Steam)
 - [ ] API повертає дані
@@ -693,7 +704,10 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 - [ ] Backup створено
 - [ ] Оновлення працює
 - [ ] Повернення до стану без української локалізації через Restore Original працює
+- [ ] Restore Backup працює
 - [ ] Логи записуються
+
+**Файли:** `.github/workflows/release-build.yml`, `.gitignore`, `plan.md`
 
 ---
 
