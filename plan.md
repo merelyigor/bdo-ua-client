@@ -726,9 +726,19 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 - UpdateAvailable → "Доступна новіша версія" (presentation only, enum unchanged)
 - 24 new pure tests (14 DynamicModePolicy + 10 InstallActionPolicy), 300 total
 
-**Technical acceptance (v12.0):**
+**Що реалізовано (v12.2):**
+- Single-file self-contained publish: `PublishSingleFile=true`, `IncludeNativeLibrariesForSelfExtract=true`, `PublishTrimmed=false`
+- Executable name: `BDO-UA-Client.exe` via `-p:AssemblyName=BDO-UA-Client` (publish-only, namespace unchanged)
+- Actions artifact: single EXE uploaded directly (no nested ZIP, no build-info.txt)
+- Download shape: `BDO-UA-Client-win-x64.zip → BDO-UA-Client.exe`
+- EXE size: ~155 MB
+- No path assumptions in production code (uses absolute %LocalAppData% paths)
+- PDB generated but excluded from artifact (upload only EXE)
+
+**Technical acceptance:**
 - [x] win-x64 self-contained publish succeeds
-- [x] release workflow produces downloadable ZIP
+- [x] single-file publish produces one EXE
+- [x] release workflow produces downloadable single EXE
 
 **Acceptance criteria (v12.1 manual E2E):**
 - [ ] `.exe` без .NET Runtime на чистій Windows
