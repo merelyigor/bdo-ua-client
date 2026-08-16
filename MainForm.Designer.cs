@@ -306,7 +306,7 @@ partial class MainForm
 
         restoreBackupButton = new Button
         {
-            Text = "Відновити backup",
+            Text = "Відновити копію",
             AutoSize = true,
             Enabled = false,
             Margin = new Padding(0, 0, 8, 0)

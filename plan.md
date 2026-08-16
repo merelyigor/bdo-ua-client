@@ -574,7 +574,7 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 - [x] Post-operation state refresh
 - [x] Action availability based on factual state + compatibility
 - [ ] OperationState оновлює UI (Stage 10)
-- [ ] Restore Backup (deferred)
+- [x] Restore Backup (v10.3)
 
 **Файли:** `Program.cs`, `MainForm.cs`
 
@@ -627,8 +627,20 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 - Legacy restore points: no marker + state file → IsRestorable=true; no marker + no state file → IsRestorable=false
 - 14 new tests: catalog, create, restore success, restore failure, path traversal, legacy handling
 
-**НЕ реалізовано:**
-- Restore Backup UI wiring (deferred — requires selection dialog)
+**Що реалізовано (v10.3):**
+- Restore Backup button: enabled when game root found (API/mode independent)
+- Button text: "Відновити копію" (no English "backup" in UI)
+- `RestorePointSelectionForm` — modal ListView dialog (Дата, Патч, Операція, Розмір)
+- Only `IsRestorable` points shown; non-restorable excluded
+- Source labels mapped to readable Ukrainian (pre_install → "Перед встановленням/оновленням", etc.)
+- No auto-selection: user explicitly selects row, clicks "Відновити"
+- Confirmation MessageBox before destructive operation
+- `RunRestoreBackupAsync`: full operation flow with CTS, cancellation, error mapping
+- New error mappings: RestorePointNotFound, RestorePointInvalid, StateRestoreFailed, BackupIo
+- RecoveryFailed → КРИТИЧНО prefix
+- OperationState: Restoring → Completed/Failed/Cancelled
+- FormClosing protection active (shared _operationInProgress + _operationCts)
+- API/mode independence: Restore Backup works without API success or selected mode
 
 **Acceptance criteria:**
 - [x] Progress bar: % download (real DownloadProgress for Install/Update)
@@ -637,6 +649,7 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 
 **Файли v10.0-v10.1:** `Services/OperationState.cs`, `MainForm.cs`, `MainForm.Designer.cs`
 **Файли v10.2:** `Models/BackupMetadata.cs`, `Models/RestoreResult.cs`, `Models/RestorePointInfo.cs`, `Storage/BackupStore.cs`, `Services/RestoreOriginalService.cs`, `Services/LocalizationInstallService.cs`, `Services/RestoreBackupService.cs`, tests
+**Файли v10.3:** `MainForm.cs`, `MainForm.Designer.cs`, `RestorePointSelectionForm.cs`
 
 ---
 

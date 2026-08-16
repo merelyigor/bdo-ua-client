@@ -70,6 +70,7 @@ public partial class MainForm : Form
         installButton.Click += InstallButton_Click;
         updateButton.Click += UpdateButton_Click;
         restoreOriginalButton.Click += RestoreOriginalButton_Click;
+        restoreBackupButton.Click += RestoreBackupButton_Click;
         cancelButton.Click += CancelButton_Click;
         this.FormClosing += MainForm_FormClosing;
     }
@@ -531,6 +532,163 @@ public partial class MainForm : Form
         }
     }
 
+    // --- Restore Backup action ---
+
+    private async void RestoreBackupButton_Click(object? sender, EventArgs e)
+    {
+        try
+        {
+            await HandleRestoreBackupAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"RestoreBackupButton_Click unexpected: {ex.Message}");
+            SetMessage($"Помилка: {ex.Message}");
+        }
+    }
+
+    private async Task HandleRestoreBackupAsync()
+    {
+        if (_operationInProgress) return;
+        if (_gameRoot == null)
+        {
+            SetMessage("Гру не знайдено.");
+            return;
+        }
+
+        restoreBackupButton.Enabled = false;
+        SetMessage("Завантаження списку резервних копій...");
+
+        List<RestorePointInfo> catalog;
+        try
+        {
+            catalog = await _backupStore.ListRestorePointsAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Failed to load restore point catalog: {ex.Message}");
+            SetMessage($"Не вдалося завантажати список копій: {ex.Message}");
+            restoreBackupButton.Enabled = !_operationInProgress && _gameRoot != null;
+            return;
+        }
+
+        var restorable = catalog.Where(p => p.IsRestorable).ToList();
+        if (restorable.Count == 0)
+        {
+            SetMessage("Немає доступних резервних копій, які можна безпечно відновити.");
+            restoreBackupButton.Enabled = !_operationInProgress && _gameRoot != null;
+            return;
+        }
+
+        RestorePointInfo? selected;
+        using (var dialog = new RestorePointSelectionForm(restorable))
+        {
+            var dialogResult = dialog.ShowDialog(this);
+            if (dialogResult != DialogResult.OK || dialog.SelectedRestorePoint == null)
+            {
+                restoreBackupButton.Enabled = !_operationInProgress && _gameRoot != null;
+                return;
+            }
+            selected = dialog.SelectedRestorePoint;
+        }
+
+        var confirmMessage = $"Відновити резервну копію від {selected.CreatedAt.ToLocalTime():dd.MM.yyyy HH:mm}?\n\n" +
+            "Поточний стан гри та локалізації буде збережено як нову резервну копію перед відновленням.";
+
+        var confirm = MessageBox.Show(this, confirmMessage, "Підтвердження",
+            MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+
+        if (confirm != DialogResult.Yes)
+        {
+            restoreBackupButton.Enabled = !_operationInProgress && _gameRoot != null;
+            return;
+        }
+
+        await RunRestoreBackupAsync(selected);
+    }
+
+    private async Task RunRestoreBackupAsync(RestorePointInfo selected)
+    {
+        string? finalMessage = null;
+
+        try
+        {
+            _operationInProgress = true;
+            SetOperationState(OperationState.Restoring);
+            SetProgress(0);
+            SetActionsEnabled(false, false, false, false);
+            SetControlsDuringOperation(false);
+
+            _operationCts = new CancellationTokenSource();
+            cancelButton.Enabled = true;
+
+            SetMessage("Відновлення резервної копії...");
+
+            var service = new RestoreBackupService(
+                _backupStore, _stateStore, _logger, _gameRoot!);
+
+            var result = await service.RestoreAsync(selected.Id, _operationCts.Token);
+
+            if (result.IsSuccess)
+            {
+                SetOperationState(OperationState.Completed);
+                finalMessage = "Резервну копію успішно відновлено.";
+            }
+            else
+            {
+                _logger.Error($"Restore backup failed: {result.Error} — {result.ErrorMessage}");
+                var errorText = MapRestoreError(result.Error!.Value);
+
+                if (result.Error == RestoreError.RecoveryFailed)
+                {
+                    SetOperationState(OperationState.Failed);
+                    finalMessage = $"КРИТИЧНО: {errorText}";
+                }
+                else
+                {
+                    SetOperationState(OperationState.Failed);
+                    finalMessage = errorText;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.Info("Restore Backup cancelled by user.");
+            SetOperationState(OperationState.Cancelled);
+            finalMessage = "Відновлення резервної копії скасовано.";
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Restore backup error: {ex.Message}");
+            SetOperationState(OperationState.Failed);
+            finalMessage = $"Помилка відновлення: {ex.Message}";
+        }
+        finally
+        {
+            cancelButton.Enabled = false;
+            _operationCts?.Dispose();
+            _operationCts = null;
+            _operationInProgress = false;
+            SetControlsDuringOperation(true);
+
+            try
+            {
+                await RefreshStateAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"Post-operation refresh failed: {ex.Message}");
+                if (finalMessage == null)
+                    finalMessage = $"Не вдалося оновити стан: {ex.Message}";
+                else
+                    finalMessage += $"{Environment.NewLine}{Environment.NewLine}Не вдалося оновити стан: {ex.Message}";
+            }
+
+            if (finalMessage != null)
+                SetMessage(finalMessage);
+        }
+    }
+
     // --- Cancel action ---
 
     private void CancelButton_Click(object? sender, EventArgs e)
@@ -619,6 +777,7 @@ public partial class MainForm : Form
                 SetMessage($"Помилка завантаження API: {_apiErrorMessage}");
             else
                 SetMessage("Гру не знайдено. Натисніть \"Знайти гру\" або оберіть папку вручну.");
+            SetActionsEnabled(false, false, false, false);
             return;
         }
 
@@ -628,6 +787,7 @@ public partial class MainForm : Form
             SetDetailsText("");
             _lastResolvedState = LocalizationState.NotInstalled;
             SetMessage($"Помилка завантаження API: {_apiErrorMessage}");
+            SetActionsEnabled(false, false, false, !_operationInProgress);
             return;
         }
 
@@ -690,7 +850,9 @@ public partial class MainForm : Form
                 or LocalizationState.Corrupted
                 or LocalizationState.InstalledVersionUnknown;
 
-        SetActionsEnabled(canInstall, canUpdate, canRestoreOriginal, false);
+        var canOpenRestoreBackup = !_operationInProgress && _gameRoot != null;
+
+        SetActionsEnabled(canInstall, canUpdate, canRestoreOriginal, canOpenRestoreBackup);
     }
 
     private static string GetStateDisplayText(LocalizationState state) => state switch
@@ -756,14 +918,17 @@ public partial class MainForm : Form
         RestoreError.InvalidGamePath => "Шлях до гри недійсний або файл локалізації відсутній.",
         RestoreError.SourceMissing => "Вихідний файл відсутній.",
         RestoreError.SnapshotCorrupted => "Резервна копія пошкоджена.",
-        RestoreError.BackupIo => "Помилка запису резервної копії.",
+        RestoreError.BackupIo => "Не вдалося створити резервну копію поточного стану.",
         RestoreError.OfficialDownloadFailed => "Не вдалося завантажити оригінальний файл з сервера.",
         RestoreError.FallbackNotAllowed => "Відновлення з локальної копії неможливе (патч не збігається або копія відсутня).",
         RestoreError.PatchMismatch => "Патч локальної копії не збігається з поточним офіційним патчем.",
         RestoreError.ReplaceFailed => "Не вдалося замінити файл локалізації у папці гри.",
         RestoreError.VerificationFailed => "Перевірка відновленого файлу не пройдена.",
         RestoreError.StateSaveFailed => "Не вдалося зберегти стан встановлення після відновлення.",
-        RestoreError.RecoveryFailed => "Не вдалося відновити попередній стан. Перевірте файли гри та журнал.",
+        RestoreError.RecoveryFailed => "Не вдалося повністю відкотити зміни. Перевірте файли гри та журнал.",
+        RestoreError.RestorePointNotFound => "Резервну копію не знайдено.",
+        RestoreError.RestorePointInvalid => "Резервна копія пошкоджена або непридатна для відновлення.",
+        RestoreError.StateRestoreFailed => "Не вдалося відновити стан локалізації. Попередній стан було повернуто.",
         _ => "Невідома помилка відновлення."
     };
 
