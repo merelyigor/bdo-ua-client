@@ -126,51 +126,100 @@ public partial class MainForm : Form
     {
         modesFlowPanel.Controls.Clear();
 
-        var modes = _apiResponse?.Data?.Modes;
-        if (modes == null) return;
+        var allModes = _apiResponse?.Data?.Modes;
+        var installable = DynamicModePolicy.GetInstallableModes(allModes);
 
-        bool first = true;
-        foreach (var mode in modes)
+        foreach (var mode in installable)
         {
-            if (mode.Current == null) continue;
-            if (string.IsNullOrWhiteSpace(mode.Slug)) continue;
+            var displayName = DynamicModePolicy.GetDisplayName(mode);
+            var releaseLine = DynamicModePolicy.FormatReleaseLine(mode);
+
+            var panel = new FlowLayoutPanel
+            {
+                AutoSize = true,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                Margin = new Padding(0, 0, 0, 2)
+            };
 
             var rb = new RadioButton
             {
-                Text = mode.PublicName ?? mode.Slug,
                 Tag = mode.Slug,
                 AutoSize = true,
-                Checked = first,
-                Margin = new Padding(0, 0, 0, 4)
+                Margin = new Padding(0, 0, 4, 0)
             };
-            rb.CheckedChanged += ModeRadioButton_CheckedChanged;
-            modesFlowPanel.Controls.Add(rb);
-            first = false;
+
+            var label = new Label
+            {
+                Text = string.IsNullOrEmpty(releaseLine)
+                    ? displayName
+                    : $"{displayName}\n{releaseLine}",
+                AutoSize = true,
+                Margin = new Padding(0)
+            };
+
+            panel.Controls.Add(rb);
+            panel.Controls.Add(label);
+            modesFlowPanel.Controls.Add(panel);
         }
     }
 
     private void RestoreLastMode(Config config)
     {
-        if (config.LastMode == null) return;
+        var allModes = _apiResponse?.Data?.Modes;
+        var installable = DynamicModePolicy.GetInstallableModes(allModes);
+        var selectedSlug = DynamicModePolicy.ResolveInitialSelection(config.LastMode, installable);
 
+        if (selectedSlug != null)
+            SelectModeBySlug(selectedSlug);
+    }
+
+    private void SelectModeBySlug(string slug)
+    {
         foreach (Control c in modesFlowPanel.Controls)
         {
-            if (c is RadioButton rb && rb.Tag is string slug && slug == config.LastMode)
+            if (c is FlowLayoutPanel panel)
             {
-                rb.Checked = true;
-                return;
+                foreach (Control child in panel.Controls)
+                {
+                    if (child is RadioButton rb && rb.Tag is string tag && tag == slug)
+                    {
+                        rb.Checked = true;
+                        return;
+                    }
+                }
             }
         }
 
-        // Fallback: first available already checked by BuildDynamicModes
+        // Fallback: first available
+        foreach (Control c in modesFlowPanel.Controls)
+        {
+            if (c is FlowLayoutPanel panel)
+            {
+                foreach (Control child in panel.Controls)
+                {
+                    if (child is RadioButton rb)
+                    {
+                        rb.Checked = true;
+                        return;
+                    }
+                }
+            }
+        }
     }
 
     private string? GetSelectedModeSlug()
     {
         foreach (Control c in modesFlowPanel.Controls)
         {
-            if (c is RadioButton rb && rb.Checked)
-                return rb.Tag as string;
+            if (c is FlowLayoutPanel panel)
+            {
+                foreach (Control child in panel.Controls)
+                {
+                    if (child is RadioButton rb && rb.Checked)
+                        return rb.Tag as string;
+                }
+            }
         }
         return null;
     }
@@ -350,23 +399,35 @@ public partial class MainForm : Form
                 return;
             }
 
-            // Precondition: factual state check
-            var gameLocPath = Path.Combine(_gameRoot, "ads", "languagedata_en.loc");
-            var preStateResult = await _stateService.ResolveAsync(current, gameLocPath);
+            // Factual state check using INSTALLED mode current
+            var installedLoad = _stateStore.Load();
+            string? installedModeSlug = null;
+            string? installedPublicId = null;
+            CurrentRelease? installedModeCurrent = null;
 
-            if (preStateResult.State == LocalizationState.UpToDate)
+            if (installedLoad.Status == FileLoadStatus.Valid && installedLoad.Value?.Source == "api")
             {
-                var installedLoad = _stateStore.Load();
-                if (installedLoad.Status == FileLoadStatus.Valid)
-                {
-                    var installed = installedLoad.Value!;
-                    if (string.Equals(installed.ModeSlug, mode.Slug, StringComparison.Ordinal)
-                        && string.Equals(installed.PublicId, current.PublicId, StringComparison.Ordinal))
-                    {
-                        finalMessage = "Актуальна версія вже встановлена.";
-                        return;
-                    }
-                }
+                installedModeSlug = installedLoad.Value.ModeSlug;
+                installedPublicId = installedLoad.Value.PublicId;
+                var installedApiMode = _apiResponse?.Data?.Modes?
+                    .FirstOrDefault(m => string.Equals(m.Slug, installedModeSlug, StringComparison.Ordinal));
+                installedModeCurrent = installedApiMode?.Current;
+            }
+
+            var gameLocPath = Path.Combine(_gameRoot, "ads", "languagedata_en.loc");
+            var factualState = await _stateService.ResolveAsync(installedModeCurrent, gameLocPath);
+
+            var policy = InstallActionPolicy.Evaluate(
+                factualState.State, installedModeSlug, installedPublicId,
+                mode, current, compatResult, operationInProgress: false);
+
+            if (!policy.CanInstall)
+            {
+                if (policy.AlreadyInstalledExactTarget)
+                    finalMessage = "Актуальна версія вже встановлена.";
+                else
+                    finalMessage = "Встановлення недоступне для поточного стану.";
+                return;
             }
 
             SetMessage("Встановлення локалізації...");
@@ -590,7 +651,13 @@ public partial class MainForm : Form
         browseGameButton.Enabled = enabled;
         foreach (Control c in modesFlowPanel.Controls)
         {
-            if (c is RadioButton rb) rb.Enabled = enabled;
+            if (c is FlowLayoutPanel panel)
+            {
+                foreach (Control child in panel.Controls)
+                {
+                    if (child is RadioButton rb) rb.Enabled = enabled;
+                }
+            }
         }
     }
 
@@ -746,37 +813,18 @@ public partial class MainForm : Form
         SetMessage(diagnostic ?? "");
 
         // Action availability
-        bool alreadyInstalled = false;
-        if (stateResult.State == LocalizationState.UpToDate
-            && installedModeSlug != null
-            && selectedMode?.Slug != null
-            && selectedCurrent?.PublicId != null
-            && string.Equals(installedModeSlug, selectedMode.Slug, StringComparison.Ordinal)
-            && string.Equals(installedPublicId, selectedCurrent.PublicId, StringComparison.Ordinal))
-        {
-            alreadyInstalled = true;
-        }
+        var policy = InstallActionPolicy.Evaluate(
+            stateResult.State, installedModeSlug, installedPublicId,
+            selectedMode, selectedCurrent, compatResult, _operationInProgress);
 
-        var canInstall = !_operationInProgress
-            && selectedCurrent != null
-            && compatResult.IsAllowed
-            && !alreadyInstalled;
-
-        var canRestoreOriginal = !_operationInProgress
-            && stateResult.State is LocalizationState.UpToDate
-                or LocalizationState.UpdateAvailable
-                or LocalizationState.WaitingForRelease
-                or LocalizationState.Corrupted
-                or LocalizationState.InstalledVersionUnknown;
-
-        SetActionsEnabled(canInstall, canRestoreOriginal);
+        SetActionsEnabled(policy.CanInstall, policy.CanRestoreOriginal);
     }
 
     private static string GetStateDisplayText(LocalizationState state) => state switch
     {
         LocalizationState.NotInstalled => "Не встановлено",
         LocalizationState.UpToDate => "Актуальна",
-        LocalizationState.UpdateAvailable => "Доступне оновлення",
+        LocalizationState.UpdateAvailable => "Доступна новіша версія",
         LocalizationState.WaitingForRelease => "Очікується реліз",
         LocalizationState.InstalledVersionUnknown => "Версію не вдалося визначити",
         LocalizationState.Corrupted => "Файл локалізації пошкоджено",

@@ -713,6 +713,19 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 - AGENTS.md §18.7 added: product decision on single Install button
 - README.md deleted (deferred until manual E2E complete)
 
+**Що реалізовано (v12.1.2):**
+- Per-mode release info: each RadioButton shows PublicName + v{version} • patch {patch} • реліз {published_at}
+- `DynamicModePolicy` pure helper: GetInstallableModes, IsStructurallyInstallable, GetDisplayName, FormatPublishedDate, FormatReleaseLine, ResolveInitialSelection
+- `InstallActionPolicy` pure helper: Evaluate → CanInstall, CanRestoreOriginal, AlreadyInstalledExactTarget
+- Structural installable-mode validation: PublicId, DownloadUrl, Sha256, SizeBytes, Version, Patch, HTTPS
+- Malformed current excluded from display
+- Blank PublicName → Slug fallback → "Невідомий режим"
+- published_at: DateTimeOffset.TryParse → local time → dd.MM.yyyy; null/invalid → omitted
+- HandleInstallAsync uses same InstallActionPolicy (no duplicate logic)
+- RefreshStateAsync uses InstallActionPolicy
+- UpdateAvailable → "Доступна новіша версія" (presentation only, enum unchanged)
+- 24 new pure tests (14 DynamicModePolicy + 10 InstallActionPolicy), 300 total
+
 **Technical acceptance (v12.0):**
 - [x] win-x64 self-contained publish succeeds
 - [x] release workflow produces downloadable ZIP
