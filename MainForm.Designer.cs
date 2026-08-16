@@ -30,7 +30,6 @@ partial class MainForm
     private Button installButton = null!;
     private Button updateButton = null!;
     private Button restoreOriginalButton = null!;
-    private Button restoreBackupButton = null!;
     private Button cancelButton = null!;
 
     protected override void Dispose(bool disposing)
@@ -49,8 +48,8 @@ partial class MainForm
         // --- MainForm ---
         this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
         this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-        this.ClientSize = new System.Drawing.Size(480, 560);
-        this.MinimumSize = new System.Drawing.Size(420, 480);
+        this.ClientSize = new System.Drawing.Size(640, 560);
+        this.MinimumSize = new System.Drawing.Size(620, 480);
         this.Name = "MainForm";
         this.Text = "BDO UA Client";
         this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
@@ -304,14 +303,6 @@ partial class MainForm
             Margin = new Padding(0, 0, 8, 0)
         };
 
-        restoreBackupButton = new Button
-        {
-            Text = "Відновити копію",
-            AutoSize = true,
-            Enabled = false,
-            Margin = new Padding(0, 0, 8, 0)
-        };
-
         cancelButton = new Button
         {
             Text = "Скасувати",
@@ -322,7 +313,7 @@ partial class MainForm
 
         actionsPanel.Controls.AddRange(new Control[]
         {
-            installButton, updateButton, restoreOriginalButton, restoreBackupButton, cancelButton
+            installButton, updateButton, restoreOriginalButton, cancelButton
         });
 
         // ==========================================

@@ -692,6 +692,18 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 - `.gitignore` updated: `artifacts/` excluded
 - No SingleFile, no trimming, no installer, no signing
 
+**Що реалізовано (v12.1):**
+- MainForm widened: ClientSize 640×560, MinimumSize 620×480 (real Windows UI check)
+- Restore Backup removed from public UI (product decision): button, handler, selection dialog all removed
+- RestorePointSelectionForm.cs deleted (no longer used)
+- Backend restore-point safety infrastructure retained (used by install/update/Restore Original transactions)
+- Cross-mode fix: `LocalizationStateService.ResolveAsync` now accepts `selectedModeSlug` parameter
+- When installed ModeSlug != selected ModeSlug → state resolves as NotInstalled (enables cross-mode Install)
+- Action availability updated: Install enabled for NotInstalled (includes cross-mode), Update for UpdateAvailable
+- HandleInstallOrUpdateAsync precondition: uses `_lastResolvedState` which is now mode-aware
+- 5 cross-mode regression tests added
+- Final action buttons: Встановити / Оновити / Відновити оригінал / Скасувати
+
 **Technical acceptance (v12.0):**
 - [x] win-x64 self-contained publish succeeds
 - [x] release workflow produces downloadable ZIP
@@ -704,7 +716,6 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 - [ ] Backup створено
 - [ ] Оновлення працює
 - [ ] Повернення до стану без української локалізації через Restore Original працює
-- [ ] Restore Backup працює
 - [ ] Логи записуються
 
 **Файли:** `.github/workflows/release-build.yml`, `.gitignore`, `plan.md`

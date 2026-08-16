@@ -18,6 +18,7 @@ public sealed class LocalizationStateService
     public async Task<LocalizationStateResult> ResolveAsync(
         CurrentRelease? current,
         string gameLocFilePath,
+        string? selectedModeSlug = null,
         CancellationToken cancellationToken = default)
     {
         // Step 1: Load installation state
@@ -43,7 +44,16 @@ public sealed class LocalizationStateService
             return LocalizationStateResult.Success(LocalizationState.NotInstalled);
         }
 
-        // Step 2: API-installed — verify actual file
+        // Step 2: Mode mismatch — installed mode differs from selected mode
+        if (selectedModeSlug != null
+            && !string.IsNullOrWhiteSpace(metadata.ModeSlug)
+            && !string.Equals(metadata.ModeSlug, selectedModeSlug, StringComparison.Ordinal))
+        {
+            _logger.Debug($"State resolution: NotInstalled (mode mismatch: installed={metadata.ModeSlug}, selected={selectedModeSlug})");
+            return LocalizationStateResult.Success(LocalizationState.NotInstalled);
+        }
+
+        // Step 3: API-installed — verify actual file
         if (!File.Exists(gameLocFilePath))
         {
             _logger.Error($"State resolution: Corrupted (game file missing: {gameLocFilePath})");
@@ -72,7 +82,7 @@ public sealed class LocalizationStateService
             return LocalizationStateResult.Success(LocalizationState.Corrupted);
         }
 
-        // Step 3: File verified — determine release state
+        // Step 4: File verified — determine release state
         if (current == null)
         {
             _logger.Debug("State resolution: WaitingForRelease (current=null)");

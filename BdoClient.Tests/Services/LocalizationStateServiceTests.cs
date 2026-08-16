@@ -50,6 +50,22 @@ public class LocalizationStateServiceTests : IDisposable
         await stateStore.SaveAsync(metadata);
     }
 
+    private async Task SaveApiMetadataWithSlugAsync(string publicId, string sha256, string? modeSlug, int version = 1, int gamePatch = 100)
+    {
+        var metadata = new InstallationMetadata
+        {
+            Source = "api",
+            ModeSlug = modeSlug,
+            PublicId = publicId,
+            Version = version,
+            GamePatch = gamePatch,
+            Sha256 = sha256,
+            InstalledAt = DateTimeOffset.UtcNow
+        };
+        var stateStore = new InstallationStateStore(_paths, _logger);
+        await stateStore.SaveAsync(metadata);
+    }
+
     private void SaveOfficialMetadata()
     {
         var metadata = new InstallationMetadata
@@ -303,7 +319,7 @@ public class LocalizationStateServiceTests : IDisposable
         cts.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => service.ResolveAsync(CreateCurrent(), gamePath, cts.Token));
+            () => service.ResolveAsync(CreateCurrent(), gamePath, cancellationToken: cts.Token));
     }
 
     // --- PublicId identity (not version/patch) ---
@@ -456,6 +472,86 @@ public class LocalizationStateServiceTests : IDisposable
         Assert.Equal(LocalizationState.WaitingForRelease, result.State);
         Assert.NotNull(result.Error);
         Assert.Contains("public_id", result.Error);
+    }
+
+    // --- Cross-mode slug checks ---
+
+    [Fact]
+    public async Task CrossMode_DifferentSlug_Installed_ReturnsNotInstalled()
+    {
+        var content = Encoding.UTF8.GetBytes("content");
+        var sha = HashHelper.ComputeSha256(content);
+        var publicId = "01ABC";
+        await SaveApiMetadataWithSlugAsync(publicId, sha, "english-items");
+        var gamePath = CreateGameFile(content);
+        var service = CreateService();
+
+        var result = await service.ResolveAsync(CreateCurrent(publicId), gamePath, selectedModeSlug: "full-ukrainian");
+
+        Assert.Equal(LocalizationState.NotInstalled, result.State);
+        Assert.Null(result.Error);
+    }
+
+    [Fact]
+    public async Task CrossMode_SameSlug_SamePublicId_ReturnsUpToDate()
+    {
+        var content = Encoding.UTF8.GetBytes("content");
+        var sha = HashHelper.ComputeSha256(content);
+        var publicId = "01ABC";
+        await SaveApiMetadataWithSlugAsync(publicId, sha, "english-items");
+        var gamePath = CreateGameFile(content);
+        var service = CreateService();
+
+        var result = await service.ResolveAsync(CreateCurrent(publicId), gamePath, selectedModeSlug: "english-items");
+
+        Assert.Equal(LocalizationState.UpToDate, result.State);
+        Assert.Null(result.Error);
+    }
+
+    [Fact]
+    public async Task CrossMode_SameSlug_DifferentPublicId_ReturnsUpdateAvailable()
+    {
+        var content = Encoding.UTF8.GetBytes("content");
+        var sha = HashHelper.ComputeSha256(content);
+        await SaveApiMetadataWithSlugAsync("01ABC", sha, "english-items");
+        var gamePath = CreateGameFile(content);
+        var service = CreateService();
+
+        var result = await service.ResolveAsync(CreateCurrent("01DEF"), gamePath, selectedModeSlug: "english-items");
+
+        Assert.Equal(LocalizationState.UpdateAvailable, result.State);
+        Assert.Null(result.Error);
+    }
+
+    [Fact]
+    public async Task CrossMode_SelectedSlugNull_IgnoresModeCheck()
+    {
+        var content = Encoding.UTF8.GetBytes("content");
+        var sha = HashHelper.ComputeSha256(content);
+        var publicId = "01ABC";
+        await SaveApiMetadataWithSlugAsync(publicId, sha, "english-items");
+        var gamePath = CreateGameFile(content);
+        var service = CreateService();
+
+        var result = await service.ResolveAsync(CreateCurrent(publicId), gamePath, selectedModeSlug: null);
+
+        Assert.Equal(LocalizationState.UpToDate, result.State);
+        Assert.Null(result.Error);
+    }
+
+    [Fact]
+    public async Task CrossMode_InstalledSlugNull_ReturnsInstalledVersionUnknown()
+    {
+        var content = Encoding.UTF8.GetBytes("content");
+        var sha = HashHelper.ComputeSha256(content);
+        var publicId = "01ABC";
+        await SaveApiMetadataWithSlugAsync(publicId, sha, modeSlug: null);
+        var gamePath = CreateGameFile(content);
+        var service = CreateService();
+
+        var result = await service.ResolveAsync(CreateCurrent(publicId), gamePath, selectedModeSlug: "full-ukrainian");
+
+        Assert.Equal(LocalizationState.InstalledVersionUnknown, result.State);
     }
 
     private class NullLogger : ILogger
