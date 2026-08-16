@@ -13,13 +13,12 @@ partial class MainForm
 
     // --- Localization Mode ---
     private GroupBox modeGroupBox = null!;
-    private RadioButton fullUkrainianRadioButton = null!;
-    private RadioButton bosiaRadioButton = null!;
-    private RadioButton englishItemsRadioButton = null!;
+    private FlowLayoutPanel modesFlowPanel = null!;
 
     // --- Status ---
     private GroupBox statusGroupBox = null!;
     private Label localizationStateLabel = null!;
+    private Label installedInfoLabel = null!;
     private Label detailsLabel = null!;
     private ProgressBar progressBar = null!;
     private Label progressLabel = null!;
@@ -28,7 +27,6 @@ partial class MainForm
     // --- Actions ---
     private FlowLayoutPanel actionsPanel = null!;
     private Button installButton = null!;
-    private Button updateButton = null!;
     private Button restoreOriginalButton = null!;
     private Button cancelButton = null!;
 
@@ -140,7 +138,7 @@ partial class MainForm
             Padding = new Padding(8, 4, 8, 8)
         };
 
-        var modeLayout = new FlowLayoutPanel
+        modesFlowPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             AutoSize = true,
@@ -148,33 +146,7 @@ partial class MainForm
             WrapContents = false
         };
 
-        fullUkrainianRadioButton = new RadioButton
-        {
-            Text = "Повна українська",
-            Tag = "full-ukrainian",
-            AutoSize = true,
-            Checked = true,
-            Margin = new Padding(0, 0, 0, 4)
-        };
-
-        bosiaRadioButton = new RadioButton
-        {
-            Text = "Повна українська (Bosia)",
-            Tag = "full-ukrainian-bosia",
-            AutoSize = true,
-            Margin = new Padding(0, 0, 0, 4)
-        };
-
-        englishItemsRadioButton = new RadioButton
-        {
-            Text = "Англійські назви предметів",
-            Tag = "english-items",
-            AutoSize = true,
-            Margin = new Padding(0)
-        };
-
-        modeLayout.Controls.AddRange(new Control[] { fullUkrainianRadioButton, bosiaRadioButton, englishItemsRadioButton });
-        modeGroupBox.Controls.Add(modeLayout);
+        modeGroupBox.Controls.Add(modesFlowPanel);
 
         // ==========================================
         // Status / Progress Block
@@ -191,11 +163,12 @@ partial class MainForm
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 5,
+            RowCount = 6,
             AutoSize = false
         };
         statusLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         statusLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // state
+        statusLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // installed info
         statusLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // details
         statusLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 8F)); // spacer
         statusLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // progress row
@@ -207,6 +180,15 @@ partial class MainForm
             Dock = DockStyle.Top,
             AutoSize = true,
             Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold),
+            Margin = new Padding(0, 0, 0, 2)
+        };
+
+        installedInfoLabel = new Label
+        {
+            Text = "",
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ForeColor = System.Drawing.SystemColors.GrayText,
             Margin = new Padding(0, 0, 0, 2)
         };
 
@@ -262,9 +244,10 @@ partial class MainForm
         };
 
         statusLayout.Controls.Add(localizationStateLabel, 0, 0);
-        statusLayout.Controls.Add(detailsLabel, 0, 1);
-        statusLayout.Controls.Add(progressPanel, 0, 3);
-        statusLayout.Controls.Add(messageTextBox, 0, 4);
+        statusLayout.Controls.Add(installedInfoLabel, 0, 1);
+        statusLayout.Controls.Add(detailsLabel, 0, 2);
+        statusLayout.Controls.Add(progressPanel, 0, 4);
+        statusLayout.Controls.Add(messageTextBox, 0, 5);
         statusGroupBox.Controls.Add(statusLayout);
 
         // ==========================================
@@ -282,14 +265,6 @@ partial class MainForm
         installButton = new Button
         {
             Text = "Встановити",
-            AutoSize = true,
-            Enabled = false,
-            Margin = new Padding(0, 0, 8, 0)
-        };
-
-        updateButton = new Button
-        {
-            Text = "Оновити",
             AutoSize = true,
             Enabled = false,
             Margin = new Padding(0, 0, 8, 0)
@@ -313,7 +288,7 @@ partial class MainForm
 
         actionsPanel.Controls.AddRange(new Control[]
         {
-            installButton, updateButton, restoreOriginalButton, cancelButton
+            installButton, restoreOriginalButton, cancelButton
         });
 
         // ==========================================

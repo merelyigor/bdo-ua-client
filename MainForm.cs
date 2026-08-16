@@ -29,11 +29,6 @@ public partial class MainForm : Form
     private OperationState _operationState = OperationState.Idle;
     private CancellationTokenSource? _operationCts;
 
-    private static readonly string[] KnownModeSlugs = new[]
-    {
-        "full-ukrainian", "full-ukrainian-bosia", "english-items"
-    };
-
     public MainForm(
         ConfigStore configStore,
         BdoUaApiClient apiClient,
@@ -64,11 +59,7 @@ public partial class MainForm : Form
     {
         detectGameButton.Click += DetectGameButton_Click;
         browseGameButton.Click += BrowseGameButton_Click;
-        fullUkrainianRadioButton.CheckedChanged += ModeRadioButton_CheckedChanged;
-        bosiaRadioButton.CheckedChanged += ModeRadioButton_CheckedChanged;
-        englishItemsRadioButton.CheckedChanged += ModeRadioButton_CheckedChanged;
         installButton.Click += InstallButton_Click;
-        updateButton.Click += UpdateButton_Click;
         restoreOriginalButton.Click += RestoreOriginalButton_Click;
         cancelButton.Click += CancelButton_Click;
         this.FormClosing += MainForm_FormClosing;
@@ -81,12 +72,9 @@ public partial class MainForm : Form
         _initializing = true;
         try
         {
-            // 1. Load config and restore last_mode
             var configLoad = _configStore.Load();
             var config = configLoad.Value ?? new Config();
-            RestoreLastMode(config);
 
-            // 2. Load API
             SetOperationState(OperationState.LoadingApi);
             SetMessage("Завантаження даних з сервера...");
             var apiResult = await _apiClient.GetReleasesAsync();
@@ -102,7 +90,9 @@ public partial class MainForm : Form
                 _apiErrorMessage = apiResult.ErrorMessage ?? "Невідома помилка сервера.";
             }
 
-            // 3. Game detection
+            BuildDynamicModes();
+            RestoreLastMode(config);
+
             SetOperationState(OperationState.DetectingGame);
             var patterns = _apiResponse?.Data?.InstallPathPatterns;
             var detection = await _gameDetector.DetectAsync(patterns);
@@ -116,7 +106,6 @@ public partial class MainForm : Form
                 SetGamePathText("Гру не знайдено");
             }
 
-            // 4. State + compatibility refresh
             await RefreshStateAsync();
         }
         catch (Exception ex)
@@ -131,19 +120,67 @@ public partial class MainForm : Form
         }
     }
 
-    private void RestoreLastMode(Config config)
+    // --- Dynamic modes ---
+
+    private void BuildDynamicModes()
     {
-        if (config.LastMode != null && KnownModeSlugs.Contains(config.LastMode))
+        modesFlowPanel.Controls.Clear();
+
+        var modes = _apiResponse?.Data?.Modes;
+        if (modes == null) return;
+
+        bool first = true;
+        foreach (var mode in modes)
         {
-            SelectModeBySlug(config.LastMode);
+            if (mode.Current == null) continue;
+            if (string.IsNullOrWhiteSpace(mode.Slug)) continue;
+
+            var rb = new RadioButton
+            {
+                Text = mode.PublicName ?? mode.Slug,
+                Tag = mode.Slug,
+                AutoSize = true,
+                Checked = first,
+                Margin = new Padding(0, 0, 0, 4)
+            };
+            rb.CheckedChanged += ModeRadioButton_CheckedChanged;
+            modesFlowPanel.Controls.Add(rb);
+            first = false;
         }
     }
 
-    private void SelectModeBySlug(string slug)
+    private void RestoreLastMode(Config config)
     {
-        if (slug == (string)bosiaRadioButton.Tag!) bosiaRadioButton.Checked = true;
-        else if (slug == (string)englishItemsRadioButton.Tag!) englishItemsRadioButton.Checked = true;
-        else fullUkrainianRadioButton.Checked = true;
+        if (config.LastMode == null) return;
+
+        foreach (Control c in modesFlowPanel.Controls)
+        {
+            if (c is RadioButton rb && rb.Tag is string slug && slug == config.LastMode)
+            {
+                rb.Checked = true;
+                return;
+            }
+        }
+
+        // Fallback: first available already checked by BuildDynamicModes
+    }
+
+    private string? GetSelectedModeSlug()
+    {
+        foreach (Control c in modesFlowPanel.Controls)
+        {
+            if (c is RadioButton rb && rb.Checked)
+                return rb.Tag as string;
+        }
+        return null;
+    }
+
+    private LocalizationMode? GetSelectedApiMode()
+    {
+        var slug = GetSelectedModeSlug();
+        if (slug == null || _apiResponse?.Data?.Modes == null) return null;
+        return _apiResponse.Data.Modes
+            .FirstOrDefault(m => string.Equals(m.Slug, slug, StringComparison.Ordinal));
     }
 
     // --- Detect button ---
@@ -257,13 +294,13 @@ public partial class MainForm : Form
         }
     }
 
-    // --- Install / Update action ---
+    // --- Install action ---
 
     private async void InstallButton_Click(object? sender, EventArgs e)
     {
         try
         {
-            await HandleInstallOrUpdateAsync(isUpdate: false);
+            await HandleInstallAsync();
         }
         catch (Exception ex)
         {
@@ -272,20 +309,7 @@ public partial class MainForm : Form
         }
     }
 
-    private async void UpdateButton_Click(object? sender, EventArgs e)
-    {
-        try
-        {
-            await HandleInstallOrUpdateAsync(isUpdate: true);
-        }
-        catch (Exception ex)
-        {
-            _logger.Error($"UpdateButton_Click unexpected: {ex.Message}");
-            SetMessage($"Помилка: {ex.Message}");
-        }
-    }
-
-    private async Task HandleInstallOrUpdateAsync(bool isUpdate)
+    private async Task HandleInstallAsync()
     {
         if (_operationInProgress) return;
 
@@ -295,7 +319,7 @@ public partial class MainForm : Form
         {
             _operationInProgress = true;
             SetOperationState(OperationState.Idle);
-            SetActionsEnabled(false, false, false);
+            SetActionsEnabled(false, false);
             SetControlsDuringOperation(false);
 
             if (_gameRoot == null)
@@ -326,26 +350,26 @@ public partial class MainForm : Form
                 return;
             }
 
-            // Factual state precondition
-            var expectedState = isUpdate
-                ? LocalizationState.UpdateAvailable
-                : LocalizationState.NotInstalled;
+            // Precondition: factual state check
+            var gameLocPath = Path.Combine(_gameRoot, "ads", "languagedata_en.loc");
+            var preStateResult = await _stateService.ResolveAsync(current, gameLocPath);
 
-            if (_lastResolvedState != expectedState)
+            if (preStateResult.State == LocalizationState.UpToDate)
             {
-                await RefreshStateAsync();
-
-                if (_lastResolvedState != expectedState)
+                var installedLoad = _stateStore.Load();
+                if (installedLoad.Status == FileLoadStatus.Valid)
                 {
-                    finalMessage = isUpdate
-                        ? "Оновлення недоступне для поточного стану локалізації."
-                        : "Встановлення недоступне для поточного стану локалізації.";
-                    return;
+                    var installed = installedLoad.Value!;
+                    if (string.Equals(installed.ModeSlug, mode.Slug, StringComparison.Ordinal)
+                        && string.Equals(installed.PublicId, current.PublicId, StringComparison.Ordinal))
+                    {
+                        finalMessage = "Актуальна версія вже встановлена.";
+                        return;
+                    }
                 }
             }
 
-            var actionLabel = isUpdate ? "Оновлення" : "Встановлення";
-            SetMessage($"{actionLabel}...");
+            SetMessage("Встановлення локалізації...");
             SetProgress(0);
             SetOperationState(OperationState.Downloading);
 
@@ -358,14 +382,12 @@ public partial class MainForm : Form
             var progress = new Progress<DownloadProgress>(OnDownloadProgress);
 
             var result = await service.InstallReleaseAsync(
-                GetSelectedModeSlug(), current, progress, _operationCts.Token);
+                mode.Slug!, current, progress, _operationCts.Token);
 
             if (result.IsSuccess)
             {
                 SetOperationState(OperationState.Completed);
-                finalMessage = isUpdate
-                    ? "Локалізацію успішно оновлено."
-                    : "Локалізацію успішно встановлено.";
+                finalMessage = "Локалізацію успішно встановлено.";
             }
             else
             {
@@ -381,15 +403,13 @@ public partial class MainForm : Form
         }
         catch (OperationCanceledException)
         {
-            _logger.Info("Install/update cancelled by user.");
+            _logger.Info("Install cancelled by user.");
             SetOperationState(OperationState.Cancelled);
-            finalMessage = isUpdate
-                ? "Оновлення скасовано."
-                : "Встановлення скасовано.";
+            finalMessage = "Встановлення скасовано.";
         }
         catch (Exception ex)
         {
-            _logger.Error($"Install/update error: {ex.Message}");
+            _logger.Error($"Install error: {ex.Message}");
             SetOperationState(OperationState.Failed);
             finalMessage = $"Помилка операції: {ex.Message}";
         }
@@ -444,7 +464,7 @@ public partial class MainForm : Form
         {
             _operationInProgress = true;
             SetOperationState(OperationState.Idle);
-            SetActionsEnabled(false, false, false);
+            SetActionsEnabled(false, false);
             SetControlsDuringOperation(false);
 
             if (_gameRoot == null)
@@ -568,9 +588,10 @@ public partial class MainForm : Form
     {
         detectGameButton.Enabled = enabled;
         browseGameButton.Enabled = enabled;
-        fullUkrainianRadioButton.Enabled = enabled;
-        bosiaRadioButton.Enabled = enabled;
-        englishItemsRadioButton.Enabled = enabled;
+        foreach (Control c in modesFlowPanel.Controls)
+        {
+            if (c is RadioButton rb) rb.Enabled = enabled;
+        }
     }
 
     private void SetOperationState(OperationState state)
@@ -608,65 +629,114 @@ public partial class MainForm : Form
 
     private async Task RefreshStateAsync()
     {
-        SetActionsEnabled(false, false, false);
+        SetActionsEnabled(false, false);
 
         if (_gameRoot == null)
         {
             SetLocalizationStateText("Не визначено");
+            SetInstalledInfo("");
             SetDetailsText("");
             _lastResolvedState = LocalizationState.NotInstalled;
             if (!_apiLoadedSuccessfully)
                 SetMessage($"Помилка завантаження API: {_apiErrorMessage}");
             else
                 SetMessage("Гру не знайдено. Натисніть \"Знайти гру\" або оберіть папку вручну.");
-            SetActionsEnabled(false, false, false);
             return;
         }
 
         if (!_apiLoadedSuccessfully)
         {
             SetLocalizationStateText("Не визначено");
+            SetInstalledInfo("");
             SetDetailsText("");
             _lastResolvedState = LocalizationState.NotInstalled;
             SetMessage($"Помилка завантаження API: {_apiErrorMessage}");
-            SetActionsEnabled(false, false, !_operationInProgress);
+            SetActionsEnabled(false, !_operationInProgress);
             return;
         }
 
-        var selectedSlug = GetSelectedModeSlug();
-        var mode = GetSelectedApiMode();
+        // Resolve factual installed mode
+        var installedLoad = _stateStore.Load();
+        string? installedModeSlug = null;
+        string? installedPublicId = null;
+        DateTimeOffset? installedAt = null;
+        string? installedModeDisplayName = null;
 
-        if (mode == null)
+        if (installedLoad.Status == FileLoadStatus.Valid && installedLoad.Value?.Source == "api")
         {
-            SetLocalizationStateText("Не визначено");
-            SetDetailsText("");
-            _lastResolvedState = LocalizationState.NotInstalled;
-            SetMessage($"Режим \"{selectedSlug}\" не знайдено на сервері.");
-            return;
+            installedModeSlug = installedLoad.Value.ModeSlug;
+            installedPublicId = installedLoad.Value.PublicId;
+            installedAt = installedLoad.Value.InstalledAt;
+
+            // Find display name from API modes
+            var installedApiMode = _apiResponse?.Data?.Modes?
+                .FirstOrDefault(m => string.Equals(m.Slug, installedModeSlug, StringComparison.Ordinal));
+            installedModeDisplayName = installedApiMode?.PublicName ?? installedModeSlug;
         }
 
-        var current = mode.Current;
-
-        // Details
-        if (current != null)
+        // Factual LocalizationState uses INSTALLED mode's current
+        CurrentRelease? installedModeCurrent = null;
+        if (installedModeSlug != null)
         {
-            SetDetailsText($"{mode.PublicName ?? selectedSlug} | v{current.Version} | patch {current.Patch}");
-        }
-        else
-        {
-            SetDetailsText($"{mode.PublicName ?? selectedSlug} | реліз ще не опубліковано");
+            var installedApiMode = _apiResponse?.Data?.Modes?
+                .FirstOrDefault(m => string.Equals(m.Slug, installedModeSlug, StringComparison.Ordinal));
+            installedModeCurrent = installedApiMode?.Current;
         }
 
-        // Localization state — pass selectedModeSlug for cross-mode awareness
         var gameLocPath = Path.Combine(_gameRoot, "ads", "languagedata_en.loc");
-        var stateResult = await _stateService.ResolveAsync(current, gameLocPath, selectedSlug);
+        var stateResult = await _stateService.ResolveAsync(installedModeCurrent, gameLocPath);
         _lastResolvedState = stateResult.State;
         SetLocalizationStateText(GetStateDisplayText(stateResult.State));
 
-        // Diagnostics priority: state error > compatibility reason > Corrupted fallback
+        // Installed info display
+        if (installedLoad.Status == FileLoadStatus.Valid && installedLoad.Value?.Source == "api")
+        {
+            var dateStr = installedAt.HasValue
+                ? installedAt.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                : "";
+            var info = $"Встановлено: {installedModeDisplayName ?? "невідомо"}";
+            if (installedLoad.Value.Version > 0)
+                info += $"  |  v{installedLoad.Value.Version}";
+            if (dateStr != "")
+                info += $"  |  {dateStr}";
+            SetInstalledInfo(info);
+        }
+        else if (installedLoad.Status == FileLoadStatus.Valid && installedLoad.Value?.Source == "official")
+        {
+            SetInstalledInfo("Локалізацію не встановлено");
+        }
+        else if (installedLoad.Status == FileLoadStatus.Missing)
+        {
+            SetInstalledInfo("Локалізацію не встановлено");
+        }
+        else
+        {
+            SetInstalledInfo("");
+        }
+
+        // Selected mode details
+        var selectedMode = GetSelectedApiMode();
+        var selectedCurrent = selectedMode?.Current;
+
+        if (selectedCurrent != null)
+        {
+            var details = $"{selectedMode!.PublicName ?? GetSelectedModeSlug()} | v{selectedCurrent.Version} | patch {selectedCurrent.Patch}";
+            if (!string.IsNullOrEmpty(selectedCurrent.PublishedAt)
+                && DateTimeOffset.TryParse(selectedCurrent.PublishedAt, out var pubDate))
+            {
+                details += $" | реліз {pubDate.ToLocalTime():dd.MM.yyyy}";
+            }
+            SetDetailsText(details);
+        }
+        else
+        {
+            SetDetailsText($"{selectedMode?.PublicName ?? GetSelectedModeSlug() ?? ""} | реліз ще не опубліковано");
+        }
+
+        // Diagnostics
         string? diagnostic = stateResult.Error;
 
-        var compatResult = _compatService.Check(current);
+        var compatResult = _compatService.Check(selectedCurrent);
         if (diagnostic == null && !compatResult.IsAllowed && compatResult.Reason != null)
             diagnostic = compatResult.Reason;
 
@@ -676,15 +746,21 @@ public partial class MainForm : Form
         SetMessage(diagnostic ?? "");
 
         // Action availability
-        var canInstall = !_operationInProgress
-            && current != null
-            && compatResult.IsAllowed
-            && stateResult.State == LocalizationState.NotInstalled;
+        bool alreadyInstalled = false;
+        if (stateResult.State == LocalizationState.UpToDate
+            && installedModeSlug != null
+            && selectedMode?.Slug != null
+            && selectedCurrent?.PublicId != null
+            && string.Equals(installedModeSlug, selectedMode.Slug, StringComparison.Ordinal)
+            && string.Equals(installedPublicId, selectedCurrent.PublicId, StringComparison.Ordinal))
+        {
+            alreadyInstalled = true;
+        }
 
-        var canUpdate = !_operationInProgress
-            && current != null
+        var canInstall = !_operationInProgress
+            && selectedCurrent != null
             && compatResult.IsAllowed
-            && stateResult.State == LocalizationState.UpdateAvailable;
+            && !alreadyInstalled;
 
         var canRestoreOriginal = !_operationInProgress
             && stateResult.State is LocalizationState.UpToDate
@@ -693,7 +769,7 @@ public partial class MainForm : Form
                 or LocalizationState.Corrupted
                 or LocalizationState.InstalledVersionUnknown;
 
-        SetActionsEnabled(canInstall, canUpdate, canRestoreOriginal);
+        SetActionsEnabled(canInstall, canRestoreOriginal);
     }
 
     private static string GetStateDisplayText(LocalizationState state) => state switch
@@ -713,6 +789,8 @@ public partial class MainForm : Form
 
     public void SetLocalizationStateText(string text) => localizationStateLabel.Text = text;
 
+    public void SetInstalledInfo(string text) => installedInfoLabel.Text = text;
+
     public void SetDetailsText(string text) => detailsLabel.Text = text;
 
     public void SetProgress(int percent)
@@ -723,19 +801,10 @@ public partial class MainForm : Form
 
     public void SetMessage(string text) => messageTextBox.Text = text;
 
-    public string GetSelectedModeSlug()
+    public void SetActionsEnabled(bool install, bool restoreOriginal)
     {
-        if (bosiaRadioButton.Checked) return (string)bosiaRadioButton.Tag!;
-        if (englishItemsRadioButton.Checked) return (string)englishItemsRadioButton.Tag!;
-        return (string)fullUkrainianRadioButton.Tag!;
-    }
-
-    private LocalizationMode? GetSelectedApiMode()
-    {
-        if (_apiResponse?.Data?.Modes == null) return null;
-        var slug = GetSelectedModeSlug();
-        return _apiResponse.Data.Modes
-            .FirstOrDefault(m => string.Equals(m.Slug, slug, StringComparison.Ordinal));
+        installButton.Enabled = install;
+        restoreOriginalButton.Enabled = restoreOriginal;
     }
 
     private static string MapInstallError(InstallError error) => error switch
@@ -772,11 +841,4 @@ public partial class MainForm : Form
         RestoreError.StateRestoreFailed => "Не вдалося відновити стан локалізації. Попередній стан було повернуто.",
         _ => "Невідома помилка відновлення."
     };
-
-    public void SetActionsEnabled(bool install, bool update, bool restoreOriginal)
-    {
-        installButton.Enabled = install;
-        updateButton.Enabled = update;
-        restoreOriginalButton.Enabled = restoreOriginal;
-    }
 }

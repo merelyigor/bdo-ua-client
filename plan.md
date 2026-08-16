@@ -693,16 +693,25 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 - No SingleFile, no trimming, no installer, no signing
 
 **Що реалізовано (v12.1):**
-- MainForm widened: ClientSize 640×560, MinimumSize 620×480 (real Windows UI check)
-- Restore Backup removed from public UI (product decision): button, handler, selection dialog all removed
-- RestorePointSelectionForm.cs deleted (no longer used)
-- Backend restore-point safety infrastructure retained (used by install/update/Restore Original transactions)
-- Cross-mode fix: `LocalizationStateService.ResolveAsync` now accepts `selectedModeSlug` parameter
-- When installed ModeSlug != selected ModeSlug → state resolves as NotInstalled (enables cross-mode Install)
-- Action availability updated: Install enabled for NotInstalled (includes cross-mode), Update for UpdateAvailable
-- HandleInstallOrUpdateAsync precondition: uses `_lastResolvedState` which is now mode-aware
-- 5 cross-mode regression tests added
-- Final action buttons: Встановити / Оновити / Відновити оригінал / Скасувати
+- MainForm widened: ClientSize 640×560, MinimumSize 620×480
+- Restore Backup removed from public UI (product decision)
+- RestorePointSelectionForm.cs deleted
+- Backend restore-point safety retained (install/Restore Original transactions)
+- Update button removed — single "Встановити" for first install / mode switch / newer release
+- Dynamic API-driven mode selection: RadioButtons built from `_apiResponse.Data.Modes`
+- No hardcoded mode slugs (full-ukrainian, english-items, etc.) in production UI
+- Only modes with `current != null` displayed
+- Factual LocalizationState restored: uses INSTALLED mode's current (not selected mode)
+- `LocalizationStateService.ResolveAsync` reverted: no selectedModeSlug parameter
+- Installed mode info display: mode name, version, InstalledAt (local time)
+- Selected mode details: name, version, patch, published_at (from API)
+- `published_at` field from API used as canonical release date
+- Unified Install semantics: one button handles all replacement scenarios
+- Exact already-installed check: same ModeSlug + same PublicId + UpToDate → Install disabled
+- Cross-mode: Install enabled when different mode selected
+- Restore Original: independent from selected mode, based on factual installed state
+- AGENTS.md §18.7 added: product decision on single Install button
+- README.md deleted (deferred until manual E2E complete)
 
 **Technical acceptance (v12.0):**
 - [x] win-x64 self-contained publish succeeds
@@ -714,11 +723,11 @@ Stage 6 повертає `InstallError.RollbackFailed` при невдалому
 - [ ] API повертає дані
 - [ ] Встановлення success → файл замінено
 - [ ] Backup створено
-- [ ] Оновлення працює
+- [ ] Оновлення працює (via Install button)
 - [ ] Повернення до стану без української локалізації через Restore Original працює
 - [ ] Логи записуються
 
-**Файли:** `.github/workflows/release-build.yml`, `.gitignore`, `plan.md`
+**Файли:** `MainForm.cs`, `MainForm.Designer.cs`, `Services/LocalizationStateService.cs`, `AGENTS.md`, `plan.md`
 
 ---
 

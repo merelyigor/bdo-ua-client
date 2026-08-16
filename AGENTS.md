@@ -368,6 +368,8 @@ API надає release metadata через `GET /releases`. Клієнт вик�
 
 §18.6 Основний ідентифікатор release — `public_id`, а не `patch` чи `version`.
 
+§18.7 **Product decision:** UI має одну кнопку "Встановити" для першої установки, заміни режиму та оновлення. Окрема кнопка "Оновити" відсутня. Restore Backup є внутрішньою safety capability, не public UI.
+
 ---
 
 ## §19 🗑️ Відновлення та повернення до оригіналу
