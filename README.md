@@ -1,10 +1,16 @@
-> Це чернетка майбутнього публічного README. Фінальне розміщення в корені репозиторію заплановано разом з першим публічним релізом (v12.6).
+<p align="center">
+  <img src="assets/bdo-ua-icon.png" alt="BDO UA Client" width="180">
+</p>
 
-# BDO UA Client
+<h1 align="center">BDO UA Client</h1>
 
-> Клієнт для встановлення української локалізації у Black Desert Online
+<p align="center">
+  Клієнт для встановлення української локалізації у Black Desert Online
+</p>
 
-[![CI](https://github.com/merelyigor/bdo-ua-client/actions/workflows/ci.yml/badge.svg)](https://github.com/merelyigor/bdo-ua-client/actions/workflows/ci.yml)
+<p align="center">
+  <a href="https://github.com/merelyigor/bdo-ua-client/actions/workflows/ci.yml"><img src="https://github.com/merelyigor/bdo-ua-client/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
 
 ---
 
@@ -29,9 +35,15 @@
 
 ## Завантаження
 
-Офіційні релізи з'являться на сторінці **[GitHub Releases](https://github.com/merelyigor/bdo-ua-client/releases)**.
+Офіційні релізи доступні на сторінці **[GitHub Releases](https://github.com/merelyigor/bdo-ua-client/releases)**.
 
-Архів містить один файл:
+Завантажте архів:
+
+```
+BDO-UA-Client-vX.Y.Z-win-x64.zip
+```
+
+Розпакуйте — всередині один файл:
 
 ```
 BDO-UA-Client.exe
@@ -49,22 +61,23 @@ BDO-UA-Client.exe
 
 ## Windows SmartScreen
 
-BDO UA Client наразі не використовує комерційний сертифікат підпису коду (code-signing certificate). Тому Windows SmartScreen може показати попередження **"Невідомий видавець"** при першому запуску.
+BDO UA Client наразі не підписаний комерційним сертифікатом підпису коду (code-signing certificate). Тому Windows SmartScreen може показати попередження **"Невідомий видавець"** при першому запуску.
 
-Це стандартне попередження для програм без комерційного підпису — воно не пов'язане з ліцензією проєкту чи наявністю шкідливого коду.
+Наявність цього попередження сама по собі не означає, що файл є шкідливим. Windows може показувати SmartScreen для застосунків без впізнаваного цифрового підпису видавця або з недостатньою репутацією.
 
 ### Як запустити
 
-1. Завантажте **BDO-UA-Client.exe** тільки з офіційної сторінки [GitHub Releases](https://github.com/merelyigor/bdo-ua-client/releases) репозиторію `merelyigor/bdo-ua-client`.
-2. Запустіть файл.
-3. Якщо з'явилось вікно SmartScreen, натисніть **"Докладніше"**.
+1. Завантажте **BDO-UA-Client-vX.Y.Z-win-x64.zip** тільки з офіційної сторінки [GitHub Releases](https://github.com/merelyigor/bdo-ua-client/releases) репозиторію `merelyigor/bdo-ua-client`.
+2. Розпакуйте архів.
+3. Запустіть **BDO-UA-Client.exe**.
+4. Якщо з'явилось вікно SmartScreen, натисніть **"Докладніше"**.
 
-![Windows SmartScreen — Докладніше](img/smartscreen-more-info.png)
+![Windows SmartScreen — Докладніше](docs/img/smartscreen-more-info.png)
 
-4. Перевірте, що вказано **BDO-UA-Client.exe**.
-5. Натисніть **"Виконати"**.
+5. Перевірте, що вказано **BDO-UA-Client.exe**.
+6. Натисніть **"Виконати"**.
 
-![Windows SmartScreen — Виконати](img/smartscreen-run-anyway.png)
+![Windows SmartScreen — Виконати](docs/img/smartscreen-run-anyway.png)
 
 > **Увага:** не натискайте "Виконати" для файлів, завантажених з невідомих сторонніх джерел. Використовуйте тільки офіційну сторінку релізів.
 
@@ -80,7 +93,7 @@ BDO UA Client наразі не використовує комерційний 
 
 ### Ручний вибір папки
 
-<img src="img/select-game-folder-manually.png" alt="Ручний вибір папки гри" width="100%">
+<img src="docs/img/select-game-folder-manually.png" alt="Ручний вибір папки гри" width="100%">
 
 Поточна версія гарантовано підтримує вибір:
 
@@ -93,7 +106,7 @@ BDO UA Client наразі не використовує комерційний 
 
 ## Вибір режиму локалізації
 
-![Вибір режиму локалізації](img/select-localization-mode.png)
+![Вибір режиму локалізації](docs/img/select-localization-mode.png)
 
 Клієнт отримує список доступних режимів з сервера. Режими можуть змінюватися — конкретний перелік залежить від поточних серверних даних.
 
@@ -123,13 +136,13 @@ BDO UA Client наразі не використовує комерційний 
 
 > Локалізацію успішно встановлено.
 
-![Успішне встановлення локалізації](img/installation-complete.png)
+![Успішне встановлення локалізації](docs/img/installation-complete.png)
 
 ---
 
 ## Перемикання режимів
 
-![Встановлення іншого режиму](img/switch-localization-mode.png)
+![Встановлення іншого режиму](docs/img/switch-localization-mode.png)
 
 Якщо вже встановлено один режим локалізації, можна обрати інший та натиснути **"Встановити"**. Новий режим замінить поточний.
 
@@ -185,13 +198,12 @@ BDO UA Client наразі не використовує комерційний 
 |---|---|
 | [bdo-ua.com.ua](https://bdo-ua.com.ua/) | Проєкт українізації Black Desert Online |
 | [bdo-ua.com.ua/download](https://bdo-ua.com.ua/download) | Сторінка завантаження локалізації |
-| [merelyigor/bdo-ua-client](https://github.com/merelyigor/bdo-ua-client) | Репозиторій клієнта |
 
 ---
 
 ## Технічна документація
 
-Для розробників: [index.md](index.md)
+Для розробників: [docs/index.md](docs/index.md)
 
 ---
 

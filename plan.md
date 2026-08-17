@@ -12,10 +12,11 @@
 - **v12.3.3** — parallel startup (API + local detection), API error mapping
 - **v12.3.3.1** — StartupCoordinator extraction, ApiErrorPresentation, 329 tests
 - **v12.3.3.2** — finalize startup game state safely, deterministic tests
-- **v12.3.4** — improve status readability (fonts, colors, wording, separators)
-- **v12.3.5** — startup loading responsiveness (HttpClient warmup, Marquee progress, timing logs)
+- **v12.3.4 / v12.3.4.1 / v12.3.4.2** — status readability, neutral color reset, README screenshots
+- **v12.3.5 / v12.3.5.1** — Marquee progress, timing logs, application icon
+- **v12.4** — public root README, release candidate workflow, release docs
 - **Latest SHA:** (see git log)
-- **Automated tests:** 335
+- **Automated tests:** 336
 - **Normal CI:** PENDING
 - **Windows E2E:** PENDING
 
@@ -124,7 +125,7 @@
 ### v12.3.x — E2E bugfix iterations
 Only if next real Windows test finds concrete defects.
 
-### v12.4 — Full manual E2E pass
+### v12.5 — Release readiness
 Target scenarios:
 - Startup detection
 - Dynamic API modes
@@ -138,83 +139,60 @@ Target scenarios:
 - Logs
 - Single-file startup
 
+### v12.4 — prepare first public release candidate
+
+**Status:** IMPLEMENTED — PENDING
+
+**Target:**
+- Public root README.md (Ukrainian product guide with screenshots)
+- Release notes template
+- Manual Release Candidate workflow (workflow_dispatch, versioned build+test+package+tag)
+- Real packaged E2E after workflow acceptance
+- Manual GitHub Release publication by repository owner
+
 ### v12.5 — Release readiness
 Target:
 - Remaining runtime edge cases
 - Clean Windows/self-contained validation
 - Final user-facing messages/UX
 - No known critical/major E2E defects
-- Release candidate artifact
 
-### v12.6 — Public release preparation
+### v1.0.0
+First public release after v12.4-v12.5 acceptance.
 
-**Release ownership:** Production releases are manually initiated by the repository owner. Normal CI may run automatically, but no production GitHub Release is published solely because code was pushed or merged.
+---
 
-**Target:**
-- Two-phase manually controlled release pipeline
-- Canonical version source (`Directory.Build.props` or equivalent)
-- Final README, download/use instructions, release notes
+## Production release process
 
-#### A. Existing CI (unchanged)
+**Production GitHub Releases are always manually published by the repository owner.**
+
+### A. Normal CI
 - Automatic push/PR verification
 - Development safety check
 
-#### B. Existing Release Build (unchanged)
-- Manual `workflow_dispatch`
-- Test/E2E artifact only
+### B. Release Build
+- Existing manual `workflow_dispatch`
+- Generic unversioned E2E/testing artifact
 - NOT a public GitHub Release
 
-#### C. Production Release workflow — `workflow_dispatch` only
+### C. Release Candidate
+- NEW manual `workflow_dispatch`
+- User enters version (e.g. `0.1.0`)
+- Builds exact current main
+- Tests
+- Produces versioned release package (`BDO-UA-Client-vX.Y.Z-win-x64.zip`)
+- Creates version tag on exact verified SHA
+- Uploads release-candidate artifact
+- Does NOT create/publish GitHub Release
 
-**PHASE 1 — PREPARE RELEASE**
+### D. Final publication
+- Manual GitHub UI action by repository owner
+- Select existing tag
+- Paste/edit release notes
+- Upload the exact ZIP produced by Release Candidate workflow
+- Click Publish release
 
-User manually supplies semantic version (e.g. `1.0.0`).
-
-Pipeline:
-1. Validate semantic version
-2. Verify release version/tag does not already exist
-3. Update one canonical project version source
-4. Ensure executable version metadata derives from that version
-5. Run Restore + Release Build + full tests
-6. Create branch `release/v1.0.0`
-7. Commit version preparation changes
-8. Push release branch
-9. Create PR `release/v1.0.0 → main`
-10. Stop
-
-Pipeline must NOT: merge PR, create tag, publish GitHub Release.
-
-User reviews and merges the release PR manually.
-
-**PHASE 2 — PUBLISH RELEASE**
-
-User manually starts workflow after PR merge. Input: `version = 1.0.0`.
-
-Pipeline:
-1. Operate from current main
-2. Verify main contains canonical version 1.0.0
-3. Verify tag `v1.0.0` does not exist
-4. Restore + Build Release + full tests
-5. Publish win-x64 self-contained single-file build
-6. Produce exactly: `BDO-UA-Client.exe`
-7. Package as: `BDO-UA-Client-v1.0.0-win-x64.zip` (contains exactly `BDO-UA-Client.exe`)
-8. Create immutable tag `v1.0.0` on verified main SHA
-9. Create GitHub Release: `BDO UA Client v1.0.0`
-10. Upload versioned ZIP as release asset with release notes
-11. Report exact SHA, tag, release URL, asset digest
-
-No automatic publication after merge. User must explicitly invoke Publish Release.
-
-#### Version source of truth
-
-ONE canonical project version source (preferred: `Directory.Build.props`).
-
-Must drive: `Version`, `FileVersion`, `AssemblyVersion`, `InformationalVersion`, release validation, tag, GitHub Release name, ZIP asset filename.
-
-Avoid duplicating manually maintained versions across workflow YAML, C# constants, csproj files, README, release scripts.
-
-### v1.0.0
-First public release only after v12.4-v12.6 acceptance.
+---
 
 ---
 

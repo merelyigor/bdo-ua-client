@@ -1,0 +1,220 @@
+name: Release Candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semantic version (MAJOR.MINOR.PATCH, e.g. 0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release-candidate:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Validate version format
+      shell: pwsh
+      run: |
+        $version = "${{ inputs.version }}"
+        if ($version -notmatch '^\d+\.\d+\.\d+$') {
+          Write-Error "Invalid version format: '$version'. Expected MAJOR.MINOR.PATCH (e.g. 0.1.0)"
+          exit 1
+        }
+        Write-Output "Version validated: $version"
+
+    - name: Validate main branch
+      shell: pwsh
+      run: |
+        $ref = "${{ github.ref }}"
+        if ($ref -ne "refs/heads/main") {
+          Write-Error "Release Candidate must be dispatched from main. Current ref: $ref"
+          exit 1
+        }
+        Write-Output "Branch validated: main"
+
+    - name: Check tag does not exist
+      shell: pwsh
+      run: |
+        $tag = "v${{ inputs.version }}"
+        $existing = git tag -l $tag
+        if ($existing) {
+          Write-Error "Tag $tag already exists. Use a different version."
+          exit 1
+        }
+        Write-Output "Tag $tag is available"
+
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Restore
+      run: dotnet restore BdoUaClient.sln
+
+    - name: Build Release
+      run: dotnet build BdoUaClient.sln -c Release --no-restore
+
+    - name: Test Release
+      run: dotnet test BdoUaClient.sln -c Release --no-build
+
+    - name: Publish single-file win-x64
+      run: >
+        dotnet publish BdoClient.csproj
+        -c Release
+        -r win-x64
+        --self-contained true
+        -p:PublishSingleFile=true
+        -p:IncludeNativeLibrariesForSelfExtract=true
+        -p:PublishTrimmed=false
+        -p:AssemblyName=BDO-UA-Client
+        -p:FileVersion=${{ inputs.version }}.0
+        -p:InformationalVersion=${{ inputs.version }}
+        -o artifacts/publish/win-x64
+
+    - name: Verify EXE exists
+      shell: pwsh
+      run: |
+        $exe = "artifacts/publish/win-x64/BDO-UA-Client.exe"
+        if (!(Test-Path $exe)) {
+          Write-Error "EXE not found at $exe"
+          exit 1
+        }
+        $size = (Get-Item $exe).Length
+        Write-Output "EXE found: $size bytes"
+
+    - name: Verify EXE version metadata
+      shell: pwsh
+      run: |
+        $exe = "artifacts/publish/win-x64/BDO-UA-Client.exe"
+        $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exe)
+        Write-Output "FileVersion: $($info.FileVersion)"
+        Write-Output "ProductVersion: $($info.ProductVersion)"
+        $expected = "${{ inputs.version }}"
+        if ($info.FileVersion -notlike "$expected*") {
+          Write-Error "FileVersion '$($info.FileVersion)' does not match expected '$expected'"
+          exit 1
+        }
+
+    - name: Create versioned ZIP
+      shell: pwsh
+      run: |
+        $version = "${{ inputs.version }}"
+        $zipName = "BDO-UA-Client-v$version-win-x64.zip"
+        $exePath = "artifacts/publish/win-x64/BDO-UA-Client.exe"
+        $zipPath = "artifacts/$zipName"
+
+        Compress-Archive -Path $exePath -DestinationPath $zipPath -Force
+        Write-Output "ZIP created: $zipPath ($((Get-Item $zipPath).Length) bytes)"
+
+    - name: Verify ZIP contents
+      shell: pwsh
+      run: |
+        $version = "${{ inputs.version }}"
+        $zipPath = "artifacts/BDO-UA-Client-v$version-win-x64.zip"
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+        $entries = $zip.Entries | ForEach-Object { $_.FullName }
+        $zip.Dispose()
+
+        Write-Output "ZIP entries: $($entries -join ', ')"
+
+        if ($entries.Count -ne 1) {
+          Write-Error "ZIP must contain exactly 1 file. Found: $($entries.Count)"
+          exit 1
+        }
+        if ($entries[0] -ne "BDO-UA-Client.exe") {
+          Write-Error "ZIP must contain BDO-UA-Client.exe. Found: $($entries[0])"
+          exit 1
+        }
+
+    - name: Calculate SHA-256
+      shell: pwsh
+      run: |
+        $version = "${{ inputs.version }}"
+        $zipPath = "artifacts/BDO-UA-Client-v$version-win-x64.zip"
+        $hash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLower()
+        $zipName = "BDO-UA-Client-v$version-win-x64.zip"
+        "$hash  $zipName" | Out-File -FilePath "artifacts/SHA256SUMS.txt" -Encoding utf8
+        Write-Output "SHA-256: $hash"
+        Write-Output "SHA256SUMS.txt created"
+
+    - name: Create release manifest
+      shell: pwsh
+      run: |
+        $version = "${{ inputs.version }}"
+        $tag = "v$version"
+        $sha = "${{ github.sha }}"
+        $assetName = "BDO-UA-Client-v$version-win-x64.zip"
+        $hash = (Get-Content "artifacts/SHA256SUMS.txt" -Raw).Split(" ")[0]
+        $runId = "${{ github.run_id }}"
+
+        $manifest = @{
+          version = $version
+          tag = $tag
+          commit_sha = $sha
+          asset_name = $assetName
+          sha256 = $hash
+          workflow_run_id = $runId
+        } | ConvertTo-Json -Depth 2
+
+        $manifest | Out-File -FilePath "artifacts/release-manifest.json" -Encoding utf8
+        Write-Output "release-manifest.json created"
+
+    - name: Generate release notes
+      shell: pwsh
+      run: |
+        $version = "${{ inputs.version }}"
+        $tag = "v$version"
+        $sha = "${{ github.sha }}"
+        $assetName = "BDO-UA-Client-v$version-win-x64.zip"
+        $hash = (Get-Content "artifacts/SHA256SUMS.txt" -Raw).Split(" ")[0]
+
+        $template = Get-Content "docs/releases/RELEASE_TEMPLATE.md" -Raw
+        $notes = $template `
+          -replace '\{\{VERSION\}\}', $version `
+          -replace '\{\{TAG\}\}', $tag `
+          -replace '\{\{COMMIT_SHA\}\}', $sha `
+          -replace '\{\{SHA256\}\}', $hash `
+          -replace '\{\{ASSET_NAME\}\}', $assetName
+
+        $notes | Out-File -FilePath "artifacts/RELEASE_NOTES-v$version.md" -Encoding utf8
+        Write-Output "RELEASE_NOTES-v$version.md generated"
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: BDO-UA-Client-v${{ inputs.version }}-win-x64
+        path: |
+          artifacts/BDO-UA-Client-v${{ inputs.version }}-win-x64.zip
+          artifacts/SHA256SUMS.txt
+          artifacts/release-manifest.json
+          artifacts/RELEASE_NOTES-v${{ inputs.version }}.md
+
+    - name: Create and push tag
+      shell: pwsh
+      run: |
+        $version = "${{ inputs.version }}"
+        $tag = "v$version"
+        $sha = "${{ github.sha }}"
+
+        # Re-check tag does not exist
+        $existing = git tag -l $tag
+        if ($existing) {
+          Write-Error "Tag $tag was created by another process. Aborting."
+          exit 1
+        }
+
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag -a $tag -m "Release $tag" $sha
+        git push origin $tag
+        Write-Output "Tag $tag created and pushed on $sha"
