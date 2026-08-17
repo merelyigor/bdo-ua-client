@@ -789,6 +789,24 @@ public partial class MainForm : Form
             OperationState.Cancelled => "Скасовано",
             _ => "0%"
         };
+
+        bool indeterminate = state is OperationState.LoadingApi
+            or OperationState.DetectingGame
+            or OperationState.Verifying
+            or OperationState.BackingUp
+            or OperationState.Installing
+            or OperationState.Restoring;
+
+        if (indeterminate)
+        {
+            progressBar.Style = ProgressBarStyle.Marquee;
+            progressBar.MarqueeAnimationSpeed = 30;
+        }
+        else
+        {
+            progressBar.Style = ProgressBarStyle.Continuous;
+            progressBar.MarqueeAnimationSpeed = 0;
+        }
     }
 
     private void OnDownloadProgress(DownloadProgress progress)

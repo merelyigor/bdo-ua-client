@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using BdoClient.Api;
 using BdoClient.Logging;
 using BdoClient.Models;
@@ -76,6 +77,7 @@ internal sealed class StartupCoordinator
         Action<StartupApiResult>? onApiComplete = null,
         Action? onFallbackStarted = null)
     {
+        var startupSw = Stopwatch.StartNew();
         var apiTask = _loadApi();
         var localTask = _detectGame(null);
 
@@ -186,6 +188,9 @@ internal sealed class StartupCoordinator
                 _logger.Info("Startup: API success but no install_path_patterns for fallback");
             }
         }
+
+        startupSw.Stop();
+        _logger.Info($"Startup completed in {startupSw.ElapsedMilliseconds}ms (gamePath={gamePath != null}, apiSuccess={apiSuccess})");
 
         return new StartupCoordinatorResult(
             gamePath, gameSource,

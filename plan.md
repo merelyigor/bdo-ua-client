@@ -13,6 +13,7 @@
 - **v12.3.3.1** — StartupCoordinator extraction, ApiErrorPresentation, 329 tests
 - **v12.3.3.2** — finalize startup game state safely, deterministic tests
 - **v12.3.4** — improve status readability (fonts, colors, wording, separators)
+- **v12.3.5** — startup loading responsiveness (HttpClient warmup, Marquee progress, timing logs)
 - **Latest SHA:** (see git log)
 - **Automated tests:** 335
 - **Normal CI:** PENDING
@@ -96,6 +97,22 @@
 - All state wording reviewed for contextual clarity
 - Separators: " • " (was " | ")
 - `ApplyLocalizationStatePresentation` helper sets text + color atomically
+
+### v12.3.5 — startup loading responsiveness
+
+**Status:** IMPLEMENTED — E2E PENDING
+
+**Real E2E finding:** First HttpClient request to bdo-ua.com.ua took ~21 seconds on test machine due to TLS/CRL/OCSP cold start. Subsequent requests: ~70ms. curl: ~150ms. Root cause: .NET SocketsHttpHandler TLS certificate revocation checking on first connection.
+
+**Fix:**
+- HttpClient warmup: background `Task.Run` HEAD request in Program.Main() fires immediately
+- `BdoUaApiClient.GetReleasesAsync` awaits warmup before first API call
+- TLS session cached during app startup (~200ms), API request completes in ~60ms
+- Startup total: 147-247ms (was ~21,000ms+)
+- Marquee progress bar for indeterminate states (LoadingApi, DetectingGame, Verifying, etc.)
+- Stopwatch-based timing logs for API HTTP GET and total startup
+
+**Root README requirement:** After v12.3.5 acceptance, promote docs/README-draft.md to root README.md in a separate documentation-only commit.
 
 ## Дорожня карта
 
