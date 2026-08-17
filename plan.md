@@ -125,14 +125,71 @@ Target:
 - Release candidate artifact
 
 ### v12.6 — Public release preparation
-Target:
-- Real GitHub Release workflow
-- Version/tag strategy
-- Release asset ZIP containing one EXE
-- Final README
-- Download/use instructions
-- Release notes
-- Traceability/version metadata as needed
+
+**Release ownership:** Production releases are manually initiated by the repository owner. Normal CI may run automatically, but no production GitHub Release is published solely because code was pushed or merged.
+
+**Target:**
+- Two-phase manually controlled release pipeline
+- Canonical version source (`Directory.Build.props` or equivalent)
+- Final README, download/use instructions, release notes
+
+#### A. Existing CI (unchanged)
+- Automatic push/PR verification
+- Development safety check
+
+#### B. Existing Release Build (unchanged)
+- Manual `workflow_dispatch`
+- Test/E2E artifact only
+- NOT a public GitHub Release
+
+#### C. Production Release workflow — `workflow_dispatch` only
+
+**PHASE 1 — PREPARE RELEASE**
+
+User manually supplies semantic version (e.g. `1.0.0`).
+
+Pipeline:
+1. Validate semantic version
+2. Verify release version/tag does not already exist
+3. Update one canonical project version source
+4. Ensure executable version metadata derives from that version
+5. Run Restore + Release Build + full tests
+6. Create branch `release/v1.0.0`
+7. Commit version preparation changes
+8. Push release branch
+9. Create PR `release/v1.0.0 → main`
+10. Stop
+
+Pipeline must NOT: merge PR, create tag, publish GitHub Release.
+
+User reviews and merges the release PR manually.
+
+**PHASE 2 — PUBLISH RELEASE**
+
+User manually starts workflow after PR merge. Input: `version = 1.0.0`.
+
+Pipeline:
+1. Operate from current main
+2. Verify main contains canonical version 1.0.0
+3. Verify tag `v1.0.0` does not exist
+4. Restore + Build Release + full tests
+5. Publish win-x64 self-contained single-file build
+6. Produce exactly: `BDO-UA-Client.exe`
+7. Package as: `BDO-UA-Client-v1.0.0-win-x64.zip` (contains exactly `BDO-UA-Client.exe`)
+8. Create immutable tag `v1.0.0` on verified main SHA
+9. Create GitHub Release: `BDO UA Client v1.0.0`
+10. Upload versioned ZIP as release asset with release notes
+11. Report exact SHA, tag, release URL, asset digest
+
+No automatic publication after merge. User must explicitly invoke Publish Release.
+
+#### Version source of truth
+
+ONE canonical project version source (preferred: `Directory.Build.props`).
+
+Must drive: `Version`, `FileVersion`, `AssemblyVersion`, `InformationalVersion`, release validation, tag, GitHub Release name, ZIP asset filename.
+
+Avoid duplicating manually maintained versions across workflow YAML, C# constants, csproj files, README, release scripts.
 
 ### v1.0.0
 First public release only after v12.4-v12.6 acceptance.
