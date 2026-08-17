@@ -986,7 +986,11 @@ public partial class MainForm : Form
 
     public void SetGamePathText(string text) => gamePathLabel.Text = text;
 
-    public void SetLocalizationStateText(string text) => localizationStateLabel.Text = text;
+    public void SetLocalizationStateText(string text)
+    {
+        localizationStateLabel.Text = text;
+        localizationStateLabel.ForeColor = SystemColors.ControlText;
+    }
 
     private void ApplyLocalizationStatePresentation(LocalizationState state)
     {
