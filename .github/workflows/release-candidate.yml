@@ -41,16 +41,27 @@ jobs:
         }
         Write-Output "Branch validated: main"
 
-    - name: Check tag does not exist
+    - name: Check tag does not exist (local + remote)
       shell: pwsh
       run: |
-        $tag = "v${{ inputs.version }}"
-        $existing = git tag -l $tag
-        if ($existing) {
-          Write-Error "Tag $tag already exists. Use a different version."
+        $version = "${{ inputs.version }}"
+        $tag = "v$version"
+
+        # Local check
+        $local = git tag -l $tag
+        if ($local) {
+          Write-Error "Tag $tag already exists locally. Use a different version."
           exit 1
         }
-        Write-Output "Tag $tag is available"
+
+        # Remote check
+        $remote = git ls-remote origin "refs/tags/$tag"
+        if ($remote) {
+          Write-Error "Tag $tag already exists on remote. Use a different version."
+          exit 1
+        }
+
+        Write-Output "Tag $tag is available (local + remote)"
 
     - name: Setup .NET 8
       uses: actions/setup-dotnet@v4
@@ -61,24 +72,43 @@ jobs:
       run: dotnet restore BdoUaClient.sln
 
     - name: Build Release
-      run: dotnet build BdoUaClient.sln -c Release --no-restore
+      shell: pwsh
+      run: |
+        $version = "${{ inputs.version }}"
+        $versionParts = $version.Split('.')
+        $assemblyVersion = "$($versionParts[0]).$($versionParts[1]).$($versionParts[2]).0"
+
+        dotnet build BdoUaClient.sln `
+          -c Release `
+          --no-restore `
+          -p:Version=$version `
+          -p:AssemblyVersion=$assemblyVersion `
+          -p:FileVersion=$assemblyVersion `
+          -p:InformationalVersion=$version
 
     - name: Test Release
       run: dotnet test BdoUaClient.sln -c Release --no-build
 
     - name: Publish single-file win-x64
-      run: >
-        dotnet publish BdoClient.csproj
-        -c Release
-        -r win-x64
-        --self-contained true
-        -p:PublishSingleFile=true
-        -p:IncludeNativeLibrariesForSelfExtract=true
-        -p:PublishTrimmed=false
-        -p:AssemblyName=BDO-UA-Client
-        -p:FileVersion=${{ inputs.version }}.0
-        -p:InformationalVersion=${{ inputs.version }}
-        -o artifacts/publish/win-x64
+      shell: pwsh
+      run: |
+        $version = "${{ inputs.version }}"
+        $versionParts = $version.Split('.')
+        $assemblyVersion = "$($versionParts[0]).$($versionParts[1]).$($versionParts[2]).0"
+
+        dotnet publish BdoClient.csproj `
+          -c Release `
+          -r win-x64 `
+          --self-contained true `
+          -p:PublishSingleFile=true `
+          -p:IncludeNativeLibrariesForSelfExtract=true `
+          -p:PublishTrimmed=false `
+          -p:AssemblyName=BDO-UA-Client `
+          -p:Version=$version `
+          -p:AssemblyVersion=$assemblyVersion `
+          -p:FileVersion=$assemblyVersion `
+          -p:InformationalVersion=$version `
+          -o artifacts/publish/win-x64
 
     - name: Verify EXE exists
       shell: pwsh
@@ -96,13 +126,20 @@ jobs:
       run: |
         $exe = "artifacts/publish/win-x64/BDO-UA-Client.exe"
         $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exe)
-        Write-Output "FileVersion: $($info.FileVersion)"
+        $version = "${{ inputs.version }}"
+
+        Write-Output "FileVersion:    $($info.FileVersion)"
         Write-Output "ProductVersion: $($info.ProductVersion)"
-        $expected = "${{ inputs.version }}"
-        if ($info.FileVersion -notlike "$expected*") {
-          Write-Error "FileVersion '$($info.FileVersion)' does not match expected '$expected'"
+
+        if ($info.FileVersion -notlike "$version*") {
+          Write-Error "FileVersion '$($info.FileVersion)' does not start with '$version'"
           exit 1
         }
+        if ($info.ProductVersion -notlike "$version*") {
+          Write-Error "ProductVersion '$($info.ProductVersion)' does not start with '$version'"
+          exit 1
+        }
+        Write-Output "EXE version metadata verified"
 
     - name: Create versioned ZIP
       shell: pwsh
@@ -135,6 +172,7 @@ jobs:
           Write-Error "ZIP must contain BDO-UA-Client.exe. Found: $($entries[0])"
           exit 1
         }
+        Write-Output "ZIP contents verified"
 
     - name: Calculate SHA-256
       shell: pwsh
@@ -145,7 +183,6 @@ jobs:
         $zipName = "BDO-UA-Client-v$version-win-x64.zip"
         "$hash  $zipName" | Out-File -FilePath "artifacts/SHA256SUMS.txt" -Encoding utf8
         Write-Output "SHA-256: $hash"
-        Write-Output "SHA256SUMS.txt created"
 
     - name: Create release manifest
       shell: pwsh
@@ -163,6 +200,7 @@ jobs:
           commit_sha = $sha
           asset_name = $assetName
           sha256 = $hash
+          platform = "win-x64"
           workflow_run_id = $runId
         } | ConvertTo-Json -Depth 2
 
@@ -206,10 +244,10 @@ jobs:
         $tag = "v$version"
         $sha = "${{ github.sha }}"
 
-        # Re-check tag does not exist
-        $existing = git tag -l $tag
-        if ($existing) {
-          Write-Error "Tag $tag was created by another process. Aborting."
+        # Re-check remote tag does not exist
+        $remote = git ls-remote origin "refs/tags/$tag"
+        if ($remote) {
+          Write-Error "Tag $tag was created on remote by another process. Aborting."
           exit 1
         }
 
@@ -218,3 +256,37 @@ jobs:
         git tag -a $tag -m "Release $tag" $sha
         git push origin $tag
         Write-Output "Tag $tag created and pushed on $sha"
+
+    - name: Summary
+      shell: pwsh
+      run: |
+        $version = "${{ inputs.version }}"
+        $tag = "v$version"
+        $sha = "${{ github.sha }}"
+        $assetName = "BDO-UA-Client-v$version-win-x64.zip"
+        $hash = (Get-Content "artifacts/SHA256SUMS.txt" -Raw).Split(" ")[0]
+
+        @"
+        ## Release Candidate v$version
+
+        | | |
+        |---|---|
+        | **Version** | $version |
+        | **Tag** | $tag |
+        | **Commit** | ``$sha`` |
+        | **Asset** | $assetName |
+        | **SHA-256** | ``$hash`` |
+        | **Artifact** | ``BDO-UA-Client-v$version-win-x64`` |
+
+        ### Next steps
+
+        1. Download artifact ``BDO-UA-Client-v$version-win-x64``
+        2. Test exact ``BDO-UA-Client-v$version-win-x64.zip`` locally
+        3. Draft GitHub Release → select tag ``$tag``
+        4. Use generated ``RELEASE_NOTES-v$version.md`` (edit changelog)
+        5. Upload exact ``$assetName`` from artifact
+        6. Optionally upload ``SHA256SUMS.txt``
+        7. Click **Publish release**
+
+        > GitHub Release is NOT created automatically.
+        "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8

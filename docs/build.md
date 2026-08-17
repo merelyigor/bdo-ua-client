@@ -104,11 +104,24 @@ Restore + Build + Test обов'язкові перед publish.
 
 Це **артефакт GitHub Actions**, а не GitHub Release. Артефакт доступний для завантаження зі сторінки workflow run.
 
-## GitHub Release
+## Workflows
 
-GitHub Release — заплановано на **v12.6**, наразі не реалізовано.
+### A. CI (`ci.yml`)
+- **Trigger:** push до main, PR до main
+- Автоматична перевірка кожного коміту/PR на компільність та проходження тестів
 
-Планується:
-- Автоматичне створення release при тегу
-- Прикріплення EXE як release asset
-- Release notes з changelog
+### B. Release Build (`release-build.yml`)
+- **Trigger:** `workflow_dispatch` (ручний запуск)
+- Загальний E2E/testing artifact без версії/тегу
+- НЕ створює GitHub Release
+
+### C. Release Candidate (`release-candidate.yml`)
+- **Trigger:** `workflow_dispatch` (ручний запуск власником)
+- Введення версії (наприклад, `0.1.0`)
+- Збірка + тести + publish + versioned ZIP + SHA-256 + tag
+- Actions artifact з ZIP, SHA256SUMS.txt, release-manifest.json, RELEASE_NOTES
+- НЕ створює GitHub Release автоматично
+
+### D. GitHub Release
+- Створюється та публікується **вручну власником** репозиторію
+- Після успішного Release Candidate: завантажити artifact → створити release → обрати тег → завантажити ZIP → Publish

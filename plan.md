@@ -15,10 +15,11 @@
 - **v12.3.4 / v12.3.4.1 / v12.3.4.2** — status readability, neutral color reset, README screenshots
 - **v12.3.5 / v12.3.5.1** — Marquee progress, timing logs, application icon
 - **v12.4** — public root README, release candidate workflow, release docs
+- **v12.4.1** — finalize release candidate workflow (version properties, remote tag check, step summary)
 - **Latest SHA:** (see git log)
 - **Automated tests:** 336
 - **Normal CI:** PENDING
-- **Windows E2E:** PENDING
+- **Release Candidate:** PENDING (first real candidate after acceptance)
 
 ## Поточна фаза
 
@@ -159,6 +160,17 @@ Target:
 
 ### v1.0.0
 First public release after v12.4-v12.5 acceptance.
+
+### Future: Client auto-update
+Target (post v1.0.0 stabilization):
+- Application reads own version from assembly metadata
+- Startup checks latest published client release metadata (release-manifest.json)
+- Semantic version comparison (numeric, not lexicographic)
+- User-confirmed update: "Доступна нова версія BDO UA Client X.Y.Z" → "Оновити зараз" / "Пізніше"
+- Download to temp → SHA-256 verify → validate version → close → replace → restart
+- Preserve rollback/recovery path
+- No silent forced auto-update as first implementation
+- Future GitHub Releases should include ZIP + SHA256SUMS.txt + release-manifest.json
 
 ---
 

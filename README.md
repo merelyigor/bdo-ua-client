@@ -35,7 +35,7 @@
 
 ## Завантаження
 
-Офіційні релізи доступні на сторінці **[GitHub Releases](https://github.com/merelyigor/bdo-ua-client/releases)**.
+Офіційні збірки BDO UA Client публікуються на сторінці **[GitHub Releases](https://github.com/merelyigor/bdo-ua-client/releases)**.
 
 Завантажте архів:
 
