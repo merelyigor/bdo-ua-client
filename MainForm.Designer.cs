@@ -191,7 +191,8 @@ partial class MainForm
             Text = "Не визначено",
             Dock = DockStyle.Top,
             AutoSize = true,
-            Font = new System.Drawing.Font(this.Font, System.Drawing.FontStyle.Bold),
+            Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold),
+            ForeColor = SystemColors.ControlText,
             Margin = new Padding(0, 0, 0, 2)
         };
 
@@ -200,7 +201,8 @@ partial class MainForm
             Text = "",
             Dock = DockStyle.Top,
             AutoSize = true,
-            ForeColor = System.Drawing.SystemColors.GrayText,
+            Font = new System.Drawing.Font("Segoe UI", 9.5F),
+            ForeColor = System.Drawing.SystemColors.ControlText,
             Margin = new Padding(0, 0, 0, 2)
         };
 
@@ -209,7 +211,8 @@ partial class MainForm
             Text = "",
             Dock = DockStyle.Top,
             AutoSize = true,
-            ForeColor = System.Drawing.SystemColors.GrayText,
+            Font = new System.Drawing.Font("Segoe UI", 9.5F),
+            ForeColor = System.Drawing.SystemColors.ControlText,
             Margin = new Padding(0, 0, 0, 4)
         };
 

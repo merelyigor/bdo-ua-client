@@ -862,7 +862,7 @@ public partial class MainForm : Form
         var gameLocPath = Path.Combine(_gameRoot, "ads", "languagedata_en.loc");
         var stateResult = await _stateService.ResolveAsync(installedModeCurrent, gameLocPath);
         _lastResolvedState = stateResult.State;
-        SetLocalizationStateText(GetStateDisplayText(stateResult.State));
+        ApplyLocalizationStatePresentation(stateResult.State);
 
         // Installed info display
         if (installedLoad.Status == FileLoadStatus.Valid && installedLoad.Value?.Source == "api")
@@ -872,9 +872,9 @@ public partial class MainForm : Form
                 : "";
             var info = $"Встановлено: {installedModeDisplayName ?? "невідомо"}";
             if (installedLoad.Value.Version > 0)
-                info += $"  |  v{installedLoad.Value.Version}";
+                info += $" • v{installedLoad.Value.Version}";
             if (dateStr != "")
-                info += $"  |  {dateStr}";
+                info += $" • {dateStr}";
             SetInstalledInfo(info);
         }
         else if (installedLoad.Status == FileLoadStatus.Missing
@@ -897,7 +897,7 @@ public partial class MainForm : Form
             var selLine = DynamicModePolicy.FormatReleaseLine(selectedMode!);
             SetSelectedInfo(string.IsNullOrEmpty(selLine)
                 ? $"Обрано: {selName}"
-                : $"Обрано: {selName} | {selLine}");
+                : $"Обрано: {selName} • {selLine}");
         }
         else
         {
@@ -973,11 +973,11 @@ public partial class MainForm : Form
 
     private static string GetStateDisplayText(LocalizationState state) => state switch
     {
-        LocalizationState.NotInstalled => "Не встановлено",
-        LocalizationState.UpToDate => "Актуальна",
-        LocalizationState.UpdateAvailable => "Доступна новіша версія",
-        LocalizationState.WaitingForRelease => "Очікується реліз",
-        LocalizationState.InstalledVersionUnknown => "Версію не вдалося визначити",
+        LocalizationState.NotInstalled => "Локалізацію не встановлено",
+        LocalizationState.UpToDate => "✓ Встановлена локалізація актуальна",
+        LocalizationState.UpdateAvailable => "Доступна новіша версія встановленої локалізації",
+        LocalizationState.WaitingForRelease => "Очікується актуальний реліз",
+        LocalizationState.InstalledVersionUnknown => "Не вдалося визначити встановлену версію",
         LocalizationState.Corrupted => "Файл локалізації пошкоджено",
         _ => "Не визначено"
     };
@@ -987,6 +987,17 @@ public partial class MainForm : Form
     public void SetGamePathText(string text) => gamePathLabel.Text = text;
 
     public void SetLocalizationStateText(string text) => localizationStateLabel.Text = text;
+
+    private void ApplyLocalizationStatePresentation(LocalizationState state)
+    {
+        localizationStateLabel.Text = GetStateDisplayText(state);
+        localizationStateLabel.ForeColor = state switch
+        {
+            LocalizationState.UpToDate => SuccessGreen,
+            LocalizationState.Corrupted => Color.DarkRed,
+            _ => SystemColors.ControlText
+        };
+    }
 
     public void SetInstalledInfo(string text) => installedInfoLabel.Text = text;
 

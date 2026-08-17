@@ -12,6 +12,7 @@
 - **v12.3.3** — parallel startup (API + local detection), API error mapping
 - **v12.3.3.1** — StartupCoordinator extraction, ApiErrorPresentation, 329 tests
 - **v12.3.3.2** — finalize startup game state safely, deterministic tests
+- **v12.3.4** — improve status readability (fonts, colors, wording, separators)
 - **Latest SHA:** (see git log)
 - **Automated tests:** 335
 - **Normal CI:** PENDING
@@ -81,6 +82,20 @@
 - API-pattern fallback UX: "Пошук гри за даними сервера..."
 - Deterministic TCS-based tests (no `Task.Delay` ordering)
 - 335 total tests
+
+### v12.3.4 — improve status readability
+
+**Status:** IMPLEMENTED — VISUAL E2E PENDING
+
+**Real E2E finding:** Status installed/selected information was functionally correct but insufficiently readable. GrayText color and small font made status labels hard to read. "Актуальна" was contextless when installed/selected modes differed.
+
+**Fix:**
+- `localizationStateLabel`: Segoe UI 10pt Bold, `ControlText` (green for UpToDate, DarkRed for Corrupted)
+- `installedInfoLabel` / `detailsLabel`: Segoe UI 9.5pt, `ControlText` (was GrayText)
+- UpToDate wording: "✓ Встановлена локалізація актуальна" (was "Актуальна")
+- All state wording reviewed for contextual clarity
+- Separators: " • " (was " | ")
+- `ApplyLocalizationStatePresentation` helper sets text + color atomically
 
 ## Дорожня карта
 
