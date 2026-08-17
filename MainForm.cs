@@ -23,6 +23,7 @@ public partial class MainForm : Form
     private ReleasesResponse? _apiResponse;
     private bool _apiLoadedSuccessfully;
     private string? _apiErrorMessage;
+    private ApiErrorKind _apiErrorKind;
     private bool _initializing;
     private bool _operationInProgress;
     private LocalizationState _lastResolvedState;
@@ -77,82 +78,60 @@ public partial class MainForm : Form
             var configLoad = _configStore.Load();
             var config = configLoad.Value ?? new Config();
 
-            // Phase 1: Start API and local detection in parallel
             SetOperationState(OperationState.LoadingApi);
             SetGameSearching();
             ShowModeLoadingPlaceholder();
 
-            var apiTask = _apiClient.GetReleasesAsync();
-            var localDetectionTask = _gameDetector.DetectAsync(apiPatterns: null);
+            var coordinator = new StartupCoordinator(
+                () => _apiClient.GetReleasesAsync(),
+                (patterns) => _gameDetector.DetectAsync(patterns),
+                _logger);
 
-            // Phase 2: Process local detection immediately
-            var detection = await localDetectionTask;
-            if (detection.IsFound && detection.GamePath != null)
-            {
-                _gameRoot = detection.GamePath;
-                SetGameFound(detection.GamePath, detection.Source);
-                _logger.Info($"Startup local game detection found: {detection.GamePath} ({detection.Source})");
-            }
-            else
-            {
-                _logger.Info("Startup local game detection not found");
-            }
-
-            // Phase 3: Process API result
-            var apiResult = await apiTask;
-            if (apiResult.IsSuccess && apiResult.Value?.Data?.Modes != null)
-            {
-                _apiResponse = apiResult.Value;
-                _apiLoadedSuccessfully = true;
-                _apiErrorMessage = null;
-                _logger.Info("Startup API loading completed");
-            }
-            else
-            {
-                _apiLoadedSuccessfully = false;
-                _apiErrorMessage = apiResult.ErrorMessage ?? "Невідома помилка сервера.";
-                _logger.Warning($"Startup API failed: {_apiErrorMessage}");
-            }
-
-            // Phase 4: Build modes from API data
-            if (_apiLoadedSuccessfully)
-            {
-                BuildDynamicModes();
-                RestoreLastMode(config);
-
-                // Phase 5: API-pattern fallback if local detection didn't find game
-                if (_gameRoot == null)
+            await coordinator.RunAsync(
+                onLocalDetectionComplete: localResult =>
                 {
-                    var patterns = _apiResponse?.Data?.InstallPathPatterns;
-                    if (patterns != null && patterns.Count > 0)
+                    if (localResult.GamePath != null)
                     {
-                        _logger.Info("Startup API-assisted detection started");
-                        var apiDetection = await _gameDetector.DetectAsync(patterns);
-                        if (apiDetection.IsFound && apiDetection.GamePath != null)
-                        {
-                            _gameRoot = apiDetection.GamePath;
-                            SetGameFound(apiDetection.GamePath, apiDetection.Source);
-                            _logger.Info($"Startup API-assisted detection found: {apiDetection.GamePath}");
-                        }
-                        else
-                        {
-                            SetGameNotFound("Гру не знайдено");
-                            _logger.Info("Startup API-assisted detection not found");
-                        }
+                        _gameRoot = localResult.GamePath;
+                        SetGameFound(localResult.GamePath, localResult.Source);
+                    }
+                    else
+                    {
+                        SetGameNotFound("Локально гру не знайдено. Очікування даних сервера...");
+                    }
+                },
+                onApiComplete: apiResult =>
+                {
+                    if (apiResult.Success && apiResult.Response != null)
+                    {
+                        _apiResponse = apiResult.Response;
+                        _apiLoadedSuccessfully = true;
+                        _apiErrorMessage = null;
+                        _apiErrorKind = ApiErrorKind.None;
+                        BuildDynamicModes();
+                        RestoreLastMode(config);
+                    }
+                    else
+                    {
+                        _apiLoadedSuccessfully = false;
+                        _apiErrorKind = apiResult.ErrorKind;
+                        _apiErrorMessage = apiResult.ErrorMessage;
+                        ShowModeFailurePlaceholder();
+                        SetMessage(ApiErrorPresentation.GetUserMessage(apiResult.ErrorKind, apiResult.ErrorMessage));
+                    }
+                },
+                onFallbackDetectionComplete: fallbackResult =>
+                {
+                    if (fallbackResult.GamePath != null)
+                    {
+                        _gameRoot = fallbackResult.GamePath;
+                        SetGameFound(fallbackResult.GamePath, fallbackResult.Source);
                     }
                     else
                     {
                         SetGameNotFound("Гру не знайдено");
                     }
-                }
-            }
-            else
-            {
-                ShowModeFailurePlaceholder();
-                if (_gameRoot == null)
-                    SetGameNotFound("Локально гру не знайдено.");
-                SetMessage(MapApiError(_apiErrorMessage));
-            }
+                });
 
             await RefreshStateAsync();
         }
@@ -245,22 +224,6 @@ public partial class MainForm : Form
             Margin = new Padding(0)
         };
         modesFlowPanel.Controls.Add(label);
-    }
-
-    private static string MapApiError(string? errorMessage)
-    {
-        if (string.IsNullOrWhiteSpace(errorMessage))
-            return "Не вдалося завантажити режими локалізації.";
-
-        if (errorMessage.Contains("timeout", StringComparison.OrdinalIgnoreCase)
-            || errorMessage.Contains("тайм-аут", StringComparison.OrdinalIgnoreCase))
-            return "Сервер не відповів вчасно.";
-
-        if (errorMessage.Contains("network", StringComparison.OrdinalIgnoreCase)
-            || errorMessage.Contains("мереж", StringComparison.OrdinalIgnoreCase))
-            return "Не вдалося підключитися до сервера.";
-
-        return $"Не вдалося завантажити режими локалізації: {errorMessage}";
     }
 
     private void SelectModeBySlug(string slug)
@@ -850,7 +813,7 @@ public partial class MainForm : Form
             SetSelectedInfo("");
             _lastResolvedState = LocalizationState.NotInstalled;
             if (!_apiLoadedSuccessfully)
-                SetMessage($"Помилка завантаження API: {_apiErrorMessage}");
+                SetMessage(ApiErrorPresentation.GetUserMessage(_apiErrorKind, _apiErrorMessage));
             else
                 SetMessage("Гру не знайдено. Натисніть \"Знайти гру\" або оберіть папку вручну.");
             return;
@@ -862,7 +825,7 @@ public partial class MainForm : Form
             SetInstalledInfo("");
             SetSelectedInfo("");
             _lastResolvedState = LocalizationState.NotInstalled;
-            SetMessage($"Помилка завантаження API: {_apiErrorMessage}");
+            SetMessage(ApiErrorPresentation.GetUserMessage(_apiErrorKind, _apiErrorMessage));
             SetActionsEnabled(false, !_operationInProgress);
             return;
         }
