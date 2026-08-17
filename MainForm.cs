@@ -77,35 +77,81 @@ public partial class MainForm : Form
             var configLoad = _configStore.Load();
             var config = configLoad.Value ?? new Config();
 
+            // Phase 1: Start API and local detection in parallel
             SetOperationState(OperationState.LoadingApi);
-            SetMessage("Завантаження даних з сервера...");
-            var apiResult = await _apiClient.GetReleasesAsync();
+            SetGameSearching();
+            ShowModeLoadingPlaceholder();
+
+            var apiTask = _apiClient.GetReleasesAsync();
+            var localDetectionTask = _gameDetector.DetectAsync(apiPatterns: null);
+
+            // Phase 2: Process local detection immediately
+            var detection = await localDetectionTask;
+            if (detection.IsFound && detection.GamePath != null)
+            {
+                _gameRoot = detection.GamePath;
+                SetGameFound(detection.GamePath, detection.Source);
+                _logger.Info($"Startup local game detection found: {detection.GamePath} ({detection.Source})");
+            }
+            else
+            {
+                _logger.Info("Startup local game detection not found");
+            }
+
+            // Phase 3: Process API result
+            var apiResult = await apiTask;
             if (apiResult.IsSuccess && apiResult.Value?.Data?.Modes != null)
             {
                 _apiResponse = apiResult.Value;
                 _apiLoadedSuccessfully = true;
                 _apiErrorMessage = null;
+                _logger.Info("Startup API loading completed");
             }
             else
             {
                 _apiLoadedSuccessfully = false;
                 _apiErrorMessage = apiResult.ErrorMessage ?? "Невідома помилка сервера.";
+                _logger.Warning($"Startup API failed: {_apiErrorMessage}");
             }
 
-            BuildDynamicModes();
-            RestoreLastMode(config);
-
-            SetOperationState(OperationState.DetectingGame);
-            var patterns = _apiResponse?.Data?.InstallPathPatterns;
-            var detection = await _gameDetector.DetectAsync(patterns);
-            if (detection.IsFound && detection.GamePath != null)
+            // Phase 4: Build modes from API data
+            if (_apiLoadedSuccessfully)
             {
-                _gameRoot = detection.GamePath;
-                SetGameFound(detection.GamePath, detection.Source);
+                BuildDynamicModes();
+                RestoreLastMode(config);
+
+                // Phase 5: API-pattern fallback if local detection didn't find game
+                if (_gameRoot == null)
+                {
+                    var patterns = _apiResponse?.Data?.InstallPathPatterns;
+                    if (patterns != null && patterns.Count > 0)
+                    {
+                        _logger.Info("Startup API-assisted detection started");
+                        var apiDetection = await _gameDetector.DetectAsync(patterns);
+                        if (apiDetection.IsFound && apiDetection.GamePath != null)
+                        {
+                            _gameRoot = apiDetection.GamePath;
+                            SetGameFound(apiDetection.GamePath, apiDetection.Source);
+                            _logger.Info($"Startup API-assisted detection found: {apiDetection.GamePath}");
+                        }
+                        else
+                        {
+                            SetGameNotFound("Гру не знайдено");
+                            _logger.Info("Startup API-assisted detection not found");
+                        }
+                    }
+                    else
+                    {
+                        SetGameNotFound("Гру не знайдено");
+                    }
+                }
             }
             else
             {
-                SetGameNotFound("Гру не знайдено");
+                ShowModeFailurePlaceholder();
+                if (_gameRoot == null)
+                    SetGameNotFound("Локально гру не знайдено.");
+                SetMessage(MapApiError(_apiErrorMessage));
             }
 
             await RefreshStateAsync();
@@ -130,6 +176,19 @@ public partial class MainForm : Form
 
         var allModes = _apiResponse?.Data?.Modes;
         var installable = DynamicModePolicy.GetInstallableModes(allModes);
+
+        if (installable.Count == 0)
+        {
+            var label = new Label
+            {
+                Text = "Наразі немає доступних режимів.",
+                AutoSize = true,
+                ForeColor = SystemColors.GrayText,
+                Margin = new Padding(0)
+            };
+            modesFlowPanel.Controls.Add(label);
+            return;
+        }
 
         foreach (var mode in installable)
         {
@@ -160,6 +219,48 @@ public partial class MainForm : Form
 
         if (selectedSlug != null)
             SelectModeBySlug(selectedSlug);
+    }
+
+    private void ShowModeLoadingPlaceholder()
+    {
+        modesFlowPanel.Controls.Clear();
+        var label = new Label
+        {
+            Text = "Завантаження доступних режимів...",
+            AutoSize = true,
+            ForeColor = SystemColors.GrayText,
+            Margin = new Padding(0)
+        };
+        modesFlowPanel.Controls.Add(label);
+    }
+
+    private void ShowModeFailurePlaceholder()
+    {
+        modesFlowPanel.Controls.Clear();
+        var label = new Label
+        {
+            Text = "Не вдалося завантажити режими.",
+            AutoSize = true,
+            ForeColor = SystemColors.GrayText,
+            Margin = new Padding(0)
+        };
+        modesFlowPanel.Controls.Add(label);
+    }
+
+    private static string MapApiError(string? errorMessage)
+    {
+        if (string.IsNullOrWhiteSpace(errorMessage))
+            return "Не вдалося завантажити режими локалізації.";
+
+        if (errorMessage.Contains("timeout", StringComparison.OrdinalIgnoreCase)
+            || errorMessage.Contains("тайм-аут", StringComparison.OrdinalIgnoreCase))
+            return "Сервер не відповів вчасно.";
+
+        if (errorMessage.Contains("network", StringComparison.OrdinalIgnoreCase)
+            || errorMessage.Contains("мереж", StringComparison.OrdinalIgnoreCase))
+            return "Не вдалося підключитися до сервера.";
+
+        return $"Не вдалося завантажити режими локалізації: {errorMessage}";
     }
 
     private void SelectModeBySlug(string slug)

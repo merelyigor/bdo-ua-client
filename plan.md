@@ -59,6 +59,22 @@
 - [ ] Normal CI green
 - [ ] Next Windows E2E pending
 
+### v12.3.3 — decouple startup detection from API loading
+
+**Status:** IMPLEMENTED — E2E PENDING
+
+**Problem:** Serial startup blocked game detection on API completion. When API hung/stalled, entire app appeared frozen with "Завантаження даних..." for 30+ seconds.
+
+**Fix:**
+- API request and local game detection run in parallel
+- Local detection result (SavedConfig/Registry/Steam) shown immediately
+- API patterns used as fallback if local detection fails
+- Mode loading placeholder: "Завантаження доступних режимів..."
+- API failure placeholder: "Не вдалося завантажити режими."
+- Zero modes: "Наразі немає доступних режимів."
+- API error messages mapped to Ukrainian
+- 4 new concurrency tests, 317 total
+
 ## Дорожня карта
 
 ### v12.3.x — E2E bugfix iterations
