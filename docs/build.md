@@ -72,13 +72,14 @@ Trimming може видалити типи, які використовують
 
 ### .github/workflows/ci.yml
 
-**Trigger:** push та PR до main.
+**Trigger:** push до main, PR до main, workflow_dispatch.
 
 **Етапи:**
 1. Checkout
 2. Setup .NET 8
-3. `dotnet build BdoUaClient.sln`
-4. `dotnet test BdoUaClient.sln --no-build`
+3. Restore: `dotnet restore BdoUaClient.sln`
+4. Build Release: `dotnet build BdoUaClient.sln --configuration Release --no-restore`
+5. Test Release: `dotnet test BdoUaClient.sln --configuration Release --no-build`
 
 Мета: швидка перевірка кожного коміту/PR на компільність та проходження тестів.
 
@@ -89,8 +90,13 @@ Trimming може видалити типи, які використовують
 **Етапи:**
 1. Checkout
 2. Setup .NET 8
-3. `dotnet publish` з параметрами release
-4. Upload artifact
+3. Restore: `dotnet restore BdoUaClient.sln`
+4. Build Release: `dotnet build BdoUaClient.sln -c Release --no-restore`
+5. Test Release: `dotnet test BdoUaClient.sln -c Release --no-build`
+6. Publish single-file: `dotnet publish BdoClient.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false -p:AssemblyName=BDO-UA-Client -o artifacts/publish/win-x64`
+7. Upload artifact: тільки `BDO-UA-Client.exe`
+
+Restore + Build + Test обов'язкові перед publish.
 
 ## Actions artifact
 

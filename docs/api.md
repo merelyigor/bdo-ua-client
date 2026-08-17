@@ -101,10 +101,7 @@ None, Cancelled, Timeout, Network, Http, InvalidResponse, Unexpected
 | `current` | `Current` | `CurrentRelease?` |
 | `history` | `History` | `List<ReleaseHistoryItem>?` |
 
-**Відомі slug:**
-- `full-ukrainian` — повна українська (Bosia + правки спільноти)
-- `full-ukrainian-bosia` — повна українська лише від Bosia
-- `english-items` — українські тексти з англійськими назвами предметів
+Набір режимів контролюється сервером. Клієнт не захаркоджує конкретні slug — API може додавати/видаляти режими без зміни клієнта. `mode.Slug` для клієнта є opaque identity.
 
 > **Важливо:** `current` може бути `null`. Це нормальний стан — означає, що актуальний release для цього режиму ще не опубліковано. Не є помилкою API чи десеріалізації.
 
@@ -126,7 +123,7 @@ None, Cancelled, Timeout, Network, Http, InvalidResponse, Unexpected
 | `stats` | `Stats` | `StatsInfo?` |
 | `announcements` | `Announcements` | `AnnouncementsInfo?` |
 
-Якщо `compatible_with_official_patch == false` — Install та Update заборонені.
+Якщо `compatible_with_official_patch == false` — встановлення обраного релізу заблоковане, download не починається. `LocalizationState.UpdateAvailable` може існувати як factual internal стан, але окремої публічної кнопки "Оновити" немає.
 
 ### ReleaseHistoryItem
 
