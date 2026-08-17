@@ -102,17 +102,22 @@
 
 **Status:** IMPLEMENTED — E2E PENDING
 
-**Real E2E finding:** First HttpClient request to bdo-ua.com.ua took ~21 seconds on test machine due to TLS/CRL/OCSP cold start. Subsequent requests: ~70ms. curl: ~150ms. Root cause: .NET SocketsHttpHandler TLS certificate revocation checking on first connection.
+**Real E2E finding:** First HttpClient request to bdo-ua.com.ua was observed to take ~21 seconds on the test Windows machine. The exact low-level cause was not conclusively established. Subsequent requests: ~70ms.
 
 **Fix:**
-- HttpClient warmup: background `Task.Run` HEAD request in Program.Main() fires immediately
-- `BdoUaApiClient.GetReleasesAsync` awaits warmup before first API call
-- TLS session cached during app startup (~200ms), API request completes in ~60ms
-- Startup total: 147-247ms (was ~21,000ms+)
 - Marquee progress bar for indeterminate states (LoadingApi, DetectingGame, Verifying, etc.)
-- Stopwatch-based timing logs for API HTTP GET and total startup
+- Stopwatch-based timing logs for API HTTP GET and total startup coordinator
+- Shared HttpClient, single GET request, bounded timeout, no security bypasses
 
-**Root README requirement:** After v12.3.5 acceptance, promote docs/README-draft.md to root README.md in a separate documentation-only commit.
+**v12.3.5.1 — harden startup networking and add application icon**
+
+**Status:** IMPLEMENTED — E2E PENDING
+
+**Fix:**
+- Removed sequential HEAD warmup → single GET to /api/public/v1/releases
+- Corrected root-cause wording (not conclusively established)
+- Application icon: `assets/bdo-ua-icon.ico` (6 sizes: 16-256) embedded via `<ApplicationIcon>`
+- HTTP test: `GetReleasesAsync_SingleGetRequest_CorrectUrl` verifies exactly one GET request
 
 ## Дорожня карта
 

@@ -132,6 +132,21 @@ public class BdoUaApiClientTests
         Assert.Equal(ApiErrorKind.Network, result.ErrorKind);
     }
 
+    [Fact]
+    public async Task GetReleasesAsync_SingleGetRequest_CorrectUrl()
+    {
+        var handler = new RecordingHttpMessageHandler("""{"success":true,"data":{"modes":[]}}""");
+        var httpClient = new HttpClient(handler);
+        var client = new BdoUaApiClient(httpClient, new NullLogger());
+
+        var result = await client.GetReleasesAsync();
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Get, handler.Requests[0].Method);
+        Assert.Contains("/releases", handler.Requests[0].RequestUri!.ToString());
+    }
+
     private class MockHttpMessageHandler : HttpMessageHandler
     {
         private readonly string _response;
@@ -181,6 +196,26 @@ public class BdoUaApiClientTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             throw new HttpRequestException("Connection refused");
+        }
+    }
+
+    private class RecordingHttpMessageHandler : HttpMessageHandler
+    {
+        private readonly string _response;
+        public List<HttpRequestMessage> Requests { get; } = new();
+
+        public RecordingHttpMessageHandler(string response)
+        {
+            _response = response;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(_response, Encoding.UTF8, "application/json")
+            });
         }
     }
 

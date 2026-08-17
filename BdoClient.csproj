@@ -8,6 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>BdoClient</RootNamespace>
     <AssemblyName>BdoClient</AssemblyName>
+    <ApplicationIcon>assets\bdo-ua-icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

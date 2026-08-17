@@ -13,29 +13,16 @@ public sealed class BdoUaApiClient
     private readonly HttpClient _httpClient;
     private readonly ILogger _logger;
     private readonly int _timeoutSeconds;
-    private readonly Task? _warmupTask;
-    private bool _warmupAwaited;
 
     public BdoUaApiClient(HttpClient httpClient, ILogger logger, int timeoutSeconds = DefaultTimeoutSeconds)
-        : this(httpClient, logger, null, timeoutSeconds) { }
-
-    public BdoUaApiClient(HttpClient httpClient, ILogger logger, Task? warmupTask, int timeoutSeconds = DefaultTimeoutSeconds)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _warmupTask = warmupTask;
         _timeoutSeconds = timeoutSeconds;
     }
 
     public async Task<ApiResult<ReleasesResponse>> GetReleasesAsync(CancellationToken cancellationToken = default)
     {
-        // Await HttpClient warmup on first call to avoid TLS/CRL cold start delay.
-        if (_warmupTask != null && !_warmupAwaited)
-        {
-            _warmupAwaited = true;
-            try { await _warmupTask; } catch { /* warmup is best-effort */ }
-        }
-
         var url = $"{BaseUrl}/releases";
         _logger.Debug($"Fetching releases from {url}");
 
