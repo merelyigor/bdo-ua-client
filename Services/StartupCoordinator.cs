@@ -32,6 +32,29 @@ internal sealed class StartupApiResult
     }
 }
 
+internal sealed class StartupCoordinatorResult
+{
+    public string? FinalGamePath { get; }
+    public DetectionSource? FinalGameSource { get; }
+    public bool ApiSuccess { get; }
+    public ReleasesResponse? ApiResponse { get; }
+    public ApiErrorKind ApiErrorKind { get; }
+    public string? ApiErrorMessage { get; }
+
+    public StartupCoordinatorResult(
+        string? finalGamePath, DetectionSource? finalGameSource,
+        bool apiSuccess, ReleasesResponse? apiResponse,
+        ApiErrorKind apiErrorKind, string? apiErrorMessage)
+    {
+        FinalGamePath = finalGamePath;
+        FinalGameSource = finalGameSource;
+        ApiSuccess = apiSuccess;
+        ApiResponse = apiResponse;
+        ApiErrorKind = apiErrorKind;
+        ApiErrorMessage = apiErrorMessage;
+    }
+}
+
 internal sealed class StartupCoordinator
 {
     private readonly Func<Task<ApiResult<ReleasesResponse>>> _loadApi;
@@ -48,53 +71,79 @@ internal sealed class StartupCoordinator
         _logger = logger;
     }
 
-    public async Task RunAsync(
-        Action<StartupGameResult> onLocalDetectionComplete,
-        Action<StartupApiResult> onApiComplete,
-        Action<StartupGameResult> onFallbackDetectionComplete,
-        CancellationToken cancellationToken = default)
+    public async Task<StartupCoordinatorResult> RunAsync(
+        Action<StartupGameResult>? onLocalDetectionComplete = null,
+        Action<StartupApiResult>? onApiComplete = null,
+        Action? onFallbackStarted = null)
     {
         var apiTask = _loadApi();
         var localTask = _detectGame(null);
 
         bool localDone = false;
         bool apiDone = false;
-        bool localFound = false;
+
+        string? gamePath = null;
+        DetectionSource? gameSource = null;
+        bool apiSuccess = false;
+        ReleasesResponse? apiResponse = null;
+        ApiErrorKind apiErrorKind = ApiErrorKind.None;
+        string? apiErrorMessage = null;
 
         while (!localDone || !apiDone)
         {
             if (!localDone && localTask.IsCompleted)
             {
                 localDone = true;
-                var detection = await localTask;
-                if (detection.IsFound && detection.GamePath != null)
+                try
                 {
-                    localFound = true;
-                    _logger.Info($"Startup local game detection found: {detection.GamePath} ({detection.Source})");
-                    onLocalDetectionComplete(new StartupGameResult(detection.GamePath, detection.Source));
+                    var detection = await localTask;
+                    if (detection.IsFound && detection.GamePath != null)
+                    {
+                        gamePath = detection.GamePath;
+                        gameSource = detection.Source;
+                        _logger.Info($"Startup local game detection found: {detection.GamePath} ({detection.Source})");
+                        onLocalDetectionComplete?.Invoke(new StartupGameResult(detection.GamePath, detection.Source));
+                    }
+                    else
+                    {
+                        _logger.Info("Startup local game detection not found");
+                        onLocalDetectionComplete?.Invoke(new StartupGameResult(null, null));
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    _logger.Info("Startup local game detection not found");
-                    onLocalDetectionComplete(new StartupGameResult(null, null));
+                    _logger.Error($"Startup local detection exception: {ex.Message}");
+                    onLocalDetectionComplete?.Invoke(new StartupGameResult(null, null));
                 }
             }
 
             if (!apiDone && apiTask.IsCompleted)
             {
                 apiDone = true;
-                var apiResult = await apiTask;
-                if (apiResult.IsSuccess && apiResult.Value?.Data?.Modes != null)
+                try
                 {
-                    _logger.Info("Startup API loading completed");
-                    onApiComplete(new StartupApiResult(true, apiResult.Value, ApiErrorKind.None, null));
+                    var apiResult = await apiTask;
+                    if (apiResult.IsSuccess && apiResult.Value?.Data?.Modes != null)
+                    {
+                        apiSuccess = true;
+                        apiResponse = apiResult.Value;
+                        _logger.Info("Startup API loading completed");
+                        onApiComplete?.Invoke(new StartupApiResult(true, apiResult.Value, ApiErrorKind.None, null));
+                    }
+                    else
+                    {
+                        apiErrorKind = apiResult.ErrorKind;
+                        apiErrorMessage = apiResult.ErrorMessage ?? "Невідома помилка сервера.";
+                        _logger.Warning($"Startup API failed: {apiErrorMessage}");
+                        onApiComplete?.Invoke(new StartupApiResult(false, null, apiErrorKind, apiErrorMessage));
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    var kind = apiResult.ErrorKind;
-                    var msg = apiResult.ErrorMessage ?? "Невідома помилка сервера.";
-                    _logger.Warning($"Startup API failed: {msg}");
-                    onApiComplete(new StartupApiResult(false, null, kind, msg));
+                    apiErrorKind = ApiErrorKind.Unexpected;
+                    apiErrorMessage = ex.Message;
+                    _logger.Error($"Startup API exception: {ex.Message}");
+                    onApiComplete?.Invoke(new StartupApiResult(false, null, ApiErrorKind.Unexpected, ex.Message));
                 }
             }
 
@@ -107,25 +156,40 @@ internal sealed class StartupCoordinator
         }
 
         // Fallback: local NotFound + API success with patterns
-        if (!localFound && apiDone)
+        if (gamePath == null && apiSuccess)
         {
-            // Re-read API result (already awaited)
-            var apiResult = await apiTask;
-            if (apiResult.IsSuccess && apiResult.Value?.Data?.InstallPathPatterns is { Count: > 0 } patterns)
+            if (apiResponse?.Data?.InstallPathPatterns is { Count: > 0 } patterns)
             {
                 _logger.Info("Startup API-assisted detection started");
-                var fallbackResult = await _detectGame(patterns);
-                if (fallbackResult.IsFound && fallbackResult.GamePath != null)
+                onFallbackStarted?.Invoke();
+                try
                 {
-                    _logger.Info($"Startup API-assisted detection found: {fallbackResult.GamePath}");
-                    onFallbackDetectionComplete(new StartupGameResult(fallbackResult.GamePath, fallbackResult.Source));
+                    var fallbackResult = await _detectGame(patterns);
+                    if (fallbackResult.IsFound && fallbackResult.GamePath != null)
+                    {
+                        gamePath = fallbackResult.GamePath;
+                        gameSource = fallbackResult.Source;
+                        _logger.Info($"Startup API-assisted detection found: {fallbackResult.GamePath}");
+                    }
+                    else
+                    {
+                        _logger.Info("Startup API-assisted detection not found");
+                    }
                 }
-                else
+                catch (Exception ex)
                 {
-                    _logger.Info("Startup API-assisted detection not found");
-                    onFallbackDetectionComplete(new StartupGameResult(null, null));
+                    _logger.Error($"Startup fallback detection exception: {ex.Message}");
                 }
             }
+            else
+            {
+                _logger.Info("Startup: API success but no install_path_patterns for fallback");
+            }
         }
+
+        return new StartupCoordinatorResult(
+            gamePath, gameSource,
+            apiSuccess, apiResponse,
+            apiErrorKind, apiErrorMessage);
     }
 }

@@ -480,3 +480,85 @@ internal static class HashHelper
 ```
 
 SHA-256 повертається у форматі lowercase hex string.
+
+---
+
+## 11. StartupCoordinator
+
+Координація паралельного запуску: API + local game detection + API-pattern fallback. Повертає factual final game outcome.
+
+### Сигнатури
+
+```csharp
+internal sealed class StartupCoordinatorResult
+{
+    public string? FinalGamePath { get; }
+    public DetectionSource? FinalGameSource { get; }
+    public bool ApiSuccess { get; }
+    public ReleasesResponse? ApiResponse { get; }
+    public ApiErrorKind ApiErrorKind { get; }
+    public string? ApiErrorMessage { get; }
+}
+
+internal sealed class StartupCoordinator
+{
+    public StartupCoordinator(
+        Func<Task<ApiResult<ReleasesResponse>>> loadApi,
+        Func<IReadOnlyList<InstallPathPattern>?, Task<DetectionResult>> detectGame,
+        ILogger logger);
+
+    public async Task<StartupCoordinatorResult> RunAsync(
+        Action<StartupGameResult>? onLocalDetectionComplete = null,
+        Action<StartupApiResult>? onApiComplete = null,
+        Action? onFallbackStarted = null);
+}
+```
+
+### Логіка `RunAsync`
+
+1. Паралельно запускає API та local detection
+2. Обробляє результати в порядку завершення (callbacks)
+3. Повертає `StartupCoordinatorResult` з фінальним game outcome
+
+### Final outcome matrix
+
+| Local | API | Fallback | Final |
+|-------|-----|----------|-------|
+| Found | any | — | Found(local) |
+| NotFound | failure | — | NotFound |
+| NotFound | success, no patterns | — | NotFound |
+| NotFound | success, patterns | Found | Found(fallback) |
+| NotFound | success, patterns | NotFound | NotFound |
+
+### Callbacks
+
+- `onLocalDetectionComplete` — викликається при завершенні local detection
+- `onApiComplete` — викликається при завершенні API
+- `onFallbackStarted` — викликається перед початком API-pattern fallback
+
+---
+
+## 12. ApiErrorPresentation
+
+Маппінг `ApiErrorKind` → українське UI повідомлення. Статичний клас.
+
+### Сигнатури
+
+```csharp
+internal static class ApiErrorPresentation
+{
+    public static string GetUserMessage(ApiErrorKind errorKind, string? rawMessage = null);
+}
+```
+
+### Маппінг
+
+| ApiErrorKind | Повідомлення |
+|--------------|-------------|
+| `Timeout` | Сервер не відповів вчасно. |
+| `Network` | Не вдалося підключитися до сервера. |
+| `Http` | Сервер повернув помилку. |
+| `InvalidResponse` | Сервер повернув некоректні дані. |
+| `Cancelled` | Запит скасовано. |
+| `Unexpected` | Неочікувана помилка при зверненні до сервера. |
+| `None` | Не вдалося завантажити режими локалізації. |

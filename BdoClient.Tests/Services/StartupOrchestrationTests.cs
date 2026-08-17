@@ -28,13 +28,11 @@ public class StartupOrchestrationTests
     }
 
     [Fact]
-    public async Task LocalFirst_GameFound_BeforeApiCompletes()
+    public async Task LocalFirst_GameFound_ApiSuccess_FinalFound()
     {
         var apiTcs = new TaskCompletionSource<ApiResult<ReleasesResponse>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        int callbackOrder = 0;
-        int localOrder = -1;
-        int apiOrder = -1;
-        string? localPath = null;
+        int localCb = 0;
+        int apiCb = 0;
 
         var coordinator = new StartupCoordinator(
             loadApi: () => apiTcs.Task,
@@ -44,34 +42,26 @@ public class StartupOrchestrationTests
         var runTask = coordinator.RunAsync(
             onLocalDetectionComplete: r =>
             {
-                localPath = r.GamePath;
-                localOrder = Interlocked.Increment(ref callbackOrder);
+                Interlocked.Increment(ref localCb);
+                apiTcs.TrySetResult(ApiResult<ReleasesResponse>.Success(MakeSuccessResponse()));
             },
-            onApiComplete: r => apiOrder = Interlocked.Increment(ref callbackOrder),
-            onFallbackDetectionComplete: _ => throw new Exception("fallback should not run"));
+            onApiComplete: _ => Interlocked.Increment(ref apiCb));
 
-        // Complete API on background thread to avoid tight-loop starvation
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(50);
-            apiTcs.SetResult(ApiResult<ReleasesResponse>.Success(MakeSuccessResponse()));
-        });
+        var result = await runTask;
 
-        await runTask;
-
-        Assert.Equal(@"C:\Games\BDO", localPath);
-        Assert.Equal(1, localOrder);
-        Assert.Equal(2, apiOrder);
+        Assert.Equal(@"C:\Games\BDO", result.FinalGamePath);
+        Assert.Equal(DetectionSource.SavedConfig, result.FinalGameSource);
+        Assert.True(result.ApiSuccess);
+        Assert.Equal(1, localCb);
+        Assert.Equal(1, apiCb);
     }
 
     [Fact]
-    public async Task ApiFirst_ApiSuccess_BeforeLocalCompletes()
+    public async Task ApiFirst_ApiSuccess_LocalFound_FinalFound()
     {
         var localTcs = new TaskCompletionSource<DetectionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        int callbackOrder = 0;
-        int localOrder = -1;
-        int apiOrder = -1;
-        bool apiSuccess = false;
+        int localCb = 0;
+        int apiCb = 0;
 
         var coordinator = new StartupCoordinator(
             loadApi: () => Task.FromResult(ApiResult<ReleasesResponse>.Success(MakeSuccessResponse())),
@@ -79,118 +69,235 @@ public class StartupOrchestrationTests
             logger: new TestLogger());
 
         var runTask = coordinator.RunAsync(
-            onLocalDetectionComplete: r => localOrder = Interlocked.Increment(ref callbackOrder),
+            onLocalDetectionComplete: r => Interlocked.Increment(ref localCb),
             onApiComplete: r =>
             {
-                apiSuccess = r.Success;
-                apiOrder = Interlocked.Increment(ref callbackOrder);
-            },
-            onFallbackDetectionComplete: _ => throw new Exception("fallback should not run"));
+                Interlocked.Increment(ref apiCb);
+                localTcs.TrySetResult(DetectionResult.Found(@"D:\BDO", DetectionSource.Registry));
+            });
 
-        // Complete local on background thread to avoid tight-loop starvation
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(50);
-            localTcs.SetResult(DetectionResult.Found(@"D:\BDO", DetectionSource.Registry));
-        });
+        var result = await runTask;
 
-        await runTask;
-
-        Assert.True(apiSuccess);
-        Assert.Equal(1, apiOrder);
-        Assert.Equal(2, localOrder);
+        Assert.Equal(@"D:\BDO", result.FinalGamePath);
+        Assert.Equal(DetectionSource.Registry, result.FinalGameSource);
+        Assert.True(result.ApiSuccess);
+        Assert.Equal(1, localCb);
+        Assert.Equal(1, apiCb);
     }
 
     [Fact]
-    public async Task LocalNotFound_ApiSuccessWithPatterns_FallbackRuns()
+    public async Task LocalNotFound_ApiFailure_FinalNotFound()
     {
-        var callLog = new List<IReadOnlyList<InstallPathPattern>?>();
+        var coordinator = new StartupCoordinator(
+            loadApi: () => Task.FromResult(ApiResult<ReleasesResponse>.Failure(ApiErrorKind.Timeout, "timeout")),
+            detectGame: _ => Task.FromResult(DetectionResult.NotFound()),
+            logger: new TestLogger());
+
+        var result = await coordinator.RunAsync();
+
+        Assert.Null(result.FinalGamePath);
+        Assert.False(result.ApiSuccess);
+        Assert.Equal(ApiErrorKind.Timeout, result.ApiErrorKind);
+    }
+
+    [Fact]
+    public async Task LocalNotFound_ApiSuccessNoPatterns_FinalNotFound()
+    {
+        var coordinator = new StartupCoordinator(
+            loadApi: () => Task.FromResult(ApiResult<ReleasesResponse>.Success(MakeSuccessResponse(patterns: null))),
+            detectGame: _ => Task.FromResult(DetectionResult.NotFound()),
+            logger: new TestLogger());
+
+        var result = await coordinator.RunAsync();
+
+        Assert.Null(result.FinalGamePath);
+        Assert.True(result.ApiSuccess);
+    }
+
+    [Fact]
+    public async Task LocalNotFound_ApiSuccessWithPatterns_FallbackFound()
+    {
+        int detectCalls = 0;
 
         var coordinator = new StartupCoordinator(
             loadApi: () => Task.FromResult(ApiResult<ReleasesResponse>.Success(MakeSuccessResponse(new List<InstallPathPattern> { TestPattern }))),
             detectGame: patterns =>
             {
-                callLog.Add(patterns);
+                Interlocked.Increment(ref detectCalls);
                 return Task.FromResult(patterns is { Count: > 0 }
                     ? DetectionResult.Found(@"E:\Games\BDO", DetectionSource.ApiPattern)
                     : DetectionResult.NotFound());
             },
             logger: new TestLogger());
 
-        string? fallbackPath = null;
+        var result = await coordinator.RunAsync();
 
-        await coordinator.RunAsync(
-            onLocalDetectionComplete: _ => { },
-            onApiComplete: _ => { },
-            onFallbackDetectionComplete: r => fallbackPath = r.GamePath);
-
-        Assert.Equal(@"E:\Games\BDO", fallbackPath);
-        Assert.Equal(2, callLog.Count);
-        Assert.Null(callLog[0]);
-        Assert.NotNull(callLog[1]);
-        Assert.Single(callLog[1]!);
+        Assert.Equal(@"E:\Games\BDO", result.FinalGamePath);
+        Assert.Equal(DetectionSource.ApiPattern, result.FinalGameSource);
+        Assert.True(result.ApiSuccess);
+        Assert.Equal(2, detectCalls);
     }
 
     [Fact]
-    public async Task ApiFirst_LocalNotFound_FallbackRuns()
+    public async Task LocalNotFound_ApiSuccessWithPatterns_FallbackNotFound()
     {
-        var localTcs = new TaskCompletionSource<DetectionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-        string? fallbackPath = null;
-
-        var coordinator = new StartupCoordinator(
-            loadApi: () => Task.FromResult(ApiResult<ReleasesResponse>.Success(MakeSuccessResponse(new List<InstallPathPattern> { TestPattern }))),
-            detectGame: patterns => patterns is { Count: > 0 }
-                ? Task.FromResult(DetectionResult.Found(@"F:\BDO", DetectionSource.ApiPattern))
-                : localTcs.Task,
-            logger: new TestLogger());
-
-        var runTask = coordinator.RunAsync(
-            onLocalDetectionComplete: _ => { },
-            onApiComplete: _ => { },
-            onFallbackDetectionComplete: r => fallbackPath = r.GamePath);
-
-        // Local still pending — fallback should not have run yet
-        Assert.Null(fallbackPath);
-
-        // Complete local as NotFound on background thread to avoid tight-loop starvation
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(50);
-            localTcs.SetResult(DetectionResult.NotFound());
-        });
-
-        await runTask;
-
-        Assert.Equal(@"F:\BDO", fallbackPath);
-    }
-
-    [Fact]
-    public async Task LocalFound_ApiSuccess_NoFallback()
-    {
-        int detectCallCount = 0;
+        int detectCalls = 0;
 
         var coordinator = new StartupCoordinator(
             loadApi: () => Task.FromResult(ApiResult<ReleasesResponse>.Success(MakeSuccessResponse(new List<InstallPathPattern> { TestPattern }))),
             detectGame: _ =>
             {
-                Interlocked.Increment(ref detectCallCount);
+                Interlocked.Increment(ref detectCalls);
+                return Task.FromResult(DetectionResult.NotFound());
+            },
+            logger: new TestLogger());
+
+        var result = await coordinator.RunAsync();
+
+        Assert.Null(result.FinalGamePath);
+        Assert.True(result.ApiSuccess);
+        Assert.Equal(2, detectCalls);
+    }
+
+    [Fact]
+    public async Task ApiFirst_NoPatterns_LocalNotFound_FinalNotFound()
+    {
+        var localTcs = new TaskCompletionSource<DetectionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var coordinator = new StartupCoordinator(
+            loadApi: () => Task.FromResult(ApiResult<ReleasesResponse>.Success(MakeSuccessResponse(patterns: null))),
+            detectGame: _ => localTcs.Task,
+            logger: new TestLogger());
+
+        var runTask = coordinator.RunAsync(
+            onApiComplete: _ => localTcs.TrySetResult(DetectionResult.NotFound()));
+
+        var result = await runTask;
+
+        Assert.Null(result.FinalGamePath);
+        Assert.True(result.ApiSuccess);
+    }
+
+    [Fact]
+    public async Task LocalFirst_Fallback_Deterministic()
+    {
+        var apiTcs = new TaskCompletionSource<ApiResult<ReleasesResponse>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        int fallbackCb = 0;
+
+        var coordinator = new StartupCoordinator(
+            loadApi: () => apiTcs.Task,
+            detectGame: patterns => Task.FromResult(patterns is { Count: > 0 }
+                ? DetectionResult.Found(@"F:\BDO", DetectionSource.ApiPattern)
+                : DetectionResult.NotFound()),
+            logger: new TestLogger());
+
+        var runTask = coordinator.RunAsync(
+            onLocalDetectionComplete: r =>
+            {
+                apiTcs.TrySetResult(ApiResult<ReleasesResponse>.Success(MakeSuccessResponse(new List<InstallPathPattern> { TestPattern })));
+            },
+            onFallbackStarted: () => Interlocked.Increment(ref fallbackCb));
+
+        var result = await runTask;
+
+        Assert.Equal(@"F:\BDO", result.FinalGamePath);
+        Assert.Equal(1, fallbackCb);
+    }
+
+    [Fact]
+    public async Task ApiFirst_Fallback_Deterministic()
+    {
+        var localTcs = new TaskCompletionSource<DetectionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        int fallbackCb = 0;
+
+        var coordinator = new StartupCoordinator(
+            loadApi: () => Task.FromResult(ApiResult<ReleasesResponse>.Success(MakeSuccessResponse(new List<InstallPathPattern> { TestPattern }))),
+            detectGame: patterns => patterns is { Count: > 0 }
+                ? Task.FromResult(DetectionResult.Found(@"G:\BDO", DetectionSource.ApiPattern))
+                : localTcs.Task,
+            logger: new TestLogger());
+
+        var runTask = coordinator.RunAsync(
+            onApiComplete: r =>
+            {
+                localTcs.TrySetResult(DetectionResult.NotFound());
+            },
+            onFallbackStarted: () => Interlocked.Increment(ref fallbackCb));
+
+        var result = await runTask;
+
+        Assert.Equal(@"G:\BDO", result.FinalGamePath);
+        Assert.Equal(1, fallbackCb);
+    }
+
+    [Fact]
+    public async Task LocalFound_ApiSuccess_NoFallback()
+    {
+        int detectCalls = 0;
+
+        var coordinator = new StartupCoordinator(
+            loadApi: () => Task.FromResult(ApiResult<ReleasesResponse>.Success(MakeSuccessResponse(new List<InstallPathPattern> { TestPattern }))),
+            detectGame: _ =>
+            {
+                Interlocked.Increment(ref detectCalls);
                 return Task.FromResult(DetectionResult.Found(@"C:\Games\BDO", DetectionSource.Steam));
             },
             logger: new TestLogger());
 
-        await coordinator.RunAsync(
-            onLocalDetectionComplete: _ => { },
-            onApiComplete: _ => { },
-            onFallbackDetectionComplete: _ => throw new Exception("fallback should not run"));
+        var result = await coordinator.RunAsync();
 
-        Assert.Equal(1, detectCallCount);
+        Assert.Equal(@"C:\Games\BDO", result.FinalGamePath);
+        Assert.Equal(1, detectCalls);
     }
 
     [Fact]
-    public async Task LocalNotFound_ApiFailure_NoFallback()
+    public async Task ApiFailure_PreservesLocalFound()
     {
-        bool fallbackCalled = false;
-        bool apiSuccess = true;
+        var coordinator = new StartupCoordinator(
+            loadApi: () => Task.FromResult(ApiResult<ReleasesResponse>.Failure(ApiErrorKind.Network, "dns error")),
+            detectGame: _ => Task.FromResult(DetectionResult.Found(@"C:\Games\BDO", DetectionSource.SavedConfig)),
+            logger: new TestLogger());
+
+        var result = await coordinator.RunAsync();
+
+        Assert.Equal(@"C:\Games\BDO", result.FinalGamePath);
+        Assert.False(result.ApiSuccess);
+        Assert.Equal(ApiErrorKind.Network, result.ApiErrorKind);
+    }
+
+    [Fact]
+    public async Task CallbackException_Propagates_OtherTaskObserved()
+    {
+        var coordinator = new StartupCoordinator(
+            loadApi: () => Task.FromResult(ApiResult<ReleasesResponse>.Success(MakeSuccessResponse())),
+            detectGame: _ => Task.FromResult(DetectionResult.Found(@"C:\Games\BDO", DetectionSource.SavedConfig)),
+            logger: new TestLogger());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            coordinator.RunAsync(
+                onLocalDetectionComplete: _ => throw new InvalidOperationException("test")));
+    }
+
+    [Fact]
+    public async Task FallbackStarted_NotCalled_WhenLocalFound()
+    {
+        int fallbackStarted = 0;
+
+        var coordinator = new StartupCoordinator(
+            loadApi: () => Task.FromResult(ApiResult<ReleasesResponse>.Success(MakeSuccessResponse(new List<InstallPathPattern> { TestPattern }))),
+            detectGame: _ => Task.FromResult(DetectionResult.Found(@"C:\Games\BDO", DetectionSource.Steam)),
+            logger: new TestLogger());
+
+        await coordinator.RunAsync(
+            onFallbackStarted: () => Interlocked.Increment(ref fallbackStarted));
+
+        Assert.Equal(0, fallbackStarted);
+    }
+
+    [Fact]
+    public async Task FallbackStarted_NotCalled_WhenApiFailure()
+    {
+        int fallbackStarted = 0;
 
         var coordinator = new StartupCoordinator(
             loadApi: () => Task.FromResult(ApiResult<ReleasesResponse>.Failure(ApiErrorKind.Timeout, "timeout")),
@@ -198,52 +305,9 @@ public class StartupOrchestrationTests
             logger: new TestLogger());
 
         await coordinator.RunAsync(
-            onLocalDetectionComplete: _ => { },
-            onApiComplete: r => apiSuccess = r.Success,
-            onFallbackDetectionComplete: _ => fallbackCalled = true);
+            onFallbackStarted: () => Interlocked.Increment(ref fallbackStarted));
 
-        Assert.False(fallbackCalled);
-        Assert.False(apiSuccess);
-    }
-
-    [Fact]
-    public async Task LocalNotFound_ApiSuccessNoPatterns_FinalNotFound()
-    {
-        bool fallbackCalled = false;
-
-        var coordinator = new StartupCoordinator(
-            loadApi: () => Task.FromResult(ApiResult<ReleasesResponse>.Success(MakeSuccessResponse(patterns: null))),
-            detectGame: _ => Task.FromResult(DetectionResult.NotFound()),
-            logger: new TestLogger());
-
-        await coordinator.RunAsync(
-            onLocalDetectionComplete: _ => { },
-            onApiComplete: _ => { },
-            onFallbackDetectionComplete: _ => fallbackCalled = true);
-
-        Assert.False(fallbackCalled);
-    }
-
-    [Fact]
-    public async Task ApiFailure_PreservesLocalFound()
-    {
-        string? localPath = null;
-        bool apiSuccess = true;
-        bool fallbackCalled = false;
-
-        var coordinator = new StartupCoordinator(
-            loadApi: () => Task.FromResult(ApiResult<ReleasesResponse>.Failure(ApiErrorKind.Network, "dns error")),
-            detectGame: _ => Task.FromResult(DetectionResult.Found(@"C:\Games\BDO", DetectionSource.SavedConfig)),
-            logger: new TestLogger());
-
-        await coordinator.RunAsync(
-            onLocalDetectionComplete: r => localPath = r.GamePath,
-            onApiComplete: r => apiSuccess = r.Success,
-            onFallbackDetectionComplete: _ => fallbackCalled = true);
-
-        Assert.Equal(@"C:\Games\BDO", localPath);
-        Assert.False(apiSuccess);
-        Assert.False(fallbackCalled);
+        Assert.Equal(0, fallbackStarted);
     }
 
     private sealed class TestLogger : ILogger

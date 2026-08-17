@@ -8,7 +8,7 @@
 
 ## Кількість тестів
 
-**313** автоматизованих тестів.
+**335** автоматизованих тестів.
 
 ## Категорії тестів
 
@@ -38,6 +38,8 @@
 | `Services/DynamicModePolicyTests.cs` | Mode filtering (visibility, compatibility) |
 | `Services/InstallActionPolicyTests.cs` | Install policy (allowed/blocked actions), exact target resolution |
 | `Services/LocalizationCompatibilityServiceTests.cs` | Compatibility checks, `compatible_with_official_patch` |
+| `Services/StartupOrchestrationTests.cs` | Parallel startup orchestration: final game outcome (Found/NotFound), API-first/local-first ordering, fallback Found/NotFound, no-patterns, API failure, callback exception safety |
+| `Services/ApiErrorPresentationTests.cs` | `ApiErrorKind` → Ukrainian UI message mapping (all 6 kinds + None fallback) |
 
 ### Storage тести
 

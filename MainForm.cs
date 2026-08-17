@@ -87,7 +87,7 @@ public partial class MainForm : Form
                 (patterns) => _gameDetector.DetectAsync(patterns),
                 _logger);
 
-            await coordinator.RunAsync(
+            var result = await coordinator.RunAsync(
                 onLocalDetectionComplete: localResult =>
                 {
                     if (localResult.GamePath != null)
@@ -120,18 +120,20 @@ public partial class MainForm : Form
                         SetMessage(ApiErrorPresentation.GetUserMessage(apiResult.ErrorKind, apiResult.ErrorMessage));
                     }
                 },
-                onFallbackDetectionComplete: fallbackResult =>
+                onFallbackStarted: () =>
                 {
-                    if (fallbackResult.GamePath != null)
-                    {
-                        _gameRoot = fallbackResult.GamePath;
-                        SetGameFound(fallbackResult.GamePath, fallbackResult.Source);
-                    }
-                    else
-                    {
-                        SetGameNotFound("Гру не знайдено");
-                    }
+                    SetGameNotFound("Пошук гри за даними сервера...");
                 });
+
+            if (result.FinalGamePath != null)
+            {
+                _gameRoot = result.FinalGamePath;
+                SetGameFound(result.FinalGamePath, result.FinalGameSource);
+            }
+            else
+            {
+                SetGameNotFound("Гру не знайдено");
+            }
 
             await RefreshStateAsync();
         }

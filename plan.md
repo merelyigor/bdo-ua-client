@@ -9,8 +9,11 @@
 ## Current implementation
 
 - **v12.3 / v12.3.1** — mode selection, game detection UX, installed marker fixes
+- **v12.3.3** — parallel startup (API + local detection), API error mapping
+- **v12.3.3.1** — StartupCoordinator extraction, ApiErrorPresentation, 329 tests
+- **v12.3.3.2** — finalize startup game state safely, deterministic tests
 - **Latest SHA:** (see git log)
-- **Automated tests:** 313
+- **Automated tests:** 335
 - **Normal CI:** PENDING
 - **Windows E2E:** PENDING
 
@@ -72,8 +75,12 @@
 - Mode loading placeholder: "Завантаження доступних режимів..."
 - API failure placeholder: "Не вдалося завантажити режими."
 - Zero modes: "Наразі немає доступних режимів."
-- API error messages mapped to Ukrainian
-- 4 new concurrency tests, 317 total
+- API error messages mapped to Ukrainian via `ApiErrorPresentation`
+- `StartupCoordinator` returns factual final game outcome (`StartupCoordinatorResult`)
+- Final game status applied after coordinator completes (no stale transitional text)
+- API-pattern fallback UX: "Пошук гри за даними сервера..."
+- Deterministic TCS-based tests (no `Task.Delay` ordering)
+- 335 total tests
 
 ## Дорожня карта
 
