@@ -32,3 +32,16 @@ jobs:
     - name: Version resolver tests
       shell: pwsh
       run: scripts/Test-Resolve-ReleaseVersion.ps1
+
+    - name: Version resolver smoke (real origin)
+      shell: pwsh
+      run: |
+        $result = & scripts/Resolve-ReleaseVersion.ps1 -ManualVersion ""
+        $result | ForEach-Object { Write-Output $_ }
+        $version = ($result | Where-Object { $_ -match '^RELEASE_VERSION=' } | ForEach-Object { ($_ -split '=', 2)[1] })
+        $tag = ($result | Where-Object { $_ -match '^RELEASE_TAG=' } | ForEach-Object { ($_ -split '=', 2)[1] })
+        if ($tag -ne "v$version") {
+          Write-Error "Tag mismatch: RELEASE_TAG=$tag != v$version"
+          exit 1
+        }
+        Write-Output "Smoke passed: $version ($tag)"

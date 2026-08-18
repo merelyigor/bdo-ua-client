@@ -9,11 +9,22 @@ $semverCore = '(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)'
 $versionPattern = "^${semverCore}$"
 $tagPattern = "^v${semverCore}$"
 
-# Get tags — test override via RESOLVER_TEST_TAGS (comma-separated),
+# Get tags — test override via RESOLVER_TEST_TAGS_JSON (JSON array, presence check),
 # production via git ls-remote
-if ($env:RESOLVER_TEST_TAGS) {
-    $remoteTags = $env:RESOLVER_TEST_TAGS -split ',' | Where-Object { $_ -ne '' }
-} else {
+$testTagsJson = [Environment]::GetEnvironmentVariable("RESOLVER_TEST_TAGS_JSON", "Process")
+
+if ($null -ne $testTagsJson) {
+    # Test override present (even [] = empty tag set)
+    try {
+        $remoteTags = @($testTagsJson | ConvertFrom-Json)
+    }
+    catch {
+        Write-Error "Invalid RESOLVER_TEST_TAGS_JSON: $($_.Exception.Message)"
+        exit 1
+    }
+}
+else {
+    # Production: query real remote
     $remoteRef = if ($env:RESOLVER_TEST_ORIGIN) { $env:RESOLVER_TEST_ORIGIN } else { "origin" }
     $savedEap = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
@@ -34,7 +45,7 @@ if ($env:RESOLVER_TEST_TAGS) {
 }
 
 # Filter to strict SemVer tags only
-$validTags = $remoteTags | Where-Object { $_ -match $tagPattern }
+$validTags = @($remoteTags | Where-Object { $_ -match $tagPattern })
 
 if ($ManualVersion -and $ManualVersion.Trim() -ne "") {
     # Manual version provided
@@ -49,7 +60,7 @@ if ($ManualVersion -and $ManualVersion.Trim() -ne "") {
     $requested = [System.Version]::Parse($version)
 
     # Check monotonic: must be > latest existing tag
-    if ($validTags -and $validTags.Count -gt 0) {
+    if ($validTags.Count -gt 0) {
         $latestTag = $validTags | ForEach-Object {
             [System.Version]::Parse(($_ -replace '^v', ''))
         } | Sort-Object | Select-Object -Last 1
@@ -66,7 +77,7 @@ if ($ManualVersion -and $ManualVersion.Trim() -ne "") {
 }
 else {
     # Automatic patch increment
-    if ($validTags -and $validTags.Count -gt 0) {
+    if ($validTags.Count -gt 0) {
         # Find latest by numeric comparison
         $latestParsed = $validTags | ForEach-Object {
             [System.Version]::Parse(($_ -replace '^v', ''))
