@@ -19,6 +19,7 @@ public partial class MainForm : Form
     private readonly InstallationStateStore _stateStore;
     private readonly ILogger _logger;
     private readonly ReleaseFeedPoller _poller;
+    private readonly FeedApplicationCoordinator _feedCoordinator;
 
     private string? _gameRoot;
     private ReleasesResponse? _apiResponse;
@@ -30,8 +31,6 @@ public partial class MainForm : Form
     private volatile bool _operationInProgress;
     private volatile bool _operationFinalizing;
     private volatile bool _closing;
-    private volatile bool _feedApplyInProgress;
-    private ReleasesResponse? _pendingFeed;
     private LocalizationState _lastResolvedState;
     private OperationState _operationState = OperationState.Idle;
     private CancellationTokenSource? _operationCts;
@@ -60,6 +59,7 @@ public partial class MainForm : Form
         _logger = logger;
 
         _poller = new ReleaseFeedPoller(_apiClient, _logger);
+        _feedCoordinator = new FeedApplicationCoordinator(ApplyFeedPipelineAsync, _poller, _logger);
         _poller.OnFeedCandidate += OnReleaseFeedCandidate;
         _poller.OnPollFailed += OnReleasePollFailed;
 
@@ -470,6 +470,7 @@ public partial class MainForm : Form
         {
             _operationInProgress = true;
             _poller.Pause();
+            _feedCoordinator.BlockUpdates();
             SetOperationState(OperationState.Idle);
             SetActionsEnabled(false, false);
             SetControlsDuringOperation(false);
@@ -604,10 +605,11 @@ public partial class MainForm : Form
                 if (finalMessage != null)
                     SetMessage(finalMessage);
 
-                await ApplyPendingFeedIfAnyAsync();
+                await _feedCoordinator.ApplyPendingIfAnyAsync();
             }
             finally
             {
+                _feedCoordinator.UnblockUpdates();
                 _operationFinalizing = false;
                 if (!_closing)
                     _poller.Resume();
@@ -640,6 +642,7 @@ public partial class MainForm : Form
         {
             _operationInProgress = true;
             _poller.Pause();
+            _feedCoordinator.BlockUpdates();
             SetOperationState(OperationState.Idle);
             SetActionsEnabled(false, false);
             SetControlsDuringOperation(false);
@@ -729,10 +732,11 @@ public partial class MainForm : Form
                 if (finalMessage != null)
                     SetMessage(finalMessage);
 
-                await ApplyPendingFeedIfAnyAsync();
+                await _feedCoordinator.ApplyPendingIfAnyAsync();
             }
             finally
             {
+                _feedCoordinator.UnblockUpdates();
                 _operationFinalizing = false;
                 if (!_closing)
                     _poller.Resume();
@@ -800,15 +804,7 @@ public partial class MainForm : Form
         try
         {
             if (_closing) return;
-
-            if (_operationInProgress || _operationFinalizing || _feedApplyInProgress)
-            {
-                _logger.Debug("Feed candidate received while busy. Storing as pending.");
-                _pendingFeed = candidate;
-                return;
-            }
-
-            await ApplyFeedUpdateAsync(candidate);
+            await _feedCoordinator.OnCandidateAsync(candidate);
         }
         catch (Exception ex)
         {
@@ -822,76 +818,33 @@ public partial class MainForm : Form
     }
 
     /// <summary>
-    /// Applies a feed candidate: updates _apiResponse, rebuilds modes, restores selection,
-    /// then refreshes state. AcceptFeed is called ONLY after RefreshStateAsync succeeds.
-    /// If RefreshStateAsync fails, candidate is requeued as pending for retry.
+    /// Whole-pipeline feed application callback used by FeedApplicationCoordinator.
+    /// Returns true only if all stages succeed (API update, mode rebuild, selection, state refresh).
     /// </summary>
-    private async Task ApplyFeedUpdateAsync(ReleasesResponse candidate)
+    private async Task<bool> ApplyFeedPipelineAsync(ReleasesResponse candidate)
     {
-        if (_closing) return;
-        if (_feedApplyInProgress) { _pendingFeed = candidate; return; }
+        if (_closing) return false;
 
-        _feedApplyInProgress = true;
+        var previousSlug = GetSelectedModeSlug();
+
+        _apiResponse = candidate;
+        _apiLoadedSuccessfully = true;
+        _apiErrorMessage = null;
+        _apiErrorKind = ApiErrorKind.None;
+
+        _suppressModeChanged = true;
         try
         {
-            while (candidate != null && !_closing)
-            {
-                var previousSlug = GetSelectedModeSlug();
-
-                _apiResponse = candidate;
-                _apiLoadedSuccessfully = true;
-                _apiErrorMessage = null;
-                _apiErrorKind = ApiErrorKind.None;
-
-                _suppressModeChanged = true;
-                try
-                {
-                    BuildDynamicModes();
-                    RestoreSelectionAfterFeedUpdate(previousSlug);
-                }
-                finally
-                {
-                    _suppressModeChanged = false;
-                }
-
-                bool stateRefreshed = false;
-                try
-                {
-                    await RefreshStateAsync();
-                    stateRefreshed = true;
-                }
-                catch (Exception ex)
-                {
-                    _logger.Error($"Feed apply state refresh failed: {ex.Message}. Candidate requeued.");
-                }
-
-                if (stateRefreshed)
-                {
-                    _poller.AcceptFeed(candidate);
-                    _logger.Debug("Feed candidate accepted after successful application.");
-                }
-                else
-                {
-                    _pendingFeed = candidate;
-                }
-
-                var next = _pendingFeed;
-                if (next != null && next != candidate)
-                {
-                    candidate = next;
-                    _pendingFeed = null;
-                    _logger.Debug("Processing next pending feed candidate.");
-                }
-                else
-                {
-                    break;
-                }
-            }
+            BuildDynamicModes();
+            RestoreSelectionAfterFeedUpdate(previousSlug);
         }
         finally
         {
-            _feedApplyInProgress = false;
+            _suppressModeChanged = false;
         }
+
+        await RefreshStateAsync();
+        return true;
     }
 
     private void RestoreSelectionAfterFeedUpdate(string? previousSlug)
@@ -909,17 +862,6 @@ public partial class MainForm : Form
             var fallback = DynamicModePolicy.ResolveInitialSelection(previousSlug, installable);
             if (fallback != null)
                 SelectModeBySlug(fallback);
-        }
-    }
-
-    private async Task ApplyPendingFeedIfAnyAsync()
-    {
-        if (_pendingFeed != null && !_feedApplyInProgress)
-        {
-            var pending = _pendingFeed;
-            _pendingFeed = null;
-            _logger.Debug("Applying pending feed after operation completed.");
-            await ApplyFeedUpdateAsync(pending);
         }
     }
 

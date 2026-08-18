@@ -25,8 +25,9 @@
 - **v12.4.5.1** — harden live feed lifecycle (accepted-baseline semantics, pending feed, pause/resume, FormClosing fix, mode ordering, download correlation)
 - **v12.4.5.2** — serialize live feed application (AcceptFeed after RefreshState, single-flight, operation finalization order)
 - **v12.4.5.3** — close live feed finalization races (_operationFinalizing gate, no fire-and-forget, exception-safe finalization, network diagnostics, FeedApplicationCoordinator)
+- **v12.4.5.4** — unify feed application coordinator (MainForm uses coordinator, semantic equality, stale-pending fix, Task-based API, whole-pipeline callback)
 - **Latest SHA:** (see git log)
-- **.NET tests:** 399
+- **.NET tests:** 405
 - **Resolver scenarios:** 13
 - **Normal CI:** PENDING
 - **Release Candidate:** v0.1.0 functional success (intermittent ~21s bdo-ua.com.ua latency observed, root cause not established)

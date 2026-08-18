@@ -24,19 +24,17 @@ public sealed class FeedApplicationCoordinator
     }
 
     public bool IsApplying => _feedApplyInProgress;
-    public ReleasesResponse? PendingFeed => _pendingFeed;
+    public bool IsBlocked => _blocked;
+    public bool HasPendingFeed => _pendingFeed != null;
 
-    public void BlockUpdates()
-    {
-        _blocked = true;
-    }
+    public void BlockUpdates() => _blocked = true;
+    public void UnblockUpdates() => _blocked = false;
 
-    public void UnblockUpdates()
-    {
-        _blocked = false;
-    }
-
-    public void OnCandidate(ReleasesResponse candidate)
+    /// <summary>
+    /// Entry point from poller event. If blocked or applying, stores as pending.
+    /// Otherwise starts serialized application. Caller should await for no-unobserved-task.
+    /// </summary>
+    public async Task OnCandidateAsync(ReleasesResponse candidate)
     {
         if (_blocked || _feedApplyInProgress)
         {
@@ -45,9 +43,13 @@ public sealed class FeedApplicationCoordinator
             return;
         }
 
-        _ = RunApplyAsync(candidate);
+        await RunApplyAsync(candidate);
     }
 
+    /// <summary>
+    /// Applies latest pending candidate if any. Used during operation finalization.
+    /// Can be called while blocked (explicit finalization path).
+    /// </summary>
     public async Task ApplyPendingIfAnyAsync()
     {
         if (_pendingFeed != null && !_feedApplyInProgress)
@@ -81,6 +83,10 @@ public sealed class FeedApplicationCoordinator
                 {
                     _poller.AcceptFeed(candidate);
                     _logger.Debug("Feed candidate accepted after successful application.");
+
+                    // Clear stale pending: if pending is semantically identical
+                    // to the just-accepted candidate, clear it to prevent regression.
+                    ClearStalePending(candidate);
                 }
                 else
                 {
@@ -88,7 +94,7 @@ public sealed class FeedApplicationCoordinator
                 }
 
                 var next = _pendingFeed;
-                if (next != null && next != candidate)
+                if (next != null && !IsSemanticallyEqual(next, candidate))
                 {
                     candidate = next;
                     _pendingFeed = null;
@@ -104,5 +110,29 @@ public sealed class FeedApplicationCoordinator
         {
             _feedApplyInProgress = false;
         }
+    }
+
+    /// <summary>
+    /// After successful acceptance of candidate X, if pending is semantically
+    /// identical to X, clear it. Prevents stale-pending regression where
+    /// accepted B could be followed by stale A.
+    /// </summary>
+    private void ClearStalePending(ReleasesResponse accepted)
+    {
+        var pending = _pendingFeed;
+        if (pending != null && IsSemanticallyEqual(pending, accepted))
+        {
+            _pendingFeed = null;
+            _logger.Debug("Cleared stale pending feed matching accepted candidate.");
+        }
+    }
+
+    /// <summary>
+    /// Two feed candidates are semantically equal if they have the same
+    /// UI-relevant content (ignoring GeneratedAt).
+    /// </summary>
+    private static bool IsSemanticallyEqual(ReleasesResponse a, ReleasesResponse b)
+    {
+        return !FeedChangeDetector.HasSemanticChange(a, b);
     }
 }
