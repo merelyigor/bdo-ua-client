@@ -28,7 +28,8 @@ Production GitHub Releases завжди публікуються вручну в
 
 ### 3. Завантаження artifact
 
-- Завантажте artifact `BDO-UA-Client-vX.Y.Z-win-x64` з workflow run
+- Завантажте artifact `BDO-UA-Client-vX.Y.Z-release-assets` з workflow run
+- Всередині: `BDO-UA-Client-vX.Y.Z-win-x64.zip` (public user package), SHA256SUMS.txt, release-manifest.json, RELEASE_NOTES
 - Локально протестуйте ZIP/EXE
 - Перевірте SHA-256 за бажанням
 

@@ -98,11 +98,17 @@ Trimming може видалити типи, які використовують
 
 Restore + Build + Test обов'язкові перед publish.
 
-## Actions artifact
+## Actions artifact vs public package
 
-Артефакт: **`BDO-UA-Client-win-x64.zip`** містить один EXE файл.
+**GitHub Actions artifact** (CI transport container): **`BDO-UA-Client-vX.Y.Z-release-assets.zip`**
+- Містить: versioned user ZIP + SHA256SUMS.txt + release-manifest.json + RELEASE_NOTES
+- Це внутрішній артефакт workflow, НЕ для кінцевого користувача
 
-Це **артефакт GitHub Actions**, а не GitHub Release. Артефакт доступний для завантаження зі сторінки workflow run.
+**Public user package** (what users download from GitHub Release): **`BDO-UA-Client-vX.Y.Z-win-x64.zip`**
+- Містить рівно один файл: `BDO-UA-Client.exe`
+- Це єдиний файл, який завантажує користувач
+
+Не плутати: Actions artifact ZIP ≠ public user ZIP.
 
 ## Workflows
 

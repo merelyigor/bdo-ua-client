@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Windows.Forms;
 using BdoClient.Logging;
 using BdoClient.Services;
@@ -26,7 +27,10 @@ static class Program
         var stateService = new LocalizationStateService(stateStore, logger);
         var compatService = new LocalizationCompatibilityService();
 
-        logger.Info("Application started.");
+        var version = Assembly.GetEntryAssembly()?
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion ?? "unknown";
+        logger.Info($"Application started. version={version}");
 
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);

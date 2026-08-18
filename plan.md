@@ -18,10 +18,12 @@
 - **v12.4.1** — finalize release candidate workflow (version properties, remote tag check, step summary)
 - **v12.4.2** — immutable release contract (strict version regex, schema_version, tag-last, release docs)
 - **v12.4.3** — fix release candidate + automate patch version (ZIP fix, optional version, auto-increment)
+- **v12.4.3.3** — fix resolver test isolation (RESOLVER_TEST_TAGS_JSON, real-origin smoke, 13 scenarios)
+- **v12.4.4** — network diagnostics and log retention (API timing, download timing, 15-day log retention, startup version, release-assets artifact)
 - **Latest SHA:** (see git log)
-- **Automated tests:** 336
+- **Automated tests:** 355
 - **Normal CI:** PENDING
-- **Release Candidate:** PENDING
+- **Release Candidate:** v0.1.0 functional success (intermittent ~21s bdo-ua.com.ua latency observed, root cause not established)
 
 ## Поточна фаза
 
@@ -205,6 +207,30 @@ Target (post v1.0.0 stabilization):
 - Click Publish release
 
 ---
+
+### v12.4.4 — network diagnostics and log retention
+
+**Status:** IMPLEMENTED
+
+**E2E v0.1.0 findings:**
+- v0.1.0 Release Candidate functional success (ZIP, EXE, SHA, manifest all OK)
+- Intermittent ~21s bdo-ua.com.ua network latency observed (API + download)
+- Examples: 61ms, 70ms, 471ms, 21164ms, 21262ms, 21282ms
+- Root cause NOT established (could be DNS/TCP/TLS/proxy/IPv6/Cloudflare/server)
+- No speculative network fixes — instrument first
+
+**Changes:**
+- API timing: headers_ms, body_ms, parse_ms, total_ms, bytes, HTTP version
+- Release download timing: headers_ms, body_ms, total_ms, bytes, throughput, error timing
+- Official download timing: same fields
+- Failure timing: elapsed_ms on timeout/network/error
+- Startup: logs assembly version from metadata
+- Log retention: 15 calendar days (today + 14), cleanup on init, best-effort
+- Actions artifact renamed: `BDO-UA-Client-vX.Y.Z-release-assets` (CI transport container)
+- Production user package: one ZIP with one EXE (unchanged)
+
+**v0.1.0 tag:** immutable, not published as GitHub Release
+**Next RC expected:** v0.1.1 (automatic patch)
 
 ---
 

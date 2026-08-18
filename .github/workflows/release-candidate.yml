@@ -245,7 +245,7 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: BDO-UA-Client-v${{ steps.resolve.outputs.RELEASE_VERSION }}-win-x64
+        name: BDO-UA-Client-v${{ steps.resolve.outputs.RELEASE_VERSION }}-release-assets
         path: |
           artifacts/BDO-UA-Client-v${{ steps.resolve.outputs.RELEASE_VERSION }}-win-x64.zip
           artifacts/SHA256SUMS.txt
@@ -278,16 +278,21 @@ jobs:
         | **Commit** | ``$sha`` |
         | **Asset** | $assetName |
         | **SHA-256** | ``$hash`` |
-        | **Artifact** | ``BDO-UA-Client-v$version-win-x64`` |
+        | **Artifact** | ``BDO-UA-Client-v$version-release-assets`` (CI transport container) |
+
+        ### Public user package
+
+        The production user-facing package is ``$assetName`` (contains exactly ``BDO-UA-Client.exe``).
+        It will be uploaded manually to the GitHub Release.
 
         ### Next steps
 
-        1. Download artifact ``BDO-UA-Client-v$version-win-x64``
+        1. Download artifact ``BDO-UA-Client-v$version-release-assets``
         2. Test exact ``$assetName`` locally
         3. Verify SHA-256 if desired
         4. Draft GitHub Release → select existing tag ``$tag``
         5. Use generated ``RELEASE_NOTES-v$version.md`` as release body (edit changelog)
-        6. Upload exact ``$assetName`` from artifact
+        6. Upload exact ``$assetName`` from artifact (this is the public user ZIP)
         7. Upload ``SHA256SUMS.txt`` from artifact
         8. Upload ``release-manifest.json`` from artifact
         9. Click **Publish release**

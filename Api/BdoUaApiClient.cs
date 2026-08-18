@@ -31,26 +31,34 @@ public sealed class BdoUaApiClient
 
         try
         {
-            var sw = Stopwatch.StartNew();
-            using var response = await _httpClient.GetAsync(url, linkedCts.Token).ConfigureAwait(false);
-            sw.Stop();
-            _logger.Debug($"API HTTP GET completed in {sw.ElapsedMilliseconds}ms (status {(int)response.StatusCode})");
+            var totalSw = Stopwatch.StartNew();
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            using var response = await _httpClient
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linkedCts.Token)
+                .ConfigureAwait(false);
+
+            var headersMs = totalSw.ElapsedMilliseconds;
 
             if (!response.IsSuccessStatusCode)
             {
                 var error = $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}";
                 _logger.Warning($"API error: {error}");
+                _logger.Debug($"API timing: host=bdo-ua.com.ua status={(int)response.StatusCode} headers_ms={headersMs} total_ms={totalSw.ElapsedMilliseconds}");
                 return ApiResult<ReleasesResponse>.Failure(ApiErrorKind.Http, error);
             }
 
             var content = await response.Content.ReadAsStringAsync(linkedCts.Token).ConfigureAwait(false);
+            var bodyMs = totalSw.ElapsedMilliseconds - headersMs;
 
             if (string.IsNullOrWhiteSpace(content))
             {
                 _logger.Warning("Empty API response");
+                _logger.Debug($"API timing: host=bdo-ua.com.ua status={(int)response.StatusCode} headers_ms={headersMs} body_ms={bodyMs} total_ms={totalSw.ElapsedMilliseconds}");
                 return ApiResult<ReleasesResponse>.Failure(ApiErrorKind.InvalidResponse, "Empty API response");
             }
 
+            var parseSw = Stopwatch.StartNew();
             ReleasesResponse? releases;
             try
             {
@@ -61,9 +69,15 @@ public sealed class BdoUaApiClient
             }
             catch (JsonException ex)
             {
+                parseSw.Stop();
                 _logger.Error($"JSON error: {ex.Message}");
+                _logger.Debug($"API timing: host=bdo-ua.com.ua status={(int)response.StatusCode} headers_ms={headersMs} body_ms={bodyMs} parse_ms={parseSw.ElapsedMilliseconds} total_ms={totalSw.ElapsedMilliseconds} bytes={content.Length}");
                 return ApiResult<ReleasesResponse>.Failure(ApiErrorKind.InvalidResponse, $"JSON error: {ex.Message}");
             }
+            parseSw.Stop();
+
+            totalSw.Stop();
+            _logger.Debug($"API timing: host=bdo-ua.com.ua status={(int)response.StatusCode} http={response.Version} headers_ms={headersMs} body_ms={bodyMs} parse_ms={parseSw.ElapsedMilliseconds} total_ms={totalSw.ElapsedMilliseconds} bytes={content.Length}");
 
             if (releases == null)
             {

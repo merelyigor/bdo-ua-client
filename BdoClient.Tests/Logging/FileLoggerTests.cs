@@ -135,4 +135,94 @@ public class FileLoggerTests : IDisposable
         });
         Assert.Null(exception);
     }
+
+    [Fact]
+    public void Retention_TodayLog_Preserved()
+    {
+        var now = new DateTime(2026, 8, 18, 12, 0, 0);
+        var logger = new FileLogger(_tempDir, () => now);
+        File.WriteAllText(Path.Combine(_tempDir, "bdo-ua-client_2026-08-18.log"), "data");
+        logger.CleanupOldLogs(now);
+        Assert.True(File.Exists(Path.Combine(_tempDir, "bdo-ua-client_2026-08-18.log")));
+    }
+
+    [Fact]
+    public void Retention_1DayOldLog_Preserved()
+    {
+        var now = new DateTime(2026, 8, 18, 12, 0, 0);
+        var logger = new FileLogger(_tempDir, () => now);
+        File.WriteAllText(Path.Combine(_tempDir, "bdo-ua-client_2026-08-17.log"), "data");
+        logger.CleanupOldLogs(now);
+        Assert.True(File.Exists(Path.Combine(_tempDir, "bdo-ua-client_2026-08-17.log")));
+    }
+
+    [Fact]
+    public void Retention_14DayOldLog_Preserved()
+    {
+        var now = new DateTime(2026, 8, 18, 12, 0, 0);
+        var logger = new FileLogger(_tempDir, () => now);
+        File.WriteAllText(Path.Combine(_tempDir, "bdo-ua-client_2026-08-04.log"), "data");
+        logger.CleanupOldLogs(now);
+        Assert.True(File.Exists(Path.Combine(_tempDir, "bdo-ua-client_2026-08-04.log")));
+    }
+
+    [Fact]
+    public void Retention_15DayOldLog_Preserved_AtBoundary()
+    {
+        var now = new DateTime(2026, 8, 18, 12, 0, 0);
+        var logger = new FileLogger(_tempDir, () => now);
+        File.WriteAllText(Path.Combine(_tempDir, "bdo-ua-client_2026-08-03.log"), "data");
+        logger.CleanupOldLogs(now);
+        Assert.True(File.Exists(Path.Combine(_tempDir, "bdo-ua-client_2026-08-03.log")));
+    }
+
+    [Fact]
+    public void Retention_16DayOldLog_Deleted()
+    {
+        var now = new DateTime(2026, 8, 18, 12, 0, 0);
+        var logger = new FileLogger(_tempDir, () => now);
+        File.WriteAllText(Path.Combine(_tempDir, "bdo-ua-client_2026-08-02.log"), "data");
+        logger.CleanupOldLogs(now);
+        Assert.False(File.Exists(Path.Combine(_tempDir, "bdo-ua-client_2026-08-02.log")));
+    }
+
+    [Fact]
+    public void Retention_30DayOldLog_Deleted()
+    {
+        var now = new DateTime(2026, 8, 18, 12, 0, 0);
+        var logger = new FileLogger(_tempDir, () => now);
+        File.WriteAllText(Path.Combine(_tempDir, "bdo-ua-client_2026-07-19.log"), "data");
+        logger.CleanupOldLogs(now);
+        Assert.False(File.Exists(Path.Combine(_tempDir, "bdo-ua-client_2026-07-19.log")));
+    }
+
+    [Fact]
+    public void Retention_UnrelatedFile_Preserved()
+    {
+        var now = new DateTime(2026, 8, 18, 12, 0, 0);
+        var logger = new FileLogger(_tempDir, () => now);
+        File.WriteAllText(Path.Combine(_tempDir, "unrelated.log"), "data");
+        logger.CleanupOldLogs(now);
+        Assert.True(File.Exists(Path.Combine(_tempDir, "unrelated.log")));
+    }
+
+    [Fact]
+    public void Retention_MalformedFilename_Preserved()
+    {
+        var now = new DateTime(2026, 8, 18, 12, 0, 0);
+        var logger = new FileLogger(_tempDir, () => now);
+        File.WriteAllText(Path.Combine(_tempDir, "bdo-ua-client_bad-date.log"), "data");
+        logger.CleanupOldLogs(now);
+        Assert.True(File.Exists(Path.Combine(_tempDir, "bdo-ua-client_bad-date.log")));
+    }
+
+    [Fact]
+    public void Retention_NonexistentDirectory_DoesNotThrow()
+    {
+        var exception = Record.Exception(() =>
+        {
+            var logger = new FileLogger(@"Z:\nonexistent", () => new DateTime(2026, 8, 18));
+        });
+        Assert.Null(exception);
+    }
 }

@@ -147,6 +147,18 @@ public class BdoUaApiClientTests
         Assert.Contains("/releases", handler.Requests[0].RequestUri!.ToString());
     }
 
+    [Fact]
+    public async Task GetReleasesAsync_TimingDoesNotAddExtraRequests()
+    {
+        var handler = new RecordingHttpMessageHandler("""{"success":true,"data":{"modes":[]}}""");
+        var httpClient = new HttpClient(handler);
+        var client = new BdoUaApiClient(httpClient, new NullLogger());
+
+        await client.GetReleasesAsync();
+
+        Assert.Single(handler.Requests);
+    }
+
     private class MockHttpMessageHandler : HttpMessageHandler
     {
         private readonly string _response;
