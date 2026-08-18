@@ -107,6 +107,73 @@ public class FeedChangeDetectorTests
     }
 
     [Fact]
+    public void HasSemanticChange_ModeOrderChanged_ReturnsTrue()
+    {
+        var old = new ReleasesResponse
+        {
+            Success = true,
+            Data = new ReleaseData
+            {
+                OfficialPatch = 100,
+                Modes = new List<LocalizationMode>
+                {
+                    CreateMode("mode-a", "id1"),
+                    CreateMode("mode-b", "id2"),
+                    CreateMode("mode-c", "id3")
+                }
+            }
+        };
+        var @new = new ReleasesResponse
+        {
+            Success = true,
+            Data = new ReleaseData
+            {
+                OfficialPatch = 100,
+                Modes = new List<LocalizationMode>
+                {
+                    CreateMode("mode-c", "id3"),
+                    CreateMode("mode-a", "id1"),
+                    CreateMode("mode-b", "id2")
+                }
+            }
+        };
+        Assert.True(FeedChangeDetector.HasSemanticChange(old, @new));
+    }
+
+    [Fact]
+    public void HasSemanticChange_DuplicateSlug_DoesNotThrow()
+    {
+        var old = new ReleasesResponse
+        {
+            Success = true,
+            Data = new ReleaseData
+            {
+                OfficialPatch = 100,
+                Modes = new List<LocalizationMode>
+                {
+                    CreateMode("same-slug", "id1"),
+                    CreateMode("same-slug", "id2")
+                }
+            }
+        };
+        var @new = new ReleasesResponse
+        {
+            Success = true,
+            Data = new ReleaseData
+            {
+                OfficialPatch = 100,
+                Modes = new List<LocalizationMode>
+                {
+                    CreateMode("same-slug", "id1"),
+                    CreateMode("same-slug", "id3")
+                }
+            }
+        };
+        var exception = Record.Exception(() => FeedChangeDetector.HasSemanticChange(old, @new));
+        Assert.Null(exception);
+    }
+
+    [Fact]
     public void HasSemanticChange_BothDataNull_ReturnsFalse()
     {
         var old = new ReleasesResponse { Success = true, Data = null };

@@ -14,8 +14,12 @@ public sealed class ReleaseFeedPoller : IDisposable
     private readonly TimeSpan _pollInterval;
     private CancellationTokenSource? _cts;
     private Task? _loopTask;
+    private bool _paused;
+    private bool _disposed;
 
-    public event Action<ReleasesResponse>? OnFeedChanged;
+    private volatile ReleasesResponse? _acceptedFeed;
+
+    public event Action<ReleasesResponse>? OnFeedCandidate;
     public event Action<string>? OnPollFailed;
 
     public ReleaseFeedPoller(BdoUaApiClient apiClient, ILogger logger, TimeSpan? pollInterval = null)
@@ -25,13 +29,17 @@ public sealed class ReleaseFeedPoller : IDisposable
         _pollInterval = pollInterval ?? DefaultPollInterval;
     }
 
-    public void Start(ReleasesResponse? currentFeed)
+    public bool IsRunning => _loopTask != null && !_loopTask.IsCompleted;
+
+    public void Start(ReleasesResponse? acceptedFeed)
     {
+        if (_disposed) return;
         if (_loopTask != null) return;
 
+        _acceptedFeed = acceptedFeed;
+        _paused = false;
         _cts = new CancellationTokenSource();
-        var capturedFeed = currentFeed;
-        _loopTask = RunLoopAsync(capturedFeed, _cts.Token);
+        _loopTask = RunLoopAsync(_cts.Token);
     }
 
     public void Stop()
@@ -39,18 +47,25 @@ public sealed class ReleaseFeedPoller : IDisposable
         _cts?.Cancel();
     }
 
-    public void UpdateCurrentFeed(ReleasesResponse? feed)
+    public void Pause()
     {
-        _currentFeedSnapshot = feed;
+        _paused = true;
     }
 
-    private volatile ReleasesResponse? _currentFeedSnapshot;
-
-    public bool IsRunning => _loopTask != null && !_loopTask.IsCompleted;
-
-    private async Task RunLoopAsync(ReleasesResponse? initialFeed, CancellationToken cancellationToken)
+    public void Resume()
     {
-        _currentFeedSnapshot = initialFeed;
+        _paused = false;
+    }
+
+    public void AcceptFeed(ReleasesResponse feed)
+    {
+        _acceptedFeed = feed;
+    }
+
+    public ReleasesResponse? GetAcceptedFeed() => _acceptedFeed;
+
+    private async Task RunLoopAsync(CancellationToken cancellationToken)
+    {
         _logger.Debug("Release feed poller started.");
 
         try
@@ -67,6 +82,11 @@ public sealed class ReleaseFeedPoller : IDisposable
                 }
 
                 if (cancellationToken.IsCancellationRequested) break;
+                if (_paused)
+                {
+                    _logger.Debug("Poller paused. Skipping poll.");
+                    continue;
+                }
 
                 var sw = Stopwatch.StartNew();
                 var result = await _apiClient.GetReleasesAsync(cancellationToken).ConfigureAwait(false);
@@ -76,14 +96,13 @@ public sealed class ReleaseFeedPoller : IDisposable
 
                 if (result.IsSuccess && result.Value?.Data?.Modes != null)
                 {
-                    var newFeed = result.Value;
-                    var changed = FeedChangeDetector.HasSemanticChange(_currentFeedSnapshot, newFeed);
+                    var candidate = result.Value;
+                    var changed = FeedChangeDetector.HasSemanticChange(_acceptedFeed, candidate);
 
                     if (changed)
                     {
-                        _logger.Debug($"Release feed changed (poll took {sw.ElapsedMilliseconds}ms). Notifying UI.");
-                        _currentFeedSnapshot = newFeed;
-                        OnFeedChanged?.Invoke(newFeed);
+                        _logger.Debug($"Release feed changed (poll took {sw.ElapsedMilliseconds}ms). Notifying consumer.");
+                        OnFeedCandidate?.Invoke(candidate);
                     }
                     else
                     {
@@ -94,7 +113,7 @@ public sealed class ReleaseFeedPoller : IDisposable
                 {
                     var errorKind = result.ErrorKind;
                     var errorMsg = result.ErrorMessage;
-                    _logger.Debug($"Background poll failed: {errorKind} — {errorMsg}. Keeping last known feed.");
+                    _logger.Debug($"Background poll failed: {errorKind} — {errorMsg}. Keeping accepted feed.");
                     OnPollFailed?.Invoke(errorMsg ?? "Poll failed");
                 }
             }
@@ -115,6 +134,8 @@ public sealed class ReleaseFeedPoller : IDisposable
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
         _cts?.Cancel();
         _cts?.Dispose();
         _cts = null;

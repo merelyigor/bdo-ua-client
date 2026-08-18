@@ -28,6 +28,8 @@ public partial class MainForm : Form
     private bool _initializing;
     private bool _suppressModeChanged;
     private bool _operationInProgress;
+    private bool _closing;
+    private ReleasesResponse? _pendingFeed;
     private LocalizationState _lastResolvedState;
     private OperationState _operationState = OperationState.Idle;
     private CancellationTokenSource? _operationCts;
@@ -56,7 +58,7 @@ public partial class MainForm : Form
         _logger = logger;
 
         _poller = new ReleaseFeedPoller(_apiClient, _logger);
-        _poller.OnFeedChanged += OnReleaseFeedChanged;
+        _poller.OnFeedCandidate += OnReleaseFeedCandidate;
         _poller.OnPollFailed += OnReleasePollFailed;
 
         InitializeComponent();
@@ -152,7 +154,8 @@ public partial class MainForm : Form
         {
             _initializing = false;
             SetOperationState(OperationState.Idle);
-            _poller.Start(_apiResponse);
+            if (!_closing)
+                _poller.Start(_apiResponse);
         }
     }
 
@@ -464,6 +467,7 @@ public partial class MainForm : Form
         try
         {
             _operationInProgress = true;
+            _poller.Pause();
             SetOperationState(OperationState.Idle);
             SetActionsEnabled(false, false);
             SetControlsDuringOperation(false);
@@ -577,6 +581,7 @@ public partial class MainForm : Form
             _operationCts?.Dispose();
             _operationCts = null;
             _operationInProgress = false;
+            _poller.Resume();
             SetControlsDuringOperation(true);
 
             try
@@ -594,6 +599,8 @@ public partial class MainForm : Form
 
             if (finalMessage != null)
                 SetMessage(finalMessage);
+
+            ApplyPendingFeedIfAny();
         }
     }
 
@@ -621,6 +628,7 @@ public partial class MainForm : Form
         try
         {
             _operationInProgress = true;
+            _poller.Pause();
             SetOperationState(OperationState.Idle);
             SetActionsEnabled(false, false);
             SetControlsDuringOperation(false);
@@ -689,6 +697,7 @@ public partial class MainForm : Form
             _operationCts?.Dispose();
             _operationCts = null;
             _operationInProgress = false;
+            _poller.Resume();
             SetControlsDuringOperation(true);
 
             try
@@ -706,6 +715,8 @@ public partial class MainForm : Form
 
             if (finalMessage != null)
                 SetMessage(finalMessage);
+
+            ApplyPendingFeedIfAny();
         }
     }
 
@@ -725,10 +736,12 @@ public partial class MainForm : Form
 
     private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
-        _poller.Stop();
-
         if (!_operationInProgress)
+        {
+            _closing = true;
+            _poller.Stop();
             return;
+        }
 
         e.Cancel = true;
 
@@ -756,21 +769,24 @@ public partial class MainForm : Form
 
     // --- Release feed polling ---
 
-    private void OnReleaseFeedChanged(ReleasesResponse newFeed)
+    private void OnReleaseFeedCandidate(ReleasesResponse candidate)
     {
         if (InvokeRequired)
         {
-            BeginInvoke(() => OnReleaseFeedChanged(newFeed));
+            BeginInvoke(() => OnReleaseFeedCandidate(candidate));
             return;
         }
+
+        if (_closing) return;
 
         if (_operationInProgress)
         {
-            _logger.Debug("Feed changed during operation. Deferring.");
+            _logger.Debug("Feed candidate received during operation. Storing as pending.");
+            _pendingFeed = candidate;
             return;
         }
 
-        ApplyFeedUpdate(newFeed);
+        ApplyFeedUpdate(candidate);
     }
 
     private void OnReleasePollFailed(string error)
@@ -778,11 +794,13 @@ public partial class MainForm : Form
         // Keep last known good. Log only.
     }
 
-    private void ApplyFeedUpdate(ReleasesResponse newFeed)
+    private async void ApplyFeedUpdate(ReleasesResponse candidate)
     {
+        if (_closing) return;
+
         var previousSlug = GetSelectedModeSlug();
 
-        _apiResponse = newFeed;
+        _apiResponse = candidate;
         _apiLoadedSuccessfully = true;
         _apiErrorMessage = null;
         _apiErrorKind = ApiErrorKind.None;
@@ -798,7 +816,16 @@ public partial class MainForm : Form
             _suppressModeChanged = false;
         }
 
-        _ = RefreshStateAsync();
+        _poller.AcceptFeed(candidate);
+
+        try
+        {
+            await RefreshStateAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Feed apply state refresh failed: {ex.Message}");
+        }
     }
 
     private void RestoreSelectionAfterFeedUpdate(string? previousSlug)
@@ -816,6 +843,17 @@ public partial class MainForm : Form
             var fallback = DynamicModePolicy.ResolveInitialSelection(previousSlug, installable);
             if (fallback != null)
                 SelectModeBySlug(fallback);
+        }
+    }
+
+    private void ApplyPendingFeedIfAny()
+    {
+        if (_pendingFeed != null)
+        {
+            var pending = _pendingFeed;
+            _pendingFeed = null;
+            _logger.Debug("Applying pending feed after operation completed.");
+            ApplyFeedUpdate(pending);
         }
     }
 

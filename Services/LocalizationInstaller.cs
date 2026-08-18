@@ -132,6 +132,8 @@ public sealed class LocalizationInstaller
 
             var headersMs = attemptSw.ElapsedMilliseconds;
 
+            LogDownloadCorrelationHeaders(response, "Release download correlation", host);
+
             if (!response.IsSuccessStatusCode)
             {
                 var statusCode = (int)response.StatusCode;
@@ -249,6 +251,8 @@ public sealed class LocalizationInstaller
                 .ConfigureAwait(false);
 
             var headersMs = attemptSw.ElapsedMilliseconds;
+
+            LogDownloadCorrelationHeaders(response, "Official download correlation", host);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -375,6 +379,35 @@ public sealed class LocalizationInstaller
         {
             _logger.Warning($"Failed to cleanup temp file {path}: {ex.Message}");
         }
+    }
+
+    private void LogDownloadCorrelationHeaders(HttpResponseMessage response, string label, string host)
+    {
+        var parts = new List<string> { $"host={host}" };
+
+        if (response.Headers.TryGetValues("X-Request-ID", out var requestIdValues))
+        {
+            var value = requestIdValues.FirstOrDefault();
+            if (!string.IsNullOrEmpty(value))
+                parts.Add($"request_id={value}");
+        }
+
+        if (response.Headers.TryGetValues("Server-Timing", out var serverTimingValues))
+        {
+            var value = serverTimingValues.FirstOrDefault();
+            if (!string.IsNullOrEmpty(value))
+                parts.Add($"server_timing=\"{value}\"");
+        }
+
+        if (response.Headers.TryGetValues("CF-Ray", out var cfRayValues))
+        {
+            var value = cfRayValues.FirstOrDefault();
+            if (!string.IsNullOrEmpty(value))
+                parts.Add($"cf_ray={value}");
+        }
+
+        if (parts.Count > 1)
+            _logger.Debug($"{label}: {string.Join(" ", parts)}");
     }
 
     private static async Task DelayWithCancellation(int milliseconds, CancellationToken cancellationToken)

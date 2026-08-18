@@ -802,6 +802,93 @@ public class LocalizationInstallerTests : IDisposable
         Assert.Contains("error=Timeout", timingLine);
     }
 
+    // Download correlation headers: X-Request-ID logged when present
+
+    [Fact]
+    public async Task DownloadReleaseAsync_CorrelationHeaders_XRequestId_LoggedWhenPresent()
+    {
+        var logger = new RecordingLogger();
+        var content = Encoding.UTF8.GetBytes("test");
+        var sha256 = ComputeSha256(content);
+        var handler = new CorrelationHeaderHandler(content, content.Length, "req-123", null, null);
+        var installer = CreateInstaller(handler, logger: logger);
+
+        var release = CreateValidRelease();
+        release.SizeBytes = content.Length;
+        release.Sha256 = sha256;
+
+        await installer.DownloadReleaseAsync(release);
+
+        var corrLine = logger.DebugLines.FirstOrDefault(l => l.Contains("Release download correlation:"));
+        Assert.NotNull(corrLine);
+        Assert.Contains("request_id=req-123", corrLine);
+    }
+
+    // Download correlation headers: Server-Timing logged when present
+
+    [Fact]
+    public async Task DownloadReleaseAsync_CorrelationHeaders_ServerTiming_LoggedWhenPresent()
+    {
+        var logger = new RecordingLogger();
+        var content = Encoding.UTF8.GetBytes("test");
+        var sha256 = ComputeSha256(content);
+        var handler = new CorrelationHeaderHandler(content, content.Length, null, "dur=100", null);
+        var installer = CreateInstaller(handler, logger: logger);
+
+        var release = CreateValidRelease();
+        release.SizeBytes = content.Length;
+        release.Sha256 = sha256;
+
+        await installer.DownloadReleaseAsync(release);
+
+        var corrLine = logger.DebugLines.FirstOrDefault(l => l.Contains("Release download correlation:"));
+        Assert.NotNull(corrLine);
+        Assert.Contains("server_timing=\"dur=100\"", corrLine);
+    }
+
+    // Download correlation headers: CF-Ray logged when present
+
+    [Fact]
+    public async Task DownloadReleaseAsync_CorrelationHeaders_CfRay_LoggedWhenPresent()
+    {
+        var logger = new RecordingLogger();
+        var content = Encoding.UTF8.GetBytes("test");
+        var sha256 = ComputeSha256(content);
+        var handler = new CorrelationHeaderHandler(content, content.Length, null, null, "abc123-SJC");
+        var installer = CreateInstaller(handler, logger: logger);
+
+        var release = CreateValidRelease();
+        release.SizeBytes = content.Length;
+        release.Sha256 = sha256;
+
+        await installer.DownloadReleaseAsync(release);
+
+        var corrLine = logger.DebugLines.FirstOrDefault(l => l.Contains("Release download correlation:"));
+        Assert.NotNull(corrLine);
+        Assert.Contains("cf_ray=abc123-SJC", corrLine);
+    }
+
+    // Download correlation headers: absence is harmless
+
+    [Fact]
+    public async Task DownloadReleaseAsync_NoCorrelationHeaders_NoError()
+    {
+        var logger = new RecordingLogger();
+        var content = Encoding.UTF8.GetBytes("test");
+        var sha256 = ComputeSha256(content);
+        var handler = new MockHttpHandler(content, content.Length);
+        var installer = CreateInstaller(handler, logger: logger);
+
+        var release = CreateValidRelease();
+        release.SizeBytes = content.Length;
+        release.Sha256 = sha256;
+
+        var result = await installer.DownloadReleaseAsync(release);
+
+        Assert.True(result.IsSuccess);
+        Assert.DoesNotContain(logger.DebugLines, l => l.Contains("correlation"));
+    }
+
     private LocalizationInstaller CreateInstaller(HttpMessageHandler handler,
         int timeoutSeconds = 60, int[]? retryDelaysMs = null, ILogger? logger = null)
     {
@@ -849,6 +936,44 @@ public class LocalizationInstallerTests : IDisposable
         public void Info(string message) => InfoLines.Add(message);
         public void Warning(string message) => WarningLines.Add(message);
         public void Error(string message) => ErrorLines.Add(message);
+    }
+
+    private class CorrelationHeaderHandler : HttpMessageHandler
+    {
+        private readonly byte[] _content;
+        private readonly long _contentLength;
+        private readonly string? _requestId;
+        private readonly string? _serverTiming;
+        private readonly string? _cfRay;
+
+        public CorrelationHeaderHandler(byte[] content, long contentLength,
+            string? requestId, string? serverTiming, string? cfRay)
+        {
+            _content = content;
+            _contentLength = contentLength;
+            _requestId = requestId;
+            _serverTiming = serverTiming;
+            _cfRay = cfRay;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(_content)
+            };
+            response.Content.Headers.ContentLength = _contentLength;
+
+            if (_requestId != null)
+                response.Headers.TryAddWithoutValidation("X-Request-ID", _requestId);
+            if (_serverTiming != null)
+                response.Headers.TryAddWithoutValidation("Server-Timing", _serverTiming);
+            if (_cfRay != null)
+                response.Headers.TryAddWithoutValidation("CF-Ray", _cfRay);
+
+            return Task.FromResult(response);
+        }
     }
 
     private class MockHttpHandler : HttpMessageHandler

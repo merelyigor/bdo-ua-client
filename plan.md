@@ -22,8 +22,9 @@
 - **v12.4.4** — network diagnostics and log retention (API timing, download timing, 15-day log retention, startup version, release-assets artifact)
 - **v12.4.4.1** — fix diagnostic correctness (retention boundary, real elapsed timing in catches, stable error categories, UTF-8 byte count)
 - **v12.4.5** — live refresh release feed (15s polling, semantic change detection, last-known-good, correlation headers, CheckedChanged suppression)
+- **v12.4.5.1** — harden live feed lifecycle (accepted-baseline semantics, pending feed, pause/resume, FormClosing fix, mode ordering, download correlation)
 - **Latest SHA:** (see git log)
-- **.NET tests:** 375
+- **.NET tests:** 386
 - **Resolver scenarios:** 13
 - **Normal CI:** PENDING
 - **Release Candidate:** v0.1.0 functional success (intermittent ~21s bdo-ua.com.ua latency observed, root cause not established)
@@ -256,8 +257,26 @@ Target (post v1.0.0 stabilization):
 - New mode appears → mode list updated, previous selection preserved
 - Mode removed → deterministic fallback via DynamicModePolicy
 - Newer current release → feed updated, state refresh triggered (UpToDate → UpdateAvailable)
-- Operation in progress → poll skipped, feed update deferred
+- Operation in progress → poller paused, candidate stored as pending, applied after operation
 - Shutdown → poller cancelled, no errors
+
+---
+
+### v12.4.5.1 — harden live feed refresh lifecycle
+
+**Status:** IMPLEMENTED
+
+**Fixes:**
+- Accepted-baseline semantics: poller does NOT advance snapshot until `AcceptFeed()` called by consumer
+- Pending feed: candidates during operation stored in `_pendingFeed`, applied after operation finishes
+- Pause/Resume: `_poller.Pause()` during operations stops new HTTP requests; `_poller.Resume()` after
+- FormClosing: only stop poller when close actually proceeds; cancelled close preserves polling
+- Startup-close race: `_closing` flag prevents poller start after shutdown begun
+- Mode ordering: FeedChangeDetector compares ordered slug sequences (A,B,C → C,A,B is change)
+- Malformed slugs: null-coalescing on slug comparisons, no dictionary exceptions
+- Async RefreshState: `ApplyFeedUpdate` is async void with try/catch, no unobserved tasks
+- Download correlation headers: X-Request-ID, Server-Timing, CF-Ray logged on release + official downloads
+- Poller lifecycle: Start/Stop/Pause/Resume/Dispose/IsRunning semantically consistent
 
 ---
 

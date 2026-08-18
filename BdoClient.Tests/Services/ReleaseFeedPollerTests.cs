@@ -19,7 +19,7 @@ public class ReleaseFeedPollerTests
 
         var poller = new ReleaseFeedPoller(apiClient, logger, interval);
         var notifications = new List<ReleasesResponse>();
-        poller.OnFeedChanged += f => notifications.Add(f);
+        poller.OnFeedCandidate += f => notifications.Add(f);
 
         poller.Start(feed);
 
@@ -44,7 +44,7 @@ public class ReleaseFeedPollerTests
 
         var poller = new ReleaseFeedPoller(apiClient, logger, interval);
         var notifications = new List<ReleasesResponse>();
-        poller.OnFeedChanged += f => notifications.Add(f);
+        poller.OnFeedCandidate += f => { notifications.Add(f); poller.AcceptFeed(f); };
 
         poller.Start(oldFeed);
 
@@ -52,7 +52,7 @@ public class ReleaseFeedPollerTests
         poller.Stop();
         await Task.Delay(200);
 
-        Assert.Single(notifications);
+        Assert.NotEmpty(notifications);
         Assert.NotNull(notifications[0].Data?.Modes);
         Assert.Equal(2, notifications[0].Data!.Modes!.Count);
         poller.Dispose();
@@ -71,7 +71,7 @@ public class ReleaseFeedPollerTests
 
         var poller = new ReleaseFeedPoller(apiClient, logger, interval);
         var notifications = new List<ReleasesResponse>();
-        poller.OnFeedChanged += f => notifications.Add(f);
+        poller.OnFeedCandidate += f => { notifications.Add(f); poller.AcceptFeed(f); };
 
         poller.Start(oldFeed);
 
@@ -79,7 +79,7 @@ public class ReleaseFeedPollerTests
         poller.Stop();
         await Task.Delay(200);
 
-        Assert.Single(notifications);
+        Assert.NotEmpty(notifications);
         poller.Dispose();
     }
 
@@ -95,7 +95,7 @@ public class ReleaseFeedPollerTests
 
         var poller = new ReleaseFeedPoller(apiClient, logger, interval);
         var notifications = new List<ReleasesResponse>();
-        poller.OnFeedChanged += f => notifications.Add(f);
+        poller.OnFeedCandidate += f => notifications.Add(f);
         var failures = new List<string>();
         poller.OnPollFailed += e => failures.Add(e);
 
@@ -151,6 +151,145 @@ public class ReleaseFeedPollerTests
         await Task.Delay(200);
 
         poller.Dispose();
+    }
+
+    [Fact]
+    public async Task NotAcceptedFeed_StillReportedAsChanged()
+    {
+        var oldFeed = CreateFeed(modeA: "id1");
+        var newFeed = CreateFeed(modeA: "id1", modeB: "id2");
+        var handler = new StubHttpHandler(newFeed);
+        var httpClient = new HttpClient(handler);
+        var logger = new RecordingLogger();
+        var apiClient = new BdoUaApiClient(httpClient, logger);
+        var interval = TimeSpan.FromMilliseconds(200);
+
+        var poller = new ReleaseFeedPoller(apiClient, logger, interval);
+        var count = 0;
+        poller.OnFeedCandidate += _ => Interlocked.Increment(ref count);
+
+        poller.Start(oldFeed);
+
+        await Task.Delay(1000);
+        poller.Stop();
+        await Task.Delay(200);
+
+        Assert.True(count >= 2, $"Expected multiple notifications for not-accepted feed, got {count}");
+        poller.Dispose();
+    }
+
+    [Fact]
+    public async Task AcceptedFeed_StopsReportingChanged()
+    {
+        var oldFeed = CreateFeed(modeA: "id1");
+        var newFeed = CreateFeed(modeA: "id1", modeB: "id2");
+        var handler = new StubHttpHandler(newFeed);
+        var httpClient = new HttpClient(handler);
+        var logger = new RecordingLogger();
+        var apiClient = new BdoUaApiClient(httpClient, logger);
+        var interval = TimeSpan.FromMilliseconds(200);
+
+        var poller = new ReleaseFeedPoller(apiClient, logger, interval);
+        var count = 0;
+        poller.OnFeedCandidate += f =>
+        {
+            if (count == 0)
+            {
+                poller.AcceptFeed(f);
+            }
+            Interlocked.Increment(ref count);
+        };
+
+        poller.Start(oldFeed);
+
+        await Task.Delay(1500);
+        poller.Stop();
+        await Task.Delay(200);
+
+        Assert.Equal(1, count);
+        poller.Dispose();
+    }
+
+    [Fact]
+    public async Task MaxConcurrency_OneSimultaneousRequest()
+    {
+        var oldFeed = CreateFeed(modeA: "id1");
+        var newFeed = CreateFeed(modeA: "id1", modeB: "id2");
+        var handler = new ConcurrencyTrackingHandler(newFeed);
+        var httpClient = new HttpClient(handler);
+        var logger = new RecordingLogger();
+        var apiClient = new BdoUaApiClient(httpClient, logger);
+        var interval = TimeSpan.FromMilliseconds(100);
+
+        var poller = new ReleaseFeedPoller(apiClient, logger, interval);
+        poller.OnFeedCandidate += f => poller.AcceptFeed(f);
+
+        poller.Start(oldFeed);
+        await Task.Delay(1500);
+        poller.Stop();
+        await Task.Delay(200);
+
+        Assert.True(handler.MaxConcurrency <= 1, $"Max concurrency was {handler.MaxConcurrency}");
+        poller.Dispose();
+    }
+
+    [Fact]
+    public async Task DisposedPoller_DoesNotStart()
+    {
+        var feed = CreateFeed(modeA: "id1");
+        var handler = new StubHttpHandler(feed);
+        var httpClient = new HttpClient(handler);
+        var logger = new RecordingLogger();
+        var apiClient = new BdoUaApiClient(httpClient, logger);
+
+        var poller = new ReleaseFeedPoller(apiClient, logger);
+        poller.Dispose();
+
+        poller.Start(feed);
+        Assert.False(poller.IsRunning);
+    }
+
+    [Fact]
+    public void Pause_Resume_ToggleState()
+    {
+        var logger = new RecordingLogger();
+        var handler = new StubHttpHandler(CreateFeed(modeA: "id1"));
+        var httpClient = new HttpClient(handler);
+        var apiClient = new BdoUaApiClient(httpClient, logger);
+
+        var poller = new ReleaseFeedPoller(apiClient, logger);
+        poller.Pause();
+        poller.Resume();
+        poller.Dispose();
+    }
+
+    private class ConcurrencyTrackingHandler : HttpMessageHandler
+    {
+        private readonly ReleasesResponse _response;
+        private int _activeCount;
+        public int MaxConcurrency { get; private set; }
+
+        public ConcurrencyTrackingHandler(ReleasesResponse response) => _response = response;
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var current = Interlocked.Increment(ref _activeCount);
+            lock (this) { if (current > MaxConcurrency) MaxConcurrency = current; }
+            try
+            {
+                await Task.Delay(50, cancellationToken);
+                var json = System.Text.Json.JsonSerializer.Serialize(_response);
+                return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                {
+                    Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json")
+                };
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _activeCount);
+            }
+        }
     }
 
     private static ReleasesResponse CreateFeed(

@@ -25,18 +25,19 @@ public static class FeedChangeDetector
 
         if (oldModes.Count != newModes.Count) return true;
 
-        var oldLookup = oldModes
-            .Where(m => !string.IsNullOrEmpty(m.Slug))
-            .ToDictionary(m => m.Slug!, m => m, StringComparer.Ordinal);
-
-        foreach (var newMode in newModes)
+        // Mode ordering is semantic — compare ordered slug sequences
+        var oldSlugs = oldModes.Select(m => m.Slug ?? "").ToList();
+        var newSlugs = newModes.Select(m => m.Slug ?? "").ToList();
+        for (int i = 0; i < oldSlugs.Count; i++)
         {
-            if (string.IsNullOrEmpty(newMode.Slug)) continue;
-
-            if (!oldLookup.TryGetValue(newMode.Slug, out var oldMode))
+            if (!string.Equals(oldSlugs[i], newSlugs[i], StringComparison.Ordinal))
                 return true;
+        }
 
-            if (HasModeChange(oldMode, newMode))
+        // Per-mode field comparison — use list index since order is already verified
+        for (int i = 0; i < oldModes.Count; i++)
+        {
+            if (HasModeChange(oldModes[i], newModes[i]))
                 return true;
         }
 
@@ -45,9 +46,10 @@ public static class FeedChangeDetector
 
     private static bool HasModeChange(LocalizationMode oldMode, LocalizationMode newMode)
     {
-        if (!string.Equals(oldMode.PublicName, newMode.PublicName, StringComparison.Ordinal)) return true;
-        if (!string.Equals(oldMode.Description, newMode.Description, StringComparison.Ordinal)) return true;
-        if (!string.Equals(oldMode.Audience, newMode.Audience, StringComparison.Ordinal)) return true;
+        if (!string.Equals(oldMode.Slug ?? "", newMode.Slug ?? "", StringComparison.Ordinal)) return true;
+        if (!string.Equals(oldMode.PublicName ?? "", newMode.PublicName ?? "", StringComparison.Ordinal)) return true;
+        if (!string.Equals(oldMode.Description ?? "", newMode.Description ?? "", StringComparison.Ordinal)) return true;
+        if (!string.Equals(oldMode.Audience ?? "", newMode.Audience ?? "", StringComparison.Ordinal)) return true;
 
         var oldCurrent = oldMode.Current;
         var newCurrent = newMode.Current;
@@ -55,14 +57,14 @@ public static class FeedChangeDetector
         if (oldCurrent == null && newCurrent == null) return false;
         if (oldCurrent == null || newCurrent == null) return true;
 
-        if (!string.Equals(oldCurrent.PublicId, newCurrent.PublicId, StringComparison.Ordinal)) return true;
+        if (!string.Equals(oldCurrent.PublicId ?? "", newCurrent.PublicId ?? "", StringComparison.Ordinal)) return true;
         if (oldCurrent.Version != newCurrent.Version) return true;
         if (oldCurrent.Patch != newCurrent.Patch) return true;
         if (oldCurrent.CompatibleWithOfficialPatch != newCurrent.CompatibleWithOfficialPatch) return true;
         if (oldCurrent.SizeBytes != newCurrent.SizeBytes) return true;
-        if (!string.Equals(oldCurrent.Sha256, newCurrent.Sha256, StringComparison.Ordinal)) return true;
-        if (!string.Equals(oldCurrent.DownloadUrl, newCurrent.DownloadUrl, StringComparison.Ordinal)) return true;
-        if (!string.Equals(oldCurrent.PublishedAt, newCurrent.PublishedAt, StringComparison.Ordinal)) return true;
+        if (!string.Equals(oldCurrent.Sha256 ?? "", newCurrent.Sha256 ?? "", StringComparison.Ordinal)) return true;
+        if (!string.Equals(oldCurrent.DownloadUrl ?? "", newCurrent.DownloadUrl ?? "", StringComparison.Ordinal)) return true;
+        if (!string.Equals(oldCurrent.PublishedAt ?? "", newCurrent.PublishedAt ?? "", StringComparison.Ordinal)) return true;
 
         return false;
     }
