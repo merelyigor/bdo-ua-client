@@ -9,28 +9,29 @@ $semverCore = '(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)'
 $versionPattern = "^${semverCore}$"
 $tagPattern = "^v${semverCore}$"
 
-# Get all remote tags matching vX.Y.Z — fail-closed on remote query failure
-$remoteRef = if ($env:RESOLVER_TEST_ORIGIN) { $env:RESOLVER_TEST_ORIGIN } else { $null }
-$savedEap = $ErrorActionPreference
-$ErrorActionPreference = "Continue"
-if ($remoteRef) {
-    $remoteOutput = git ls-remote --tags --refs $remoteRef 2>&1
+# Get tags — test override via RESOLVER_TEST_TAGS (comma-separated),
+# production via git ls-remote
+if ($env:RESOLVER_TEST_TAGS) {
+    $remoteTags = $env:RESOLVER_TEST_TAGS -split ',' | Where-Object { $_ -ne '' }
 } else {
-    $remoteOutput = git ls-remote --tags --refs origin 2>&1
-}
-$remoteExitCode = $LASTEXITCODE
-$ErrorActionPreference = $savedEap
+    $remoteRef = if ($env:RESOLVER_TEST_ORIGIN) { $env:RESOLVER_TEST_ORIGIN } else { "origin" }
+    $savedEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $remoteOutput = git ls-remote --tags --refs $remoteRef 2>&1
+    $remoteExitCode = $LASTEXITCODE
+    $ErrorActionPreference = $savedEap
 
-if ($remoteExitCode -ne 0) {
-    $remoteMsg = ($remoteOutput | Out-String).Trim()
-    Write-Error "Failed to query remote '$remoteRef' (exit code $remoteExitCode): $remoteMsg"
-    exit 1
-}
+    if ($remoteExitCode -ne 0) {
+        $msg = ($remoteOutput | Out-String).Trim()
+        Write-Error "Failed to query remote '$remoteRef' (exit code ${remoteExitCode}): $msg"
+        exit 1
+    }
 
-$remoteTags = $remoteOutput |
-    ForEach-Object { ($_ -split '\s+')[1] } |
-    Where-Object { $_ -match '^refs/tags/v\d+\.\d+\.\d+$' } |
-    ForEach-Object { $_ -replace '^refs/tags/', '' }
+    $remoteTags = $remoteOutput |
+        ForEach-Object { ($_ -split '\s+')[1] } |
+        Where-Object { $_ -match '^refs/tags/v\d+\.\d+\.\d+$' } |
+        ForEach-Object { $_ -replace '^refs/tags/', '' }
+}
 
 # Filter to strict SemVer tags only
 $validTags = $remoteTags | Where-Object { $_ -match $tagPattern }
