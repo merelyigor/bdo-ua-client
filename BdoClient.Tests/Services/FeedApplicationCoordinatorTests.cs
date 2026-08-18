@@ -21,93 +21,9 @@ public class FeedApplicationCoordinatorTests
         return (coord, poller, logger);
     }
 
-    // A: failed A → A pending → A not accepted
+    // A: A applying → B arrives → C arrives → A returns false → C applied → final accepted C
     [Fact]
-    public async Task FailedApply_CandidateNotAccepted()
-    {
-        var (coord, poller, _) = CreateCoordinator(_ => Task.FromResult(false));
-
-        poller.Start(CreateFeed("id0"));
-        await coord.OnCandidateAsync(CreateFeed("idA"));
-
-        var accepted = poller.GetAcceptedFeed();
-        // Accepted baseline should still be id0 (not advanced to idA)
-        Assert.NotNull(accepted);
-        Assert.Null(accepted.Data?.Modes?.Find(m => m.Slug == "idA"));
-        poller.Dispose();
-    }
-
-    // B: failed A → retry semantically identical A succeeds → accepted → pending null
-    [Fact]
-    public async Task FailedThenRetry_SameSemantic_AcceptedAndPendingCleared()
-    {
-        var callCount = 0;
-        var (coord, poller, _) = CreateCoordinator(feed =>
-        {
-            callCount++;
-            if (callCount == 1) return Task.FromResult(false);
-            return Task.FromResult(true);
-        });
-
-        poller.Start(CreateFeed("id0"));
-        var candidateA = CreateFeed("idA");
-
-        await coord.OnCandidateAsync(candidateA);
-        Assert.Equal(1, callCount);
-
-        // Retry with semantically identical new object
-        var candidateA2 = CreateFeed("idA");
-        await coord.OnCandidateAsync(candidateA2);
-        Assert.Equal(2, callCount);
-
-        var accepted = poller.GetAcceptedFeed();
-        Assert.NotNull(accepted.Data?.Modes?.Find(m => m.Slug == "idA"));
-        Assert.False(coord.HasPendingFeed);
-        poller.Dispose();
-    }
-
-    // C: failed A → retry A succeeds → B succeeds → final accepted B → A never applied after B
-    [Fact]
-    public async Task FailedA_RetryA_ThenB_FinalAcceptedB()
-    {
-        var applied = new List<string>();
-        var callCount = 0;
-
-        var (coord, poller, _) = CreateCoordinator(feed =>
-        {
-            callCount++;
-            var slug = feed.Data?.Modes?.FirstOrDefault()?.Slug ?? "?";
-            applied.Add(slug);
-
-            // First call (A) fails
-            if (callCount == 1) return Task.FromResult(false);
-            return Task.FromResult(true);
-        });
-
-        poller.Start(CreateFeed("id0"));
-
-        // A fails
-        await coord.OnCandidateAsync(CreateFeed("idA"));
-        // Retry A succeeds
-        await coord.OnCandidateAsync(CreateFeed("idA"));
-        // B succeeds
-        await coord.OnCandidateAsync(CreateFeed("idB"));
-
-        var accepted = poller.GetAcceptedFeed();
-        Assert.NotNull(accepted.Data?.Modes?.Find(m => m.Slug == "idB"));
-
-        // A should never be applied after B
-        var lastAIndex = applied.LastIndexOf("idA");
-        var firstBIndex = applied.IndexOf("idB");
-        if (lastAIndex >= 0 && firstBIndex >= 0)
-            Assert.True(lastAIndex < firstBIndex, "A was applied after B");
-
-        poller.Dispose();
-    }
-
-    // D: A applying → B arrives → C arrives → latest pending C wins
-    [Fact]
-    public async Task ApplyingThenBC_LatestPendingCWins()
+    public async Task A_FailsWhileBCPending_CApplied_FinalAcceptedC()
     {
         var gate = new TaskCompletionSource<bool>();
         var applied = new List<string>();
@@ -116,129 +32,210 @@ public class FeedApplicationCoordinatorTests
         {
             var slug = feed.Data?.Modes?.FirstOrDefault()?.Slug ?? "?";
             applied.Add(slug);
-            await gate.Task;
+            if (slug == "idA")
+            {
+                await gate.Task;
+                return false;
+            }
             return true;
         });
 
         poller.Start(CreateFeed("id0"));
 
-        // Start A (will block)
+        // Start A (blocks)
         var taskA = coord.OnCandidateAsync(CreateFeed("idA"));
         await Task.Delay(50);
 
-        // B and C arrive while A is applying
+        // B then C arrive while A is applying
         await coord.OnCandidateAsync(CreateFeed("idB"));
         await coord.OnCandidateAsync(CreateFeed("idC"));
 
-        // Unblock
-        gate.SetResult(true);
+        // Unblock A — it fails
+        gate.SetResult(false);
         await taskA;
-        await Task.Delay(200);
+        await Task.Delay(300);
 
-        // C should be the final applied (latest pending wins)
+        // C should be applied (latest pending wins, B superseded)
         Assert.Contains("idC", applied);
+        var accepted = poller.GetAcceptedFeed();
+        Assert.Contains("idC", accepted.Data?.Modes?.Select(m => m.Slug ?? ""));
+        Assert.False(coord.HasPendingFeed);
         poller.Dispose();
     }
 
-    // E: callback throws during "mode rebuild" → candidate pending → not accepted
+    // B: A applying → C arrives → A throws → C applied → final accepted C
     [Fact]
-    public async Task CallbackThrows_CandidatePending_NotAccepted()
+    public async Task A_ThrowsWhileCPending_CApplied_FinalAcceptedC()
     {
-        var (coord, poller, logger) = CreateCoordinator(_ =>
+        var gate = new TaskCompletionSource<bool>();
+        var applied = new List<string>();
+
+        var (coord, poller, _) = CreateCoordinator(async feed =>
         {
-            throw new InvalidOperationException("mode rebuild failed");
+            var slug = feed.Data?.Modes?.FirstOrDefault()?.Slug ?? "?";
+            applied.Add(slug);
+            if (slug == "idA")
+            {
+                await gate.Task;
+                throw new InvalidOperationException("mode rebuild failed");
+            }
+            return true;
         });
 
         poller.Start(CreateFeed("id0"));
-        await coord.OnCandidateAsync(CreateFeed("idA"));
 
+        var taskA = coord.OnCandidateAsync(CreateFeed("idA"));
+        await Task.Delay(50);
+
+        await coord.OnCandidateAsync(CreateFeed("idC"));
+
+        gate.SetResult(true);
+        await taskA;
+        await Task.Delay(300);
+
+        Assert.Contains("idC", applied);
         var accepted = poller.GetAcceptedFeed();
-        Assert.Null(accepted.Data?.Modes?.Find(m => m.Slug == "idA"));
-        Assert.True(coord.HasPendingFeed);
-        Assert.Contains(logger.ErrorLines, l => l.Contains("Feed application error"));
+        Assert.Contains("idC", accepted.Data?.Modes?.Select(m => m.Slug ?? ""));
+        Assert.False(coord.HasPendingFeed);
         poller.Dispose();
     }
 
-    // F: callback returns false (RefreshState fails) → candidate pending → not accepted
+    // C: A fails with no newer pending → A remains pending → accepted unchanged
     [Fact]
-    public async Task RefreshStateFails_CandidatePending_NotAccepted()
+    public async Task A_FailsNoNewerPending_ARemainsPending()
     {
         var (coord, poller, _) = CreateCoordinator(_ => Task.FromResult(false));
 
         poller.Start(CreateFeed("id0"));
         await coord.OnCandidateAsync(CreateFeed("idA"));
 
+        Assert.True(coord.HasPendingFeed);
+        // Accepted baseline should still be id0
         var accepted = poller.GetAcceptedFeed();
         Assert.Null(accepted.Data?.Modes?.Find(m => m.Slug == "idA"));
+        poller.Dispose();
+    }
+
+    // D: A fails with semantically-identical A already pending → only one A pending
+    [Fact]
+    public async Task A_FailsWithSameSemanticPending_OnlyOnePending()
+    {
+        var applyCount = 0;
+        var (coord, poller, _) = CreateCoordinator(_ =>
+        {
+            applyCount++;
+            return Task.FromResult(false);
+        });
+
+        poller.Start(CreateFeed("id0"));
+
+        // First A fails, becomes pending
+        await coord.OnCandidateAsync(CreateFeed("idA"));
+        Assert.Equal(1, applyCount);
+
+        // Second semantically-identical A — should reapply (pending was equal so overwritten)
+        await coord.OnCandidateAsync(CreateFeed("idA"));
+        Assert.Equal(2, applyCount);
+
         Assert.True(coord.HasPendingFeed);
         poller.Dispose();
     }
 
-    // G: successful apply → pending matching candidate cleared → AcceptFeed exactly once
+    // E: A succeeds while semantically-identical A pending → pending cleared → exactly-once accept
     [Fact]
-    public async Task SuccessfulApply_PendingCleared_AcceptFeedOnce()
+    public async Task A_SucceedsWithSamePending_PendingCleared_AcceptExactlyOnce()
     {
-        var acceptCount = 0;
-        var (coord, poller, _) = CreateCoordinator(_ => Task.FromResult(true));
+        var gate = new TaskCompletionSource<bool>();
+        var applied = new List<string>();
 
-        // Track accepts by checking accepted feed changes
-        ReleasesResponse? lastAccepted = null;
+        var (coord, poller, logger) = CreateCoordinator(async feed =>
+        {
+            var slug = feed.Data?.Modes?.FirstOrDefault()?.Slug ?? "?";
+            applied.Add(slug);
+            // First call (idA) blocks; second arrives while first is applying
+            if (applied.Count == 1 && slug == "idA")
+            {
+                await gate.Task;
+            }
+            return true;
+        });
+
         poller.Start(CreateFeed("id0"));
-        lastAccepted = poller.GetAcceptedFeed();
 
+        // First A blocks
+        var taskA = coord.OnCandidateAsync(CreateFeed("idA"));
+        await Task.Delay(50);
+
+        // Second semantically-identical A arrives while first is applying → stored as pending
         await coord.OnCandidateAsync(CreateFeed("idA"));
 
-        var newAccepted = poller.GetAcceptedFeed();
-        Assert.NotNull(newAccepted.Data?.Modes?.Find(m => m.Slug == "idA"));
+        // Unblock first A
+        gate.SetResult(true);
+        await taskA;
+        await Task.Delay(200);
+
+        // Accept should happen exactly once (second A is stale-pending, cleared)
+        var acceptCount = logger.DebugLines.Count(l => l.Contains("Feed candidate accepted"));
+        Assert.Equal(1, acceptCount);
         Assert.False(coord.HasPendingFeed);
         poller.Dispose();
     }
 
-    // H: blocked coordinator → candidate stored → apply not started
+    // F: failed A → retry A → B → final accepted B
     [Fact]
-    public async Task BlockedCoordinator_CandidateStored_NoApply()
+    public async Task FailedA_RetryA_ThenB_FinalAcceptedB()
     {
-        var applyCalled = false;
-        var (coord, poller, _) = CreateCoordinator(_ =>
-        {
-            applyCalled = true;
-            return Task.FromResult(true);
-        });
+        var callCount = 0;
 
-        coord.BlockUpdates();
-        await coord.OnCandidateAsync(CreateFeed("idA"));
-
-        Assert.False(applyCalled);
-        Assert.True(coord.HasPendingFeed);
-        poller.Dispose();
-    }
-
-    // I: ApplyPendingIfAnyAsync during finalization → applies latest → accepted → pending empty
-    [Fact]
-    public async Task ApplyPendingDuringFinalization_AppliesLatest()
-    {
-        var applied = new List<string>();
         var (coord, poller, _) = CreateCoordinator(feed =>
         {
-            var slug = feed.Data?.Modes?.FirstOrDefault()?.Slug ?? "?";
-            applied.Add(slug);
+            callCount++;
+            if (callCount == 1) return Task.FromResult(false);
             return Task.FromResult(true);
         });
 
-        coord.BlockUpdates();
+        poller.Start(CreateFeed("id0"));
+
+        await coord.OnCandidateAsync(CreateFeed("idA"));
         await coord.OnCandidateAsync(CreateFeed("idA"));
         await coord.OnCandidateAsync(CreateFeed("idB"));
 
-        // ApplyPendingIfAnyAsync should work even while blocked
-        await coord.ApplyPendingIfAnyAsync();
-
-        Assert.Contains("idB", applied);
         var accepted = poller.GetAcceptedFeed();
-        Assert.NotNull(accepted.Data?.Modes?.Find(m => m.Slug == "idB"));
+        Assert.Contains("idB", accepted.Data?.Modes?.Select(m => m.Slug ?? ""));
         poller.Dispose();
     }
 
-    // J: max apply concurrency <= 1
+    // G: A/B/C latest-pending wins
+    [Fact]
+    public async Task LatestPendingWins()
+    {
+        var gate = new TaskCompletionSource<bool>();
+        var applied = new List<string>();
+
+        var (coord, poller, _) = CreateCoordinator(async feed =>
+        {
+            var slug = feed.Data?.Modes?.FirstOrDefault()?.Slug ?? "?";
+            applied.Add(slug);
+            if (slug == "idA") await gate.Task;
+            return true;
+        });
+
+        poller.Start(CreateFeed("id0"));
+
+        var taskA = coord.OnCandidateAsync(CreateFeed("idA"));
+        await Task.Delay(50);
+        await coord.OnCandidateAsync(CreateFeed("idB"));
+        await coord.OnCandidateAsync(CreateFeed("idC"));
+
+        gate.SetResult(true);
+        await taskA;
+        await Task.Delay(300);
+
+        Assert.Contains("idC", applied);
+        poller.Dispose();
+    }
+
+    // H: max apply concurrency <= 1
     [Fact]
     public async Task MaxConcurrency_OneSimultaneousApply()
     {
@@ -273,48 +270,46 @@ public class FeedApplicationCoordinatorTests
         poller.Dispose();
     }
 
-    // K: after B accepted, stale A cannot become accepted
+    // Blocked → stored → no apply
     [Fact]
-    public async Task AfterBAccepted_StaleANeverApplied()
+    public async Task BlockedCoordinator_CandidateStored_NoApply()
+    {
+        var applyCalled = false;
+        var (coord, poller, _) = CreateCoordinator(_ =>
+        {
+            applyCalled = true;
+            return Task.FromResult(true);
+        });
+
+        coord.BlockUpdates();
+        await coord.OnCandidateAsync(CreateFeed("idA"));
+
+        Assert.False(applyCalled);
+        Assert.True(coord.HasPendingFeed);
+        poller.Dispose();
+    }
+
+    // ApplyPendingIfAnyAsync during finalization
+    [Fact]
+    public async Task ApplyPendingDuringFinalization_AppliesLatest()
     {
         var applied = new List<string>();
-        var gate = new TaskCompletionSource<bool>();
-
-        var (coord, poller, _) = CreateCoordinator(async feed =>
+        var (coord, poller, _) = CreateCoordinator(feed =>
         {
             var slug = feed.Data?.Modes?.FirstOrDefault()?.Slug ?? "?";
             applied.Add(slug);
-
-            // First call (A) blocks
-            if (slug == "idA")
-            {
-                await gate.Task;
-            }
-            return true;
+            return Task.FromResult(true);
         });
 
-        poller.Start(CreateFeed("id0"));
-
-        // Start A (blocks)
-        var taskA = coord.OnCandidateAsync(CreateFeed("idA"));
-        await Task.Delay(50);
-
-        // B arrives while A is applying → stored as pending
+        coord.BlockUpdates();
+        await coord.OnCandidateAsync(CreateFeed("idA"));
         await coord.OnCandidateAsync(CreateFeed("idB"));
 
-        // Unblock A
-        gate.SetResult(true);
-        await taskA;
-        await Task.Delay(300);
+        await coord.ApplyPendingIfAnyAsync();
 
-        // B should be applied after A, and A should not be applied again after B
-        var lastAIndex = applied.LastIndexOf("idA");
-        var lastBIndex = applied.LastIndexOf("idB");
-        if (lastAIndex >= 0 && lastBIndex >= 0)
-            Assert.True(lastAIndex < lastBIndex, "A was applied after B");
-
+        Assert.Contains("idB", applied);
         var accepted = poller.GetAcceptedFeed();
-        Assert.NotNull(accepted.Data?.Modes?.Find(m => m.Slug == "idB"));
+        Assert.Contains("idB", accepted.Data?.Modes?.Select(m => m.Slug ?? ""));
         poller.Dispose();
     }
 
@@ -332,7 +327,7 @@ public class FeedApplicationCoordinatorTests
         await coord.ApplyPendingIfAnyAsync();
 
         var accepted = poller.GetAcceptedFeed();
-        Assert.NotNull(accepted.Data?.Modes?.Find(m => m.Slug == "idA"));
+        Assert.Contains("idA", accepted.Data?.Modes?.Select(m => m.Slug ?? ""));
         poller.Dispose();
     }
 

@@ -90,7 +90,17 @@ public sealed class FeedApplicationCoordinator
                 }
                 else
                 {
-                    _pendingFeed = candidate;
+                    // Only requeue failed candidate if no newer different pending exists.
+                    // Preserve already-arrived newer candidate that supersedes this failure.
+                    var existing = _pendingFeed;
+                    if (existing == null || IsSemanticallyEqual(existing, candidate))
+                    {
+                        _pendingFeed = candidate;
+                    }
+                    else
+                    {
+                        _logger.Debug("Failed candidate superseded by newer pending feed.");
+                    }
                 }
 
                 var next = _pendingFeed;

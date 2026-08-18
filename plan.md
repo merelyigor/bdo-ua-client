@@ -26,8 +26,9 @@
 - **v12.4.5.2** — serialize live feed application (AcceptFeed after RefreshState, single-flight, operation finalization order)
 - **v12.4.5.3** — close live feed finalization races (_operationFinalizing gate, no fire-and-forget, exception-safe finalization, network diagnostics, FeedApplicationCoordinator)
 - **v12.4.5.4** — unify feed application coordinator (MainForm uses coordinator, semantic equality, stale-pending fix, Task-based API, whole-pipeline callback)
+- **v12.4.5.5** — preserve newer pending feed on failure (failed candidate does not overwrite newer pending, exactly-once acceptance test)
 - **Latest SHA:** (see git log)
-- **.NET tests:** 405
+- **.NET tests:** 404
 - **Resolver scenarios:** 13
 - **Normal CI:** PENDING
 - **Release Candidate:** v0.1.0 functional success (intermittent ~21s bdo-ua.com.ua latency observed, root cause not established)
