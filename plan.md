@@ -21,8 +21,9 @@
 - **v12.4.3.3** — fix resolver test isolation (RESOLVER_TEST_TAGS_JSON, real-origin smoke, 13 scenarios)
 - **v12.4.4** — network diagnostics and log retention (API timing, download timing, 15-day log retention, startup version, release-assets artifact)
 - **v12.4.4.1** — fix diagnostic correctness (retention boundary, real elapsed timing in catches, stable error categories, UTF-8 byte count)
+- **v12.4.5** — live refresh release feed (15s polling, semantic change detection, last-known-good, correlation headers, CheckedChanged suppression)
 - **Latest SHA:** (see git log)
-- **.NET tests:** 355
+- **.NET tests:** 375
 - **Resolver scenarios:** 13
 - **Normal CI:** PENDING
 - **Release Candidate:** v0.1.0 functional success (intermittent ~21s bdo-ua.com.ua latency observed, root cause not established)
@@ -233,6 +234,30 @@ Target (post v1.0.0 stabilization):
 
 **v0.1.0 tag:** immutable, not published as GitHub Release
 **Next RC expected:** v0.1.1 (automatic patch)
+
+---
+
+### v12.4.5 — live refresh release feed
+
+**Status:** IMPLEMENTED
+
+**Requirement:** While app is open, new releases/modes should appear without restart.
+
+**Design:**
+- `ReleaseFeedPoller`: async loop, 15s after previous completion, CancellationToken
+- `FeedChangeDetector`: static comparison of UI-relevant fields (slugs, public_id, version, patch, compatibility, public_name, official_patch)
+- `MainForm`: `_suppressModeChanged` flag for programmatic rebuild, `_operationInProgress` guard
+- Last-known-good: background failure keeps existing feed, no UI disruption
+- Startup failure recovery: poller retries, UI recovers on first success
+- Correlation headers: X-Request-ID, Server-Timing, CF-Ray logged when present
+
+**Behavior:**
+- Unchanged feed → no RadioButton rebuild, no config churn
+- New mode appears → mode list updated, previous selection preserved
+- Mode removed → deterministic fallback via DynamicModePolicy
+- Newer current release → feed updated, state refresh triggered (UpToDate → UpdateAvailable)
+- Operation in progress → poll skipped, feed update deferred
+- Shutdown → poller cancelled, no errors
 
 ---
 

@@ -41,6 +41,8 @@ public sealed class BdoUaApiClient
 
             var headersMs = totalSw.ElapsedMilliseconds;
 
+            LogCorrelationHeaders(response);
+
             if (!response.IsSuccessStatusCode)
             {
                 var statusCode = (int)response.StatusCode;
@@ -128,5 +130,34 @@ public sealed class BdoUaApiClient
             _logger.Debug($"API timing: host=bdo-ua.com.ua total_ms={totalSw.ElapsedMilliseconds} error=Unexpected");
             return ApiResult<ReleasesResponse>.Failure(ApiErrorKind.Unexpected, $"Unexpected error: {ex.Message}");
         }
+    }
+
+    private void LogCorrelationHeaders(HttpResponseMessage response)
+    {
+        var parts = new List<string>();
+
+        if (response.Headers.TryGetValues("X-Request-ID", out var requestIdValues))
+        {
+            var value = requestIdValues.FirstOrDefault();
+            if (!string.IsNullOrEmpty(value))
+                parts.Add($"request_id={value}");
+        }
+
+        if (response.Headers.TryGetValues("Server-Timing", out var serverTimingValues))
+        {
+            var value = serverTimingValues.FirstOrDefault();
+            if (!string.IsNullOrEmpty(value))
+                parts.Add($"server_timing=\"{value}\"");
+        }
+
+        if (response.Headers.TryGetValues("CF-Ray", out var cfRayValues))
+        {
+            var value = cfRayValues.FirstOrDefault();
+            if (!string.IsNullOrEmpty(value))
+                parts.Add($"cf_ray={value}");
+        }
+
+        if (parts.Count > 0)
+            _logger.Debug($"API correlation: {string.Join(" ", parts)}");
     }
 }

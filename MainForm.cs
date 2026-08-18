@@ -18,6 +18,7 @@ public partial class MainForm : Form
     private readonly BackupStore _backupStore;
     private readonly InstallationStateStore _stateStore;
     private readonly ILogger _logger;
+    private readonly ReleaseFeedPoller _poller;
 
     private string? _gameRoot;
     private ReleasesResponse? _apiResponse;
@@ -25,6 +26,7 @@ public partial class MainForm : Form
     private string? _apiErrorMessage;
     private ApiErrorKind _apiErrorKind;
     private bool _initializing;
+    private bool _suppressModeChanged;
     private bool _operationInProgress;
     private LocalizationState _lastResolvedState;
     private OperationState _operationState = OperationState.Idle;
@@ -52,6 +54,10 @@ public partial class MainForm : Form
         _backupStore = backupStore;
         _stateStore = stateStore;
         _logger = logger;
+
+        _poller = new ReleaseFeedPoller(_apiClient, _logger);
+        _poller.OnFeedChanged += OnReleaseFeedChanged;
+        _poller.OnPollFailed += OnReleasePollFailed;
 
         InitializeComponent();
         WireEventHandlers();
@@ -146,6 +152,7 @@ public partial class MainForm : Form
         {
             _initializing = false;
             SetOperationState(OperationState.Idle);
+            _poller.Start(_apiResponse);
         }
     }
 
@@ -394,6 +401,7 @@ public partial class MainForm : Form
     private async void ModeRadioButton_CheckedChanged(object? sender, EventArgs e)
     {
         if (_initializing) return;
+        if (_suppressModeChanged) return;
         if (sender is not RadioButton rb || !rb.Checked) return;
 
         try
@@ -717,6 +725,8 @@ public partial class MainForm : Form
 
     private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
+        _poller.Stop();
+
         if (!_operationInProgress)
             return;
 
@@ -741,6 +751,71 @@ public partial class MainForm : Form
         foreach (Control c in modesFlowPanel.Controls)
         {
             if (c is RadioButton rb) rb.Enabled = enabled;
+        }
+    }
+
+    // --- Release feed polling ---
+
+    private void OnReleaseFeedChanged(ReleasesResponse newFeed)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(() => OnReleaseFeedChanged(newFeed));
+            return;
+        }
+
+        if (_operationInProgress)
+        {
+            _logger.Debug("Feed changed during operation. Deferring.");
+            return;
+        }
+
+        ApplyFeedUpdate(newFeed);
+    }
+
+    private void OnReleasePollFailed(string error)
+    {
+        // Keep last known good. Log only.
+    }
+
+    private void ApplyFeedUpdate(ReleasesResponse newFeed)
+    {
+        var previousSlug = GetSelectedModeSlug();
+
+        _apiResponse = newFeed;
+        _apiLoadedSuccessfully = true;
+        _apiErrorMessage = null;
+        _apiErrorKind = ApiErrorKind.None;
+
+        _suppressModeChanged = true;
+        try
+        {
+            BuildDynamicModes();
+            RestoreSelectionAfterFeedUpdate(previousSlug);
+        }
+        finally
+        {
+            _suppressModeChanged = false;
+        }
+
+        _ = RefreshStateAsync();
+    }
+
+    private void RestoreSelectionAfterFeedUpdate(string? previousSlug)
+    {
+        var allModes = _apiResponse?.Data?.Modes;
+        var installable = DynamicModePolicy.GetInstallableModes(allModes);
+
+        if (previousSlug != null && installable.Any(m =>
+            string.Equals(m.Slug, previousSlug, StringComparison.Ordinal)))
+        {
+            SelectModeBySlug(previousSlug);
+        }
+        else
+        {
+            var fallback = DynamicModePolicy.ResolveInitialSelection(previousSlug, installable);
+            if (fallback != null)
+                SelectModeBySlug(fallback);
         }
     }
 
