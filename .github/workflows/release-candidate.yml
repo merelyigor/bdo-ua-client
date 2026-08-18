@@ -25,8 +25,8 @@ jobs:
       shell: pwsh
       run: |
         $version = "${{ inputs.version }}"
-        if ($version -notmatch '^\d+\.\d+\.\d+$') {
-          Write-Error "Invalid version format: '$version'. Expected MAJOR.MINOR.PATCH (e.g. 0.1.0)"
+        if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
+          Write-Error "Invalid version format: '$version'. Expected MAJOR.MINOR.PATCH without leading zeroes (e.g. 0.1.0, 1.10.2)"
           exit 1
         }
         Write-Output "Version validated: $version"
@@ -195,6 +195,7 @@ jobs:
         $runId = "${{ github.run_id }}"
 
         $manifest = @{
+          schema_version = 1
           version = $version
           tag = $tag
           commit_sha = $sha
@@ -237,7 +238,43 @@ jobs:
           artifacts/release-manifest.json
           artifacts/RELEASE_NOTES-v${{ inputs.version }}.md
 
-    - name: Create and push tag
+    - name: Summary
+      shell: pwsh
+      run: |
+        $version = "${{ inputs.version }}"
+        $tag = "v$version"
+        $sha = "${{ github.sha }}"
+        $assetName = "BDO-UA-Client-v$version-win-x64.zip"
+        $hash = (Get-Content "artifacts/SHA256SUMS.txt" -Raw).Split(" ")[0]
+
+        @"
+        ## Release Candidate v$version
+
+        | | |
+        |---|---|
+        | **Version** | $version |
+        | **Tag** | ``$tag`` (will be created after this step) |
+        | **Commit** | ``$sha`` |
+        | **Asset** | $assetName |
+        | **SHA-256** | ``$hash`` |
+        | **Artifact** | ``BDO-UA-Client-v$version-win-x64`` |
+
+        ### Next steps
+
+        1. Download artifact ``BDO-UA-Client-v$version-win-x64``
+        2. Test exact ``$assetName`` locally
+        3. Verify SHA-256 if desired
+        4. Draft GitHub Release → select existing tag ``$tag``
+        5. Use generated ``RELEASE_NOTES-v$version.md`` as release body (edit changelog)
+        6. Upload exact ``$assetName`` from artifact
+        7. Upload ``SHA256SUMS.txt`` from artifact
+        8. Upload ``release-manifest.json`` from artifact
+        9. Click **Publish release**
+
+        > GitHub Release is NOT created automatically.
+        "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+
+    - name: Create and push tag (FINAL)
       shell: pwsh
       run: |
         $version = "${{ inputs.version }}"
@@ -256,37 +293,3 @@ jobs:
         git tag -a $tag -m "Release $tag" $sha
         git push origin $tag
         Write-Output "Tag $tag created and pushed on $sha"
-
-    - name: Summary
-      shell: pwsh
-      run: |
-        $version = "${{ inputs.version }}"
-        $tag = "v$version"
-        $sha = "${{ github.sha }}"
-        $assetName = "BDO-UA-Client-v$version-win-x64.zip"
-        $hash = (Get-Content "artifacts/SHA256SUMS.txt" -Raw).Split(" ")[0]
-
-        @"
-        ## Release Candidate v$version
-
-        | | |
-        |---|---|
-        | **Version** | $version |
-        | **Tag** | $tag |
-        | **Commit** | ``$sha`` |
-        | **Asset** | $assetName |
-        | **SHA-256** | ``$hash`` |
-        | **Artifact** | ``BDO-UA-Client-v$version-win-x64`` |
-
-        ### Next steps
-
-        1. Download artifact ``BDO-UA-Client-v$version-win-x64``
-        2. Test exact ``BDO-UA-Client-v$version-win-x64.zip`` locally
-        3. Draft GitHub Release → select tag ``$tag``
-        4. Use generated ``RELEASE_NOTES-v$version.md`` (edit changelog)
-        5. Upload exact ``$assetName`` from artifact
-        6. Optionally upload ``SHA256SUMS.txt``
-        7. Click **Publish release**
-
-        > GitHub Release is NOT created automatically.
-        "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8

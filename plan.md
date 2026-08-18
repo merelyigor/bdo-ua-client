@@ -16,6 +16,7 @@
 - **v12.3.5 / v12.3.5.1** — Marquee progress, timing logs, application icon
 - **v12.4** — public root README, release candidate workflow, release docs
 - **v12.4.1** — finalize release candidate workflow (version properties, remote tag check, step summary)
+- **v12.4.2** — immutable release contract (strict version regex, schema_version, tag-last, release docs)
 - **Latest SHA:** (see git log)
 - **Automated tests:** 336
 - **Normal CI:** PENDING
@@ -125,8 +126,6 @@
 
 ### v12.3.x — E2E bugfix iterations
 Only if next real Windows test finds concrete defects.
-
-### v12.5 — Release readiness
 Target scenarios:
 - Startup detection
 - Dynamic API modes
