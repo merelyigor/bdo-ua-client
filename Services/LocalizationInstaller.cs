@@ -210,7 +210,8 @@ public sealed class LocalizationInstaller
         }
         catch (HttpRequestException ex)
         {
-            _logger.Warning($"Network error on download attempt: {ex.Message}");
+            var diag = Api.NetworkDiagnostics.FormatNetworkError(ex);
+            _logger.Warning($"Network error on download attempt: {diag}");
             _logger.Debug($"Release download timing: host={host} total_ms={attemptSw.ElapsedMilliseconds} error=Network");
             CleanupTempFile(tempFilePath);
             return DownloadResult.Failure(DownloadError.Network, ex.Message, isRetryable: true);
@@ -302,7 +303,8 @@ public sealed class LocalizationInstaller
         }
         catch (HttpRequestException ex)
         {
-            _logger.Warning($"Network error on official download attempt: {ex.Message}");
+            var diag = Api.NetworkDiagnostics.FormatNetworkError(ex);
+            _logger.Warning($"Network error on official download attempt: {diag}");
             _logger.Debug($"Official download timing: host={host} total_ms={attemptSw.ElapsedMilliseconds} error=Network");
             CleanupTempFile(tempFilePath);
             return DownloadResult.Failure(DownloadError.Network, ex.Message, isRetryable: true);

@@ -120,7 +120,8 @@ public sealed class BdoUaApiClient
         }
         catch (HttpRequestException ex)
         {
-            _logger.Error($"Network error: {ex.Message}");
+            var diag = NetworkDiagnostics.FormatNetworkError(ex);
+            _logger.Error($"API network error: {diag}");
             _logger.Debug($"API timing: host=bdo-ua.com.ua total_ms={totalSw.ElapsedMilliseconds} error=Network");
             return ApiResult<ReleasesResponse>.Failure(ApiErrorKind.Network, $"Network error: {ex.Message}");
         }

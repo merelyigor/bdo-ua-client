@@ -28,6 +28,7 @@ public partial class MainForm : Form
     private bool _initializing;
     private bool _suppressModeChanged;
     private volatile bool _operationInProgress;
+    private volatile bool _operationFinalizing;
     private volatile bool _closing;
     private volatile bool _feedApplyInProgress;
     private ReleasesResponse? _pendingFeed;
@@ -582,26 +583,35 @@ public partial class MainForm : Form
             _operationCts?.Dispose();
             _operationCts = null;
             _operationInProgress = false;
+            _operationFinalizing = true;
             SetControlsDuringOperation(true);
 
             try
             {
-                await RefreshStateAsync();
+                try
+                {
+                    await RefreshStateAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error($"Post-operation refresh failed: {ex.Message}");
+                    if (finalMessage == null)
+                        finalMessage = $"Не вдалося оновити стан: {ex.Message}";
+                    else
+                        finalMessage += $"{Environment.NewLine}{Environment.NewLine}Не вдалося оновити стан: {ex.Message}";
+                }
+
+                if (finalMessage != null)
+                    SetMessage(finalMessage);
+
+                await ApplyPendingFeedIfAnyAsync();
             }
-            catch (Exception ex)
+            finally
             {
-                _logger.Error($"Post-operation refresh failed: {ex.Message}");
-                if (finalMessage == null)
-                    finalMessage = $"Не вдалося оновити стан: {ex.Message}";
-                else
-                    finalMessage += $"{Environment.NewLine}{Environment.NewLine}Не вдалося оновити стан: {ex.Message}";
+                _operationFinalizing = false;
+                if (!_closing)
+                    _poller.Resume();
             }
-
-            if (finalMessage != null)
-                SetMessage(finalMessage);
-
-            await ApplyPendingFeedIfAnyAsync();
-            _poller.Resume();
         }
     }
 
@@ -698,26 +708,35 @@ public partial class MainForm : Form
             _operationCts?.Dispose();
             _operationCts = null;
             _operationInProgress = false;
+            _operationFinalizing = true;
             SetControlsDuringOperation(true);
 
             try
             {
-                await RefreshStateAsync();
+                try
+                {
+                    await RefreshStateAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error($"Post-operation refresh failed: {ex.Message}");
+                    if (finalMessage == null)
+                        finalMessage = $"Не вдалося оновити стан: {ex.Message}";
+                    else
+                        finalMessage += $"{Environment.NewLine}{Environment.NewLine}Не вдалося оновити стан: {ex.Message}";
+                }
+
+                if (finalMessage != null)
+                    SetMessage(finalMessage);
+
+                await ApplyPendingFeedIfAnyAsync();
             }
-            catch (Exception ex)
+            finally
             {
-                _logger.Error($"Post-operation refresh failed: {ex.Message}");
-                if (finalMessage == null)
-                    finalMessage = $"Не вдалося оновити стан: {ex.Message}";
-                else
-                    finalMessage += $"{Environment.NewLine}{Environment.NewLine}Не вдалося оновити стан: {ex.Message}";
+                _operationFinalizing = false;
+                if (!_closing)
+                    _poller.Resume();
             }
-
-            if (finalMessage != null)
-                SetMessage(finalMessage);
-
-            await ApplyPendingFeedIfAnyAsync();
-            _poller.Resume();
         }
     }
 
@@ -770,7 +789,7 @@ public partial class MainForm : Form
 
     // --- Release feed polling ---
 
-    private void OnReleaseFeedCandidate(ReleasesResponse candidate)
+    private async void OnReleaseFeedCandidate(ReleasesResponse candidate)
     {
         if (InvokeRequired)
         {
@@ -778,16 +797,23 @@ public partial class MainForm : Form
             return;
         }
 
-        if (_closing) return;
-
-        if (_operationInProgress || _feedApplyInProgress)
+        try
         {
-            _logger.Debug("Feed candidate received while busy. Storing as pending.");
-            _pendingFeed = candidate;
-            return;
-        }
+            if (_closing) return;
 
-        _ = ApplyFeedUpdateAsync(candidate);
+            if (_operationInProgress || _operationFinalizing || _feedApplyInProgress)
+            {
+                _logger.Debug("Feed candidate received while busy. Storing as pending.");
+                _pendingFeed = candidate;
+                return;
+            }
+
+            await ApplyFeedUpdateAsync(candidate);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Feed candidate handler error: {ex.Message}");
+        }
     }
 
     private void OnReleasePollFailed(string error)
