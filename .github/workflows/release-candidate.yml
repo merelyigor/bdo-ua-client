@@ -4,8 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Semantic version (MAJOR.MINOR.PATCH, e.g. 0.1.0)'
-        required: true
+        description: 'Version MAJOR.MINOR.PATCH. Leave empty for automatic next patch.'
+        required: false
+        default: ''
         type: string
 
 permissions:
@@ -21,16 +22,6 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Validate version format
-      shell: pwsh
-      run: |
-        $version = "${{ inputs.version }}"
-        if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
-          Write-Error "Invalid version format: '$version'. Expected MAJOR.MINOR.PATCH without leading zeroes (e.g. 0.1.0, 1.10.2)"
-          exit 1
-        }
-        Write-Output "Version validated: $version"
-
     - name: Validate main branch
       shell: pwsh
       run: |
@@ -41,23 +32,42 @@ jobs:
         }
         Write-Output "Branch validated: main"
 
+    - name: Resolve release version
+      id: resolve
+      shell: pwsh
+      run: |
+        $manualVersion = "${{ inputs.version }}"
+        $result = & "${{ github.workspace }}\scripts\Resolve-ReleaseVersion.ps1" -ManualVersion $manualVersion
+
+        # Parse output
+        $versionLine = $result | Where-Object { $_ -match '^RELEASE_VERSION=' }
+        $tagLine = $result | Where-Object { $_ -match '^RELEASE_TAG=' }
+        $logLines = $result | Where-Object { $_ -notmatch '^RELEASE_' }
+
+        # Print log
+        $logLines | ForEach-Object { Write-Output $_ }
+
+        $version = ($versionLine -split '=', 2)[1]
+        $tag = ($tagLine -split '=', 2)[1]
+
+        Write-Output "RELEASE_VERSION=$version" >> $env:GITHUB_OUTPUT
+        Write-Output "RELEASE_TAG=$tag" >> $env:GITHUB_OUTPUT
+        Write-Output "Resolved: $version ($tag)"
+
     - name: Check tag does not exist (local + remote)
       shell: pwsh
       run: |
-        $version = "${{ inputs.version }}"
-        $tag = "v$version"
+        $tag = "${{ steps.resolve.outputs.RELEASE_TAG }}"
 
-        # Local check
         $local = git tag -l $tag
         if ($local) {
-          Write-Error "Tag $tag already exists locally. Use a different version."
+          Write-Error "Tag $tag already exists locally."
           exit 1
         }
 
-        # Remote check
         $remote = git ls-remote origin "refs/tags/$tag"
         if ($remote) {
-          Write-Error "Tag $tag already exists on remote. Use a different version."
+          Write-Error "Tag $tag already exists on remote."
           exit 1
         }
 
@@ -74,9 +84,9 @@ jobs:
     - name: Build Release
       shell: pwsh
       run: |
-        $version = "${{ inputs.version }}"
-        $versionParts = $version.Split('.')
-        $assemblyVersion = "$($versionParts[0]).$($versionParts[1]).$($versionParts[2]).0"
+        $version = "${{ steps.resolve.outputs.RELEASE_VERSION }}"
+        $parts = $version.Split('.')
+        $assemblyVersion = "$($parts[0]).$($parts[1]).$($parts[2]).0"
 
         dotnet build BdoUaClient.sln `
           -c Release `
@@ -92,9 +102,9 @@ jobs:
     - name: Publish single-file win-x64
       shell: pwsh
       run: |
-        $version = "${{ inputs.version }}"
-        $versionParts = $version.Split('.')
-        $assemblyVersion = "$($versionParts[0]).$($versionParts[1]).$($versionParts[2]).0"
+        $version = "${{ steps.resolve.outputs.RELEASE_VERSION }}"
+        $parts = $version.Split('.')
+        $assemblyVersion = "$($parts[0]).$($parts[1]).$($parts[2]).0"
 
         dotnet publish BdoClient.csproj `
           -c Release `
@@ -126,7 +136,7 @@ jobs:
       run: |
         $exe = "artifacts/publish/win-x64/BDO-UA-Client.exe"
         $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exe)
-        $version = "${{ inputs.version }}"
+        $version = "${{ steps.resolve.outputs.RELEASE_VERSION }}"
 
         Write-Output "FileVersion:    $($info.FileVersion)"
         Write-Output "ProductVersion: $($info.ProductVersion)"
@@ -144,10 +154,10 @@ jobs:
     - name: Create versioned ZIP
       shell: pwsh
       run: |
-        $version = "${{ inputs.version }}"
-        $zipName = "BDO-UA-Client-v$version-win-x64.zip"
+        $version = "${{ steps.resolve.outputs.RELEASE_VERSION }}"
+        $assetName = "BDO-UA-Client-v$version-win-x64.zip"
         $exePath = "artifacts/publish/win-x64/BDO-UA-Client.exe"
-        $zipPath = "artifacts/$zipName"
+        $zipPath = "artifacts/$assetName"
 
         Compress-Archive -Path $exePath -DestinationPath $zipPath -Force
         Write-Output "ZIP created: $zipPath ($((Get-Item $zipPath).Length) bytes)"
@@ -155,11 +165,11 @@ jobs:
     - name: Verify ZIP contents
       shell: pwsh
       run: |
-        $version = "${{ inputs.version }}"
+        $version = "${{ steps.resolve.outputs.RELEASE_VERSION }}"
         $zipPath = "artifacts/BDO-UA-Client-v$version-win-x64.zip"
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
-        $entries = $zip.Entries | ForEach-Object { $_.FullName }
+        $entries = @($zip.Entries | ForEach-Object { [string]$_.FullName })
         $zip.Dispose()
 
         Write-Output "ZIP entries: $($entries -join ', ')"
@@ -177,18 +187,18 @@ jobs:
     - name: Calculate SHA-256
       shell: pwsh
       run: |
-        $version = "${{ inputs.version }}"
+        $version = "${{ steps.resolve.outputs.RELEASE_VERSION }}"
         $zipPath = "artifacts/BDO-UA-Client-v$version-win-x64.zip"
         $hash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLower()
-        $zipName = "BDO-UA-Client-v$version-win-x64.zip"
-        "$hash  $zipName" | Out-File -FilePath "artifacts/SHA256SUMS.txt" -Encoding utf8
+        $assetName = "BDO-UA-Client-v$version-win-x64.zip"
+        "$hash  $assetName" | Out-File -FilePath "artifacts/SHA256SUMS.txt" -Encoding utf8
         Write-Output "SHA-256: $hash"
 
     - name: Create release manifest
       shell: pwsh
       run: |
-        $version = "${{ inputs.version }}"
-        $tag = "v$version"
+        $version = "${{ steps.resolve.outputs.RELEASE_VERSION }}"
+        $tag = "${{ steps.resolve.outputs.RELEASE_TAG }}"
         $sha = "${{ github.sha }}"
         $assetName = "BDO-UA-Client-v$version-win-x64.zip"
         $hash = (Get-Content "artifacts/SHA256SUMS.txt" -Raw).Split(" ")[0]
@@ -211,8 +221,8 @@ jobs:
     - name: Generate release notes
       shell: pwsh
       run: |
-        $version = "${{ inputs.version }}"
-        $tag = "v$version"
+        $version = "${{ steps.resolve.outputs.RELEASE_VERSION }}"
+        $tag = "${{ steps.resolve.outputs.RELEASE_TAG }}"
         $sha = "${{ github.sha }}"
         $assetName = "BDO-UA-Client-v$version-win-x64.zip"
         $hash = (Get-Content "artifacts/SHA256SUMS.txt" -Raw).Split(" ")[0]
@@ -231,27 +241,34 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: BDO-UA-Client-v${{ inputs.version }}-win-x64
+        name: BDO-UA-Client-v${{ steps.resolve.outputs.RELEASE_VERSION }}-win-x64
         path: |
-          artifacts/BDO-UA-Client-v${{ inputs.version }}-win-x64.zip
+          artifacts/BDO-UA-Client-v${{ steps.resolve.outputs.RELEASE_VERSION }}-win-x64.zip
           artifacts/SHA256SUMS.txt
           artifacts/release-manifest.json
-          artifacts/RELEASE_NOTES-v${{ inputs.version }}.md
+          artifacts/RELEASE_NOTES-v${{ steps.resolve.outputs.RELEASE_VERSION }}.md
 
     - name: Summary
       shell: pwsh
       run: |
-        $version = "${{ inputs.version }}"
-        $tag = "v$version"
+        $version = "${{ steps.resolve.outputs.RELEASE_VERSION }}"
+        $tag = "${{ steps.resolve.outputs.RELEASE_TAG }}"
         $sha = "${{ github.sha }}"
         $assetName = "BDO-UA-Client-v$version-win-x64.zip"
         $hash = (Get-Content "artifacts/SHA256SUMS.txt" -Raw).Split(" ")[0]
+        $inputVersion = "${{ inputs.version }}"
+        if ($inputVersion -and $inputVersion.Trim() -ne "") {
+          $source = "Manual"
+        } else {
+          $source = "Automatic patch"
+        }
 
         @"
         ## Release Candidate v$version
 
         | | |
         |---|---|
+        | **Version source** | $source |
         | **Version** | $version |
         | **Tag** | ``$tag`` (will be created after this step) |
         | **Commit** | ``$sha`` |
@@ -277,11 +294,9 @@ jobs:
     - name: Create and push tag (FINAL)
       shell: pwsh
       run: |
-        $version = "${{ inputs.version }}"
-        $tag = "v$version"
+        $tag = "${{ steps.resolve.outputs.RELEASE_TAG }}"
         $sha = "${{ github.sha }}"
 
-        # Re-check remote tag does not exist
         $remote = git ls-remote origin "refs/tags/$tag"
         if ($remote) {
           Write-Error "Tag $tag was created on remote by another process. Aborting."

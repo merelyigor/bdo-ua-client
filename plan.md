@@ -17,10 +17,11 @@
 - **v12.4** — public root README, release candidate workflow, release docs
 - **v12.4.1** — finalize release candidate workflow (version properties, remote tag check, step summary)
 - **v12.4.2** — immutable release contract (strict version regex, schema_version, tag-last, release docs)
+- **v12.4.3** — fix release candidate + automate patch version (ZIP fix, optional version, auto-increment)
 - **Latest SHA:** (see git log)
 - **Automated tests:** 336
 - **Normal CI:** PENDING
-- **Release Candidate:** PENDING (first real candidate after acceptance)
+- **Release Candidate:** PENDING
 
 ## Поточна фаза
 
