@@ -65,8 +65,12 @@ jobs:
           exit 1
         }
 
-        $remote = git ls-remote origin "refs/tags/$tag"
-        if ($remote) {
+        $remoteOutput = git ls-remote origin "refs/tags/$tag" 2>&1
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Failed to query remote for tag $tag (exit code $LASTEXITCODE)"
+          exit 1
+        }
+        if ($remoteOutput) {
           Write-Error "Tag $tag already exists on remote."
           exit 1
         }
@@ -297,8 +301,12 @@ jobs:
         $tag = "${{ steps.resolve.outputs.RELEASE_TAG }}"
         $sha = "${{ github.sha }}"
 
-        $remote = git ls-remote origin "refs/tags/$tag"
-        if ($remote) {
+        $remoteOutput = git ls-remote origin "refs/tags/$tag" 2>&1
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "Failed to query remote for tag $tag (exit code $LASTEXITCODE)"
+          exit 1
+        }
+        if ($remoteOutput) {
           Write-Error "Tag $tag was created on remote by another process. Aborting."
           exit 1
         }

@@ -9,9 +9,18 @@ $semverCore = '(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)'
 $versionPattern = "^${semverCore}$"
 $tagPattern = "^v${semverCore}$"
 
-# Get all remote tags matching vX.Y.Z
+# Get all remote tags matching vX.Y.Z — fail-closed on remote query failure
 $remoteRef = if ($env:RESOLVER_TEST_ORIGIN) { $env:RESOLVER_TEST_ORIGIN } else { "origin" }
-$remoteTags = git ls-remote --tags --refs $remoteRef 2>$null |
+$remoteOutput = git ls-remote --tags --refs $remoteRef 2>&1
+$remoteExitCode = $LASTEXITCODE
+
+if ($remoteExitCode -ne 0) {
+    $remoteMsg = ($remoteOutput | Out-String).Trim()
+    Write-Error "Failed to query remote '$remoteRef' (exit code $remoteExitCode): $remoteMsg"
+    exit 1
+}
+
+$remoteTags = $remoteOutput |
     ForEach-Object { ($_ -split '\s+')[1] } |
     Where-Object { $_ -match '^refs/tags/v\d+\.\d+\.\d+$' } |
     ForEach-Object { $_ -replace '^refs/tags/', '' }
