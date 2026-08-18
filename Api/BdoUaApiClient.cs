@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using BdoClient.Logging;
 using BdoClient.Models;
@@ -29,10 +30,10 @@ public sealed class BdoUaApiClient
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(_timeoutSeconds));
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
+        var totalSw = Stopwatch.StartNew();
+
         try
         {
-            var totalSw = Stopwatch.StartNew();
-
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             using var response = await _httpClient
                 .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linkedCts.Token)
@@ -42,21 +43,24 @@ public sealed class BdoUaApiClient
 
             if (!response.IsSuccessStatusCode)
             {
-                var error = $"HTTP {(int)response.StatusCode} {response.ReasonPhrase}";
+                var statusCode = (int)response.StatusCode;
+                var error = $"HTTP {statusCode} {response.ReasonPhrase}";
                 _logger.Warning($"API error: {error}");
-                _logger.Debug($"API timing: host=bdo-ua.com.ua status={(int)response.StatusCode} headers_ms={headersMs} total_ms={totalSw.ElapsedMilliseconds}");
+                _logger.Debug($"API timing: host=bdo-ua.com.ua status={statusCode} headers_ms={headersMs} total_ms={totalSw.ElapsedMilliseconds} error=Http");
                 return ApiResult<ReleasesResponse>.Failure(ApiErrorKind.Http, error);
             }
 
-            var content = await response.Content.ReadAsStringAsync(linkedCts.Token).ConfigureAwait(false);
+            var contentBytes = await response.Content.ReadAsByteArrayAsync(linkedCts.Token).ConfigureAwait(false);
             var bodyMs = totalSw.ElapsedMilliseconds - headersMs;
 
-            if (string.IsNullOrWhiteSpace(content))
+            if (contentBytes.Length == 0)
             {
                 _logger.Warning("Empty API response");
-                _logger.Debug($"API timing: host=bdo-ua.com.ua status={(int)response.StatusCode} headers_ms={headersMs} body_ms={bodyMs} total_ms={totalSw.ElapsedMilliseconds}");
+                _logger.Debug($"API timing: host=bdo-ua.com.ua status={(int)response.StatusCode} headers_ms={headersMs} body_ms={bodyMs} total_ms={totalSw.ElapsedMilliseconds} bytes=0");
                 return ApiResult<ReleasesResponse>.Failure(ApiErrorKind.InvalidResponse, "Empty API response");
             }
+
+            var content = Encoding.UTF8.GetString(contentBytes);
 
             var parseSw = Stopwatch.StartNew();
             ReleasesResponse? releases;
@@ -71,13 +75,13 @@ public sealed class BdoUaApiClient
             {
                 parseSw.Stop();
                 _logger.Error($"JSON error: {ex.Message}");
-                _logger.Debug($"API timing: host=bdo-ua.com.ua status={(int)response.StatusCode} headers_ms={headersMs} body_ms={bodyMs} parse_ms={parseSw.ElapsedMilliseconds} total_ms={totalSw.ElapsedMilliseconds} bytes={content.Length}");
+                _logger.Debug($"API timing: host=bdo-ua.com.ua status={(int)response.StatusCode} headers_ms={headersMs} body_ms={bodyMs} parse_ms={parseSw.ElapsedMilliseconds} total_ms={totalSw.ElapsedMilliseconds} bytes={contentBytes.Length}");
                 return ApiResult<ReleasesResponse>.Failure(ApiErrorKind.InvalidResponse, $"JSON error: {ex.Message}");
             }
             parseSw.Stop();
 
             totalSw.Stop();
-            _logger.Debug($"API timing: host=bdo-ua.com.ua status={(int)response.StatusCode} http={response.Version} headers_ms={headersMs} body_ms={bodyMs} parse_ms={parseSw.ElapsedMilliseconds} total_ms={totalSw.ElapsedMilliseconds} bytes={content.Length}");
+            _logger.Debug($"API timing: host=bdo-ua.com.ua status={(int)response.StatusCode} http={response.Version} headers_ms={headersMs} body_ms={bodyMs} parse_ms={parseSw.ElapsedMilliseconds} total_ms={totalSw.ElapsedMilliseconds} bytes={contentBytes.Length}");
 
             if (releases == null)
             {
@@ -103,21 +107,25 @@ public sealed class BdoUaApiClient
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
         {
             _logger.Warning($"API request timed out after {_timeoutSeconds}s");
+            _logger.Debug($"API timing: host=bdo-ua.com.ua total_ms={totalSw.ElapsedMilliseconds} error=Timeout");
             return ApiResult<ReleasesResponse>.Failure(ApiErrorKind.Timeout, $"Request timed out after {_timeoutSeconds}s");
         }
         catch (OperationCanceledException)
         {
             _logger.Warning("API request cancelled");
+            _logger.Debug($"API timing: host=bdo-ua.com.ua total_ms={totalSw.ElapsedMilliseconds} error=Cancelled");
             return ApiResult<ReleasesResponse>.Failure(ApiErrorKind.Cancelled, "Request cancelled");
         }
         catch (HttpRequestException ex)
         {
             _logger.Error($"Network error: {ex.Message}");
+            _logger.Debug($"API timing: host=bdo-ua.com.ua total_ms={totalSw.ElapsedMilliseconds} error=Network");
             return ApiResult<ReleasesResponse>.Failure(ApiErrorKind.Network, $"Network error: {ex.Message}");
         }
         catch (Exception ex)
         {
             _logger.Error($"Unexpected error: {ex.Message}");
+            _logger.Debug($"API timing: host=bdo-ua.com.ua total_ms={totalSw.ElapsedMilliseconds} error=Unexpected");
             return ApiResult<ReleasesResponse>.Failure(ApiErrorKind.Unexpected, $"Unexpected error: {ex.Message}");
         }
     }

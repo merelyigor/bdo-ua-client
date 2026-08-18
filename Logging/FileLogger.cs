@@ -33,7 +33,7 @@ public sealed class FileLogger : ILogger
                 return;
 
             var now = overrideNow ?? _clock?.Invoke() ?? DateTime.Now;
-            var cutoff = now.Date.AddDays(-RetentionDays);
+            var cutoff = now.Date.AddDays(-(RetentionDays - 1));
 
             foreach (var file in Directory.EnumerateFiles(_logsDirectory, "bdo-ua-client_*.log"))
             {

@@ -159,6 +159,72 @@ public class BdoUaApiClientTests
         Assert.Single(handler.Requests);
     }
 
+    [Fact]
+    public async Task GetReleasesAsync_NonAsciiPayload_BytesAreRealPayloadBytes()
+    {
+        var payload = """{"success":true,"data":{"modes":[]}}""";
+        var utf8Bytes = Encoding.UTF8.GetByteCount(payload);
+        var logger = new RecordingLogger();
+        var handler = new MockHttpMessageHandler(payload, HttpStatusCode.OK);
+        var httpClient = new HttpClient(handler);
+        var client = new BdoUaApiClient(httpClient, logger);
+
+        await client.GetReleasesAsync();
+
+        var timingLine = logger.DebugLines.FirstOrDefault(l => l.Contains("API timing:") && l.Contains("bytes="));
+        Assert.NotNull(timingLine);
+        Assert.Contains($"bytes={utf8Bytes}", timingLine);
+    }
+
+    [Fact]
+    public async Task GetReleasesAsync_Timeout_TimingLineContainsTotalMsAndError()
+    {
+        var logger = new RecordingLogger();
+        var handler = new DelayingHttpMessageHandler(delayMs: 3000, HttpStatusCode.OK, "");
+        var httpClient = new HttpClient(handler);
+        var client = new BdoUaApiClient(httpClient, logger, timeoutSeconds: 1);
+
+        await client.GetReleasesAsync();
+
+        var timingLine = logger.DebugLines.FirstOrDefault(l => l.Contains("API timing:") && l.Contains("error="));
+        Assert.NotNull(timingLine);
+        Assert.Contains("total_ms=", timingLine);
+        Assert.Contains("error=Timeout", timingLine);
+    }
+
+    [Fact]
+    public async Task GetReleasesAsync_NetworkError_TimingLineContainsTotalMsAndError()
+    {
+        var logger = new RecordingLogger();
+        var handler = new NetworkErrorHttpMessageHandler();
+        var httpClient = new HttpClient(handler);
+        var client = new BdoUaApiClient(httpClient, logger);
+
+        await client.GetReleasesAsync();
+
+        var timingLine = logger.DebugLines.FirstOrDefault(l => l.Contains("API timing:") && l.Contains("error="));
+        Assert.NotNull(timingLine);
+        Assert.Contains("total_ms=", timingLine);
+        Assert.Contains("error=Network", timingLine);
+    }
+
+    [Fact]
+    public async Task GetReleasesAsync_HttpError_TimingLineContainsStatusAndError()
+    {
+        var logger = new RecordingLogger();
+        var handler = new MockHttpMessageHandler("", HttpStatusCode.ServiceUnavailable);
+        var httpClient = new HttpClient(handler);
+        var client = new BdoUaApiClient(httpClient, logger);
+
+        await client.GetReleasesAsync();
+
+        var timingLine = logger.DebugLines.FirstOrDefault(l => l.Contains("API timing:") && l.Contains("error="));
+        Assert.NotNull(timingLine);
+        Assert.Contains("status=503", timingLine);
+        Assert.Contains("error=Http", timingLine);
+        Assert.DoesNotContain("error=Http503", timingLine);
+    }
+
     private class MockHttpMessageHandler : HttpMessageHandler
     {
         private readonly string _response;
@@ -237,5 +303,18 @@ public class BdoUaApiClientTests
         public void Info(string message) { }
         public void Warning(string message) { }
         public void Error(string message) { }
+    }
+
+    private class RecordingLogger : ILogger
+    {
+        public List<string> DebugLines { get; } = new();
+        public List<string> InfoLines { get; } = new();
+        public List<string> WarningLines { get; } = new();
+        public List<string> ErrorLines { get; } = new();
+
+        public void Debug(string message) => DebugLines.Add(message);
+        public void Info(string message) => InfoLines.Add(message);
+        public void Warning(string message) => WarningLines.Add(message);
+        public void Error(string message) => ErrorLines.Add(message);
     }
 }

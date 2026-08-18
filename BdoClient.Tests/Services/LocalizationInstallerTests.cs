@@ -705,11 +705,108 @@ public class LocalizationInstallerTests : IDisposable
         Assert.Equal("connection refused", result.ErrorMessage);
     }
 
+    // Download timing: release network failure
+
+    [Fact]
+    public async Task DownloadReleaseAsync_NetworkFailure_TimingContainsTotalMsAndError()
+    {
+        var logger = new RecordingLogger();
+        var handler = new MockHttpHandler(null, 0);
+        handler.ThrowOnAttempt = 10;
+        var installer = CreateInstaller(handler, retryDelaysMs: new[] { 0 }, logger: logger);
+
+        var release = CreateValidRelease();
+        await installer.DownloadReleaseAsync(release);
+
+        var timingLine = logger.DebugLines.FirstOrDefault(l => l.Contains("Release download timing:") && l.Contains("error="));
+        Assert.NotNull(timingLine);
+        Assert.Contains("total_ms=", timingLine);
+        Assert.Contains("error=Network", timingLine);
+    }
+
+    // Download timing: release timeout failure
+
+    [Fact]
+    public async Task DownloadReleaseAsync_Timeout_TimingContainsTotalMsAndError()
+    {
+        var logger = new RecordingLogger();
+        var content = Encoding.UTF8.GetBytes("test");
+        var handler = new MockHttpHandler(content, content.Length, delayMs: 5000);
+        var installer = CreateInstaller(handler, timeoutSeconds: 1, retryDelaysMs: new[] { 0 }, logger: logger);
+
+        var release = CreateValidRelease();
+        release.SizeBytes = content.Length;
+        release.Sha256 = ComputeSha256(content);
+
+        await installer.DownloadReleaseAsync(release);
+
+        var timingLine = logger.DebugLines.FirstOrDefault(l => l.Contains("Release download timing:") && l.Contains("error="));
+        Assert.NotNull(timingLine);
+        Assert.Contains("total_ms=", timingLine);
+        Assert.Contains("error=Timeout", timingLine);
+    }
+
+    // Download timing: release HTTP failure uses stable error=Http
+
+    [Fact]
+    public async Task DownloadReleaseAsync_Http500_TimingUsesStableCategory()
+    {
+        var logger = new RecordingLogger();
+        var handler = new MockHttpHandler(null, 0, statusCode: 500);
+        handler.FailUntilAttempt = 10;
+        var installer = CreateInstaller(handler, retryDelaysMs: new[] { 0 }, logger: logger);
+
+        var release = CreateValidRelease();
+        await installer.DownloadReleaseAsync(release);
+
+        var timingLine = logger.DebugLines.FirstOrDefault(l => l.Contains("Release download timing:") && l.Contains("error="));
+        Assert.NotNull(timingLine);
+        Assert.Contains("error=Http", timingLine);
+        Assert.DoesNotContain("error=Http500", timingLine);
+        Assert.Contains("status=500", timingLine);
+    }
+
+    // Download timing: official network failure
+
+    [Fact]
+    public async Task DownloadOfficialSourceAsync_NetworkFailure_TimingContainsTotalMsAndError()
+    {
+        var logger = new RecordingLogger();
+        var handler = new MockHttpHandler(null, 0);
+        handler.ThrowOnAttempt = 10;
+        var installer = CreateInstaller(handler, retryDelaysMs: new[] { 0 }, logger: logger);
+
+        await installer.DownloadOfficialSourceAsync("https://example.com/loc.loc");
+
+        var timingLine = logger.DebugLines.FirstOrDefault(l => l.Contains("Official download timing:") && l.Contains("error="));
+        Assert.NotNull(timingLine);
+        Assert.Contains("total_ms=", timingLine);
+        Assert.Contains("error=Network", timingLine);
+    }
+
+    // Download timing: official timeout failure
+
+    [Fact]
+    public async Task DownloadOfficialSourceAsync_Timeout_TimingContainsTotalMsAndError()
+    {
+        var logger = new RecordingLogger();
+        var content = Encoding.UTF8.GetBytes("test");
+        var handler = new MockHttpHandler(content, content.Length, delayMs: 5000);
+        var installer = CreateInstaller(handler, timeoutSeconds: 1, retryDelaysMs: new[] { 0 }, logger: logger);
+
+        await installer.DownloadOfficialSourceAsync("https://example.com/loc.loc");
+
+        var timingLine = logger.DebugLines.FirstOrDefault(l => l.Contains("Official download timing:") && l.Contains("error="));
+        Assert.NotNull(timingLine);
+        Assert.Contains("total_ms=", timingLine);
+        Assert.Contains("error=Timeout", timingLine);
+    }
+
     private LocalizationInstaller CreateInstaller(HttpMessageHandler handler,
-        int timeoutSeconds = 60, int[]? retryDelaysMs = null)
+        int timeoutSeconds = 60, int[]? retryDelaysMs = null, ILogger? logger = null)
     {
         var httpClient = new HttpClient(handler);
-        return new LocalizationInstaller(httpClient, _paths, logger: _logger,
+        return new LocalizationInstaller(httpClient, _paths, logger: logger ?? _logger,
             timeoutSeconds: timeoutSeconds, retryDelaysMs: retryDelaysMs);
     }
 
@@ -739,6 +836,19 @@ public class LocalizationInstallerTests : IDisposable
         public void Info(string message) { }
         public void Warning(string message) { }
         public void Error(string message) { }
+    }
+
+    private class RecordingLogger : ILogger
+    {
+        public List<string> DebugLines { get; } = new();
+        public List<string> InfoLines { get; } = new();
+        public List<string> WarningLines { get; } = new();
+        public List<string> ErrorLines { get; } = new();
+
+        public void Debug(string message) => DebugLines.Add(message);
+        public void Info(string message) => InfoLines.Add(message);
+        public void Warning(string message) => WarningLines.Add(message);
+        public void Error(string message) => ErrorLines.Add(message);
     }
 
     private class MockHttpHandler : HttpMessageHandler

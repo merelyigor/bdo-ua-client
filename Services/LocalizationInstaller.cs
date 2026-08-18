@@ -116,13 +116,13 @@ public sealed class LocalizationInstaller
     {
         var tempFilePath = CreateTempFilePath();
         var host = Uri.TryCreate(downloadUrl, UriKind.Absolute, out var parsedUri) ? parsedUri.Host : downloadUrl;
+        var attemptSw = Stopwatch.StartNew();
 
         try
         {
             using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(callerToken);
             attemptCts.CancelAfter(TimeSpan.FromSeconds(_timeoutSeconds));
 
-            var attemptSw = Stopwatch.StartNew();
             _logger.Debug($"Download attempt: {downloadUrl} (timeout={_timeoutSeconds}s)");
 
             using var request = new HttpRequestMessage(HttpMethod.Get, downloadUrl);
@@ -138,7 +138,7 @@ public sealed class LocalizationInstaller
                 var isRetryable = statusCode == 408 || statusCode >= 500;
 
                 _logger.Warning($"HTTP {statusCode} from {downloadUrl}{(isRetryable ? " (retryable)" : "")}");
-                _logger.Debug($"Release download timing: host={host} attempt={statusCode} headers_ms={headersMs} total_ms={attemptSw.ElapsedMilliseconds} error=Http{statusCode}");
+                _logger.Debug($"Release download timing: host={host} status={statusCode} headers_ms={headersMs} total_ms={attemptSw.ElapsedMilliseconds} error=Http");
                 CleanupTempFile(tempFilePath);
                 return DownloadResult.Failure(DownloadError.Http, $"HTTP {statusCode}", isRetryable);
             }
@@ -195,34 +195,35 @@ public sealed class LocalizationInstaller
         catch (OperationCanceledException) when (callerToken.IsCancellationRequested)
         {
             _logger.Info("Download cancelled by caller");
+            _logger.Debug($"Release download timing: host={host} total_ms={attemptSw.ElapsedMilliseconds} error=Cancelled");
             CleanupTempFile(tempFilePath);
             throw;
         }
         catch (OperationCanceledException)
         {
             _logger.Warning($"Timeout on download attempt: {downloadUrl}");
-            _logger.Debug($"Release download timing: host={host} total_ms={_timeoutSeconds * 1000} error=Timeout");
+            _logger.Debug($"Release download timing: host={host} total_ms={attemptSw.ElapsedMilliseconds} error=Timeout");
             CleanupTempFile(tempFilePath);
             return DownloadResult.Failure(DownloadError.Timeout, $"Download timed out after {_timeoutSeconds}s", isRetryable: true);
         }
         catch (HttpRequestException ex)
         {
             _logger.Warning($"Network error on download attempt: {ex.Message}");
-            _logger.Debug($"Release download timing: host={host} error=Network");
+            _logger.Debug($"Release download timing: host={host} total_ms={attemptSw.ElapsedMilliseconds} error=Network");
             CleanupTempFile(tempFilePath);
             return DownloadResult.Failure(DownloadError.Network, ex.Message, isRetryable: true);
         }
         catch (IOException ex)
         {
             _logger.Warning($"IO error on download attempt: {ex.Message}");
-            _logger.Debug($"Release download timing: host={host} error=Io");
+            _logger.Debug($"Release download timing: host={host} total_ms={attemptSw.ElapsedMilliseconds} error=Io");
             CleanupTempFile(tempFilePath);
             return DownloadResult.Failure(DownloadError.Io, ex.Message);
         }
         catch (Exception ex)
         {
             _logger.Warning($"Unexpected error on download attempt: {ex.Message}");
-            _logger.Debug($"Release download timing: host={host} error=Unexpected");
+            _logger.Debug($"Release download timing: host={host} total_ms={attemptSw.ElapsedMilliseconds} error=Unexpected");
             CleanupTempFile(tempFilePath);
             return DownloadResult.Failure(DownloadError.Unexpected, ex.Message);
         }
@@ -233,13 +234,13 @@ public sealed class LocalizationInstaller
     {
         var tempFilePath = CreateTempFilePath();
         var host = Uri.TryCreate(officialUrl, UriKind.Absolute, out var parsedUri) ? parsedUri.Host : officialUrl;
+        var attemptSw = Stopwatch.StartNew();
 
         try
         {
             using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(callerToken);
             attemptCts.CancelAfter(TimeSpan.FromSeconds(_timeoutSeconds));
 
-            var attemptSw = Stopwatch.StartNew();
             _logger.Debug($"Official download attempt: {officialUrl} (timeout={_timeoutSeconds}s)");
 
             using var request = new HttpRequestMessage(HttpMethod.Get, officialUrl);
@@ -254,7 +255,7 @@ public sealed class LocalizationInstaller
                 var statusCode = (int)response.StatusCode;
                 var isRetryable = statusCode == 408 || statusCode >= 500;
                 _logger.Warning($"HTTP {statusCode} from official source{(isRetryable ? " (retryable)" : "")}");
-                _logger.Debug($"Official download timing: host={host} headers_ms={headersMs} total_ms={attemptSw.ElapsedMilliseconds} error=Http{statusCode}");
+                _logger.Debug($"Official download timing: host={host} status={statusCode} headers_ms={headersMs} total_ms={attemptSw.ElapsedMilliseconds} error=Http");
                 CleanupTempFile(tempFilePath);
                 return DownloadResult.Failure(DownloadError.Http, $"HTTP {statusCode}", isRetryable);
             }
@@ -284,34 +285,35 @@ public sealed class LocalizationInstaller
         catch (OperationCanceledException) when (callerToken.IsCancellationRequested)
         {
             _logger.Info("Official download cancelled by caller");
+            _logger.Debug($"Official download timing: host={host} total_ms={attemptSw.ElapsedMilliseconds} error=Cancelled");
             CleanupTempFile(tempFilePath);
             throw;
         }
         catch (OperationCanceledException)
         {
             _logger.Warning($"Timeout on official download attempt: {officialUrl}");
-            _logger.Debug($"Official download timing: host={host} total_ms={_timeoutSeconds * 1000} error=Timeout");
+            _logger.Debug($"Official download timing: host={host} total_ms={attemptSw.ElapsedMilliseconds} error=Timeout");
             CleanupTempFile(tempFilePath);
             return DownloadResult.Failure(DownloadError.Timeout, $"Official download timed out after {_timeoutSeconds}s", isRetryable: true);
         }
         catch (HttpRequestException ex)
         {
             _logger.Warning($"Network error on official download attempt: {ex.Message}");
-            _logger.Debug($"Official download timing: host={host} error=Network");
+            _logger.Debug($"Official download timing: host={host} total_ms={attemptSw.ElapsedMilliseconds} error=Network");
             CleanupTempFile(tempFilePath);
             return DownloadResult.Failure(DownloadError.Network, ex.Message, isRetryable: true);
         }
         catch (IOException ex)
         {
             _logger.Warning($"IO error on official download attempt: {ex.Message}");
-            _logger.Debug($"Official download timing: host={host} error=Io");
+            _logger.Debug($"Official download timing: host={host} total_ms={attemptSw.ElapsedMilliseconds} error=Io");
             CleanupTempFile(tempFilePath);
             return DownloadResult.Failure(DownloadError.Io, ex.Message);
         }
         catch (Exception ex)
         {
             _logger.Warning($"Unexpected error on official download attempt: {ex.Message}");
-            _logger.Debug($"Official download timing: host={host} error=Unexpected");
+            _logger.Debug($"Official download timing: host={host} total_ms={attemptSw.ElapsedMilliseconds} error=Unexpected");
             CleanupTempFile(tempFilePath);
             return DownloadResult.Failure(DownloadError.Unexpected, ex.Message);
         }

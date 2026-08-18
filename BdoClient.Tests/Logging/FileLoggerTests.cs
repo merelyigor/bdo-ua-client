@@ -167,13 +167,13 @@ public class FileLoggerTests : IDisposable
     }
 
     [Fact]
-    public void Retention_15DayOldLog_Preserved_AtBoundary()
+    public void Retention_15DayOldLog_Deleted()
     {
         var now = new DateTime(2026, 8, 18, 12, 0, 0);
         var logger = new FileLogger(_tempDir, () => now);
         File.WriteAllText(Path.Combine(_tempDir, "bdo-ua-client_2026-08-03.log"), "data");
         logger.CleanupOldLogs(now);
-        Assert.True(File.Exists(Path.Combine(_tempDir, "bdo-ua-client_2026-08-03.log")));
+        Assert.False(File.Exists(Path.Combine(_tempDir, "bdo-ua-client_2026-08-03.log")));
     }
 
     [Fact]

@@ -20,8 +20,10 @@
 - **v12.4.3** — fix release candidate + automate patch version (ZIP fix, optional version, auto-increment)
 - **v12.4.3.3** — fix resolver test isolation (RESOLVER_TEST_TAGS_JSON, real-origin smoke, 13 scenarios)
 - **v12.4.4** — network diagnostics and log retention (API timing, download timing, 15-day log retention, startup version, release-assets artifact)
+- **v12.4.4.1** — fix diagnostic correctness (retention boundary, real elapsed timing in catches, stable error categories, UTF-8 byte count)
 - **Latest SHA:** (see git log)
-- **Automated tests:** 355
+- **.NET tests:** 355
+- **Resolver scenarios:** 13
 - **Normal CI:** PENDING
 - **Release Candidate:** v0.1.0 functional success (intermittent ~21s bdo-ua.com.ua latency observed, root cause not established)
 
@@ -225,7 +227,7 @@ Target (post v1.0.0 stabilization):
 - Official download timing: same fields
 - Failure timing: elapsed_ms on timeout/network/error
 - Startup: logs assembly version from metadata
-- Log retention: 15 calendar days (today + 14), cleanup on init, best-effort
+- Log retention: 15 calendar days (today + 14 previous), cleanup on init, best-effort
 - Actions artifact renamed: `BDO-UA-Client-vX.Y.Z-release-assets` (CI transport container)
 - Production user package: one ZIP with one EXE (unchanged)
 
