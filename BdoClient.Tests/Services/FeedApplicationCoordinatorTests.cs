@@ -58,7 +58,7 @@ public class FeedApplicationCoordinatorTests
         // C should be applied (latest pending wins, B superseded)
         Assert.Contains("idC", applied);
         var accepted = poller.GetAcceptedFeed();
-        Assert.Contains("idC", accepted.Data?.Modes?.Select(m => m.Slug ?? ""));
+        Assert.Contains("idC", GetAcceptedSlugs(poller));
         Assert.False(coord.HasPendingFeed);
         poller.Dispose();
     }
@@ -95,7 +95,7 @@ public class FeedApplicationCoordinatorTests
 
         Assert.Contains("idC", applied);
         var accepted = poller.GetAcceptedFeed();
-        Assert.Contains("idC", accepted.Data?.Modes?.Select(m => m.Slug ?? ""));
+        Assert.Contains("idC", GetAcceptedSlugs(poller));
         Assert.False(coord.HasPendingFeed);
         poller.Dispose();
     }
@@ -111,8 +111,7 @@ public class FeedApplicationCoordinatorTests
 
         Assert.True(coord.HasPendingFeed);
         // Accepted baseline should still be id0
-        var accepted = poller.GetAcceptedFeed();
-        Assert.Null(accepted.Data?.Modes?.Find(m => m.Slug == "idA"));
+        Assert.DoesNotContain("idA", GetAcceptedSlugs(poller));
         poller.Dispose();
     }
 
@@ -201,7 +200,7 @@ public class FeedApplicationCoordinatorTests
         await coord.OnCandidateAsync(CreateFeed("idB"));
 
         var accepted = poller.GetAcceptedFeed();
-        Assert.Contains("idB", accepted.Data?.Modes?.Select(m => m.Slug ?? ""));
+        Assert.Contains("idB", GetAcceptedSlugs(poller));
         poller.Dispose();
     }
 
@@ -309,7 +308,7 @@ public class FeedApplicationCoordinatorTests
 
         Assert.Contains("idB", applied);
         var accepted = poller.GetAcceptedFeed();
-        Assert.Contains("idB", accepted.Data?.Modes?.Select(m => m.Slug ?? ""));
+        Assert.Contains("idB", GetAcceptedSlugs(poller));
         poller.Dispose();
     }
 
@@ -327,8 +326,13 @@ public class FeedApplicationCoordinatorTests
         await coord.ApplyPendingIfAnyAsync();
 
         var accepted = poller.GetAcceptedFeed();
-        Assert.Contains("idA", accepted.Data?.Modes?.Select(m => m.Slug ?? ""));
+        Assert.Contains("idA", GetAcceptedSlugs(poller));
         poller.Dispose();
+    }
+
+    private static List<string> GetAcceptedSlugs(ReleaseFeedPoller poller)
+    {
+        return poller.GetAcceptedFeed()?.Data?.Modes?.Select(m => m.Slug ?? "").ToList() ?? new();
     }
 
     private static ReleasesResponse CreateFeed(string modeId)

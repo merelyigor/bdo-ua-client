@@ -29,7 +29,6 @@ public partial class MainForm : Form
     private bool _initializing;
     private bool _suppressModeChanged;
     private volatile bool _operationInProgress;
-    private volatile bool _operationFinalizing;
     private volatile bool _closing;
     private LocalizationState _lastResolvedState;
     private OperationState _operationState = OperationState.Idle;
@@ -584,7 +583,6 @@ public partial class MainForm : Form
             _operationCts?.Dispose();
             _operationCts = null;
             _operationInProgress = false;
-            _operationFinalizing = true;
             SetControlsDuringOperation(true);
 
             try
@@ -610,7 +608,6 @@ public partial class MainForm : Form
             finally
             {
                 _feedCoordinator.UnblockUpdates();
-                _operationFinalizing = false;
                 if (!_closing)
                     _poller.Resume();
             }
@@ -711,7 +708,6 @@ public partial class MainForm : Form
             _operationCts?.Dispose();
             _operationCts = null;
             _operationInProgress = false;
-            _operationFinalizing = true;
             SetControlsDuringOperation(true);
 
             try
@@ -737,7 +733,6 @@ public partial class MainForm : Form
             finally
             {
                 _feedCoordinator.UnblockUpdates();
-                _operationFinalizing = false;
                 if (!_closing)
                     _poller.Resume();
             }
