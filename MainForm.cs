@@ -27,8 +27,9 @@ public partial class MainForm : Form
     private ApiErrorKind _apiErrorKind;
     private bool _initializing;
     private bool _suppressModeChanged;
-    private bool _operationInProgress;
-    private bool _closing;
+    private volatile bool _operationInProgress;
+    private volatile bool _closing;
+    private volatile bool _feedApplyInProgress;
     private ReleasesResponse? _pendingFeed;
     private LocalizationState _lastResolvedState;
     private OperationState _operationState = OperationState.Idle;
@@ -581,7 +582,6 @@ public partial class MainForm : Form
             _operationCts?.Dispose();
             _operationCts = null;
             _operationInProgress = false;
-            _poller.Resume();
             SetControlsDuringOperation(true);
 
             try
@@ -600,7 +600,8 @@ public partial class MainForm : Form
             if (finalMessage != null)
                 SetMessage(finalMessage);
 
-            ApplyPendingFeedIfAny();
+            await ApplyPendingFeedIfAnyAsync();
+            _poller.Resume();
         }
     }
 
@@ -697,7 +698,6 @@ public partial class MainForm : Form
             _operationCts?.Dispose();
             _operationCts = null;
             _operationInProgress = false;
-            _poller.Resume();
             SetControlsDuringOperation(true);
 
             try
@@ -716,7 +716,8 @@ public partial class MainForm : Form
             if (finalMessage != null)
                 SetMessage(finalMessage);
 
-            ApplyPendingFeedIfAny();
+            await ApplyPendingFeedIfAnyAsync();
+            _poller.Resume();
         }
     }
 
@@ -779,14 +780,14 @@ public partial class MainForm : Form
 
         if (_closing) return;
 
-        if (_operationInProgress)
+        if (_operationInProgress || _feedApplyInProgress)
         {
-            _logger.Debug("Feed candidate received during operation. Storing as pending.");
+            _logger.Debug("Feed candidate received while busy. Storing as pending.");
             _pendingFeed = candidate;
             return;
         }
 
-        ApplyFeedUpdate(candidate);
+        _ = ApplyFeedUpdateAsync(candidate);
     }
 
     private void OnReleasePollFailed(string error)
@@ -794,37 +795,76 @@ public partial class MainForm : Form
         // Keep last known good. Log only.
     }
 
-    private async void ApplyFeedUpdate(ReleasesResponse candidate)
+    /// <summary>
+    /// Applies a feed candidate: updates _apiResponse, rebuilds modes, restores selection,
+    /// then refreshes state. AcceptFeed is called ONLY after RefreshStateAsync succeeds.
+    /// If RefreshStateAsync fails, candidate is requeued as pending for retry.
+    /// </summary>
+    private async Task ApplyFeedUpdateAsync(ReleasesResponse candidate)
     {
         if (_closing) return;
+        if (_feedApplyInProgress) { _pendingFeed = candidate; return; }
 
-        var previousSlug = GetSelectedModeSlug();
-
-        _apiResponse = candidate;
-        _apiLoadedSuccessfully = true;
-        _apiErrorMessage = null;
-        _apiErrorKind = ApiErrorKind.None;
-
-        _suppressModeChanged = true;
+        _feedApplyInProgress = true;
         try
         {
-            BuildDynamicModes();
-            RestoreSelectionAfterFeedUpdate(previousSlug);
+            while (candidate != null && !_closing)
+            {
+                var previousSlug = GetSelectedModeSlug();
+
+                _apiResponse = candidate;
+                _apiLoadedSuccessfully = true;
+                _apiErrorMessage = null;
+                _apiErrorKind = ApiErrorKind.None;
+
+                _suppressModeChanged = true;
+                try
+                {
+                    BuildDynamicModes();
+                    RestoreSelectionAfterFeedUpdate(previousSlug);
+                }
+                finally
+                {
+                    _suppressModeChanged = false;
+                }
+
+                bool stateRefreshed = false;
+                try
+                {
+                    await RefreshStateAsync();
+                    stateRefreshed = true;
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error($"Feed apply state refresh failed: {ex.Message}. Candidate requeued.");
+                }
+
+                if (stateRefreshed)
+                {
+                    _poller.AcceptFeed(candidate);
+                    _logger.Debug("Feed candidate accepted after successful application.");
+                }
+                else
+                {
+                    _pendingFeed = candidate;
+                }
+
+                var next = _pendingFeed;
+                if (next != null && next != candidate)
+                {
+                    candidate = next;
+                    _pendingFeed = null;
+                    _logger.Debug("Processing next pending feed candidate.");
+                }
+                else
+                {
+                    break;
+                }
+            }
         }
         finally
         {
-            _suppressModeChanged = false;
-        }
-
-        _poller.AcceptFeed(candidate);
-
-        try
-        {
-            await RefreshStateAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.Error($"Feed apply state refresh failed: {ex.Message}");
+            _feedApplyInProgress = false;
         }
     }
 
@@ -846,14 +886,14 @@ public partial class MainForm : Form
         }
     }
 
-    private void ApplyPendingFeedIfAny()
+    private async Task ApplyPendingFeedIfAnyAsync()
     {
-        if (_pendingFeed != null)
+        if (_pendingFeed != null && !_feedApplyInProgress)
         {
             var pending = _pendingFeed;
             _pendingFeed = null;
             _logger.Debug("Applying pending feed after operation completed.");
-            ApplyFeedUpdate(pending);
+            await ApplyFeedUpdateAsync(pending);
         }
     }
 

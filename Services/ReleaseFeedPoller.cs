@@ -14,8 +14,8 @@ public sealed class ReleaseFeedPoller : IDisposable
     private readonly TimeSpan _pollInterval;
     private CancellationTokenSource? _cts;
     private Task? _loopTask;
-    private bool _paused;
-    private bool _disposed;
+    private volatile bool _paused;
+    private volatile bool _disposed;
 
     private volatile ReleasesResponse? _acceptedFeed;
 

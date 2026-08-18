@@ -234,7 +234,7 @@ public class ReleaseFeedPollerTests
     }
 
     [Fact]
-    public async Task DisposedPoller_DoesNotStart()
+    public void DisposedPoller_DoesNotStart()
     {
         var feed = CreateFeed(modeA: "id1");
         var handler = new StubHttpHandler(feed);
