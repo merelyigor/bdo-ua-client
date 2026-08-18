@@ -4,23 +4,26 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Strict SemVer core regex
-$semverPattern = '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$'
+# SemVer core WITHOUT anchors — for composition
+$semverCore = '(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)'
+$versionPattern = "^${semverCore}$"
+$tagPattern = "^v${semverCore}$"
 
 # Get all remote tags matching vX.Y.Z
-$remoteTags = git ls-remote --tags --refs origin 2>$null |
+$remoteRef = if ($env:RESOLVER_TEST_ORIGIN) { $env:RESOLVER_TEST_ORIGIN } else { "origin" }
+$remoteTags = git ls-remote --tags --refs $remoteRef 2>$null |
     ForEach-Object { ($_ -split '\s+')[1] } |
     Where-Object { $_ -match '^refs/tags/v\d+\.\d+\.\d+$' } |
     ForEach-Object { $_ -replace '^refs/tags/', '' }
 
 # Filter to strict SemVer tags only
-$validTags = $remoteTags | Where-Object { $_ -match "^v$semverPattern$" }
+$validTags = $remoteTags | Where-Object { $_ -match $tagPattern }
 
 if ($ManualVersion -and $ManualVersion.Trim() -ne "") {
     # Manual version provided
     $version = $ManualVersion.Trim()
 
-    if ($version -notmatch $semverPattern) {
+    if ($version -notmatch $versionPattern) {
         Write-Error "Invalid version format: '$version'. Expected MAJOR.MINOR.PATCH without leading zeroes."
         exit 1
     }
@@ -29,7 +32,7 @@ if ($ManualVersion -and $ManualVersion.Trim() -ne "") {
     $requested = [System.Version]::Parse($version)
 
     # Check monotonic: must be > latest existing tag
-    if ($validTags) {
+    if ($validTags -and $validTags.Count -gt 0) {
         $latestTag = $validTags | ForEach-Object {
             [System.Version]::Parse(($_ -replace '^v', ''))
         } | Sort-Object | Select-Object -Last 1

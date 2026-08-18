@@ -28,3 +28,7 @@ jobs:
 
     - name: Test
       run: dotnet test BdoUaClient.sln --configuration Release --no-build
+
+    - name: Version resolver tests
+      shell: pwsh
+      run: scripts/Test-Resolve-ReleaseVersion.ps1
