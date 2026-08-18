@@ -9,11 +9,7 @@ New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
 
 function Invoke-Resolver {
     param([string]$ManualVersion, [string]$Origin)
-    $fileUrl = ($Origin -replace '\\', '/')
-    if ($fileUrl -match '^([A-Za-z]):') {
-        $fileUrl = "file:///$fileUrl"
-    }
-    $env:RESOLVER_TEST_ORIGIN = $fileUrl
+    $env:RESOLVER_TEST_ORIGIN = $Origin
     $exitCode = 0
     $output = try { & $resolverPath -ManualVersion $ManualVersion 2>&1 } catch { $_ }
     $exitCode = $LASTEXITCODE
