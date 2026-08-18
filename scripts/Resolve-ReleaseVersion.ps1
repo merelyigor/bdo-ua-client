@@ -11,8 +11,11 @@ $tagPattern = "^v${semverCore}$"
 
 # Get all remote tags matching vX.Y.Z — fail-closed on remote query failure
 $remoteRef = if ($env:RESOLVER_TEST_ORIGIN) { $env:RESOLVER_TEST_ORIGIN } else { "origin" }
+$savedEap = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
 $remoteOutput = git ls-remote --tags --refs $remoteRef 2>&1
 $remoteExitCode = $LASTEXITCODE
+$ErrorActionPreference = $savedEap
 
 if ($remoteExitCode -ne 0) {
     $remoteMsg = ($remoteOutput | Out-String).Trim()
