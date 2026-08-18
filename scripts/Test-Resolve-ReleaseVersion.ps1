@@ -9,12 +9,16 @@ New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
 
 function Invoke-Resolver {
     param([string]$ManualVersion, [string]$Origin)
-    $env:RESOLVER_TEST_ORIGIN = $Origin
+    $fileUrl = ($Origin -replace '\\', '/')
+    if ($fileUrl -match '^([A-Za-z]):') {
+        $fileUrl = "file:///$fileUrl"
+    }
+    $env:RESOLVER_TEST_ORIGIN = $fileUrl
     $exitCode = 0
     $output = try { & $resolverPath -ManualVersion $ManualVersion 2>&1 } catch { $_ }
     $exitCode = $LASTEXITCODE
     $env:RESOLVER_TEST_ORIGIN = $null
-    return @{ Output = $output; ExitCode = $exitCode }
+    return @{ Output = @($output); ExitCode = $exitCode }
 }
 
 function Get-FromOutput {
@@ -49,17 +53,15 @@ function New-RepoWithTags {
     $savedEap = $ErrorActionPreference
     $ErrorActionPreference = "SilentlyContinue"
     & git init $Path 2>&1 | Out-Null
-    $ErrorActionPreference = $savedEap
-    Push-Location $Path
-    & git config user.email "test@test.com" 2>&1 | Out-Null
-    & git config user.name "Test" 2>&1 | Out-Null
-    "init" | Out-File -FilePath "init.txt" -Encoding utf8
-    & git add "init.txt" 2>&1 | Out-Null
-    & git commit -m "init" 2>&1 | Out-Null
+    & git -C $Path config user.email "test@test.com" 2>&1 | Out-Null
+    & git -C $Path config user.name "Test" 2>&1 | Out-Null
+    "init" | Out-File -FilePath "$Path\init.txt" -Encoding utf8
+    & git -C $Path add "init.txt" 2>&1 | Out-Null
+    & git -C $Path commit -m "init" 2>&1 | Out-Null
     foreach ($tag in $Tags) {
-        & git tag $tag 2>&1 | Out-Null
+        & git -C $Path tag $tag 2>&1 | Out-Null
     }
-    Pop-Location
+    $ErrorActionPreference = $savedEap
 }
 
 Write-Output "=== Resolve-ReleaseVersion Integration Tests ==="
