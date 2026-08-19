@@ -222,7 +222,7 @@ jobs:
         $manifest | Out-File -FilePath "artifacts/release-manifest.json" -Encoding utf8
         Write-Output "release-manifest.json created"
 
-    - name: Generate release notes
+    - name: Generate release notes (auto from git log)
       shell: pwsh
       run: |
         $version = "${{ steps.resolve.outputs.RELEASE_VERSION }}"
@@ -231,16 +231,17 @@ jobs:
         $assetName = "BDO-UA-Client-v$version-win-x64.zip"
         $hash = (Get-Content "artifacts/SHA256SUMS.txt" -Raw).Split(" ")[0]
 
-        $template = Get-Content "docs/releases/RELEASE_TEMPLATE.md" -Raw
-        $notes = $template `
-          -replace '\{\{VERSION\}\}', $version `
-          -replace '\{\{TAG\}\}', $tag `
-          -replace '\{\{COMMIT_SHA\}\}', $sha `
-          -replace '\{\{SHA256\}\}', $hash `
-          -replace '\{\{ASSET_NAME\}\}', $assetName
+        $notes = & "${{ github.workspace }}\scripts\Generate-ReleaseNotes.ps1" `
+          -Version $version `
+          -Tag $tag `
+          -Sha $sha `
+          -AssetName $assetName `
+          -Sha256 $hash
 
         $notes | Out-File -FilePath "artifacts/RELEASE_NOTES-v$version.md" -Encoding utf8
-        Write-Output "RELEASE_NOTES-v$version.md generated"
+        Write-Output "RELEASE_NOTES-v$version.md generated from git log"
+        Write-Output ""
+        Write-Output $notes
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
@@ -291,7 +292,7 @@ jobs:
         2. Test exact ``$assetName`` locally
         3. Verify SHA-256 if desired
         4. Draft GitHub Release → select existing tag ``$tag``
-        5. Use generated ``RELEASE_NOTES-v$version.md`` as release body (edit changelog)
+        5. Use generated ``RELEASE_NOTES-v$version.md`` as release body (auto-generated from commits, edit if needed)
         6. Upload exact ``$assetName`` from artifact (this is the public user ZIP)
         7. Upload ``SHA256SUMS.txt`` from artifact
         8. Upload ``release-manifest.json`` from artifact
