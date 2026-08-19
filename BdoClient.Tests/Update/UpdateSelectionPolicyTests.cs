@@ -7,33 +7,39 @@ public class UpdateSelectionPolicyTests
 {
     private static readonly ILogger Logger = new NullLogger();
 
-    private static GitHubRelease MakeRelease(string tag, bool draft = false, bool prerelease = false, string? publishedAt = "2026-01-01T00:00:00Z", params (string name, string url)[] assets)
+    private static readonly DateTimeOffset DefaultPublishedAt = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+    private static GitHubRelease MakeRelease(
+        string tag,
+        bool draft = false,
+        bool prerelease = false,
+        bool published = true,
+        params (string name, string url, string state)[] assets)
     {
         return new GitHubRelease
         {
             TagName = tag,
             Draft = draft,
             Prerelease = prerelease,
-            PublishedAt = publishedAt,
+            PublishedAt = published ? DefaultPublishedAt : null,
             Assets = assets.Select(a => new GitHubReleaseAsset
             {
                 Name = a.name,
                 BrowserDownloadUrl = a.url,
-                State = "uploaded"
+                State = a.state
             }).ToList()
         };
     }
+
+    private static (string name, string url, string state) Manifest =>
+        ("release-manifest.json", "https://example.com/manifest", "uploaded");
 
     [Fact]
     public void CurrentNotPublic_ReturnsNull()
     {
         var info = AppVersionInfo.FromRawVersion("0.0.0-dev.abcdef");
         var policy = new UpdateSelectionPolicy(Logger);
-        var releases = new List<GitHubRelease>
-        {
-            MakeRelease("v0.1.3", assets: ("release-manifest.json", "https://example.com/manifest"))
-        };
-
+        var releases = new List<GitHubRelease> { MakeRelease("v0.1.3", assets: Manifest) };
         Assert.Null(policy.FindUpdate(info, releases));
     }
 
@@ -42,11 +48,7 @@ public class UpdateSelectionPolicyTests
     {
         var info = AppVersionInfo.FromRawVersion("0.1.3");
         var policy = new UpdateSelectionPolicy(Logger);
-        var releases = new List<GitHubRelease>
-        {
-            MakeRelease("v0.1.4", assets: ("release-manifest.json", "https://example.com/manifest"))
-        };
-
+        var releases = new List<GitHubRelease> { MakeRelease("v0.1.4", assets: Manifest) };
         Assert.Null(policy.FindUpdate(info, releases));
     }
 
@@ -57,10 +59,9 @@ public class UpdateSelectionPolicyTests
         var policy = new UpdateSelectionPolicy(Logger);
         var releases = new List<GitHubRelease>
         {
-            MakeRelease("v0.1.3", draft: true, assets: ("release-manifest.json", "https://example.com/manifest")),
-            MakeRelease("v0.1.4", assets: ("release-manifest.json", "https://example.com/manifest"))
+            MakeRelease("v0.1.3", draft: true, assets: Manifest),
+            MakeRelease("v0.1.4", assets: Manifest)
         };
-
         Assert.Null(policy.FindUpdate(info, releases));
     }
 
@@ -71,10 +72,9 @@ public class UpdateSelectionPolicyTests
         var policy = new UpdateSelectionPolicy(Logger);
         var releases = new List<GitHubRelease>
         {
-            MakeRelease("v0.1.3", prerelease: true, assets: ("release-manifest.json", "https://example.com/manifest")),
-            MakeRelease("v0.1.4", prerelease: true, assets: ("release-manifest.json", "https://example.com/manifest"))
+            MakeRelease("v0.1.3", prerelease: true, assets: Manifest),
+            MakeRelease("v0.1.4", prerelease: true, assets: Manifest)
         };
-
         var candidate = policy.FindUpdate(info, releases);
         Assert.NotNull(candidate);
         Assert.Equal("v0.1.4", candidate!.TagName);
@@ -87,10 +87,9 @@ public class UpdateSelectionPolicyTests
         var policy = new UpdateSelectionPolicy(Logger);
         var releases = new List<GitHubRelease>
         {
-            MakeRelease("v0.1.3", prerelease: true, assets: ("release-manifest.json", "https://example.com/manifest")),
-            MakeRelease("v0.1.4", assets: ("release-manifest.json", "https://example.com/manifest"))
+            MakeRelease("v0.1.3", prerelease: true, assets: Manifest),
+            MakeRelease("v0.1.4", assets: Manifest)
         };
-
         var candidate = policy.FindUpdate(info, releases);
         Assert.NotNull(candidate);
         Assert.Equal("v0.1.4", candidate!.TagName);
@@ -103,10 +102,9 @@ public class UpdateSelectionPolicyTests
         var policy = new UpdateSelectionPolicy(Logger);
         var releases = new List<GitHubRelease>
         {
-            MakeRelease("v0.1.3", assets: ("release-manifest.json", "https://example.com/manifest")),
-            MakeRelease("v0.1.4", prerelease: true, assets: ("release-manifest.json", "https://example.com/manifest"))
+            MakeRelease("v0.1.3", assets: Manifest),
+            MakeRelease("v0.1.4", prerelease: true, assets: Manifest)
         };
-
         Assert.Null(policy.FindUpdate(info, releases));
     }
 
@@ -117,10 +115,9 @@ public class UpdateSelectionPolicyTests
         var policy = new UpdateSelectionPolicy(Logger);
         var releases = new List<GitHubRelease>
         {
-            MakeRelease("v0.1.3", assets: ("release-manifest.json", "https://example.com/manifest")),
-            MakeRelease("v0.1.4", assets: ("release-manifest.json", "https://example.com/manifest"))
+            MakeRelease("v0.1.3", assets: Manifest),
+            MakeRelease("v0.1.4", assets: Manifest)
         };
-
         var candidate = policy.FindUpdate(info, releases);
         Assert.NotNull(candidate);
         Assert.Equal("v0.1.4", candidate!.TagName);
@@ -133,12 +130,11 @@ public class UpdateSelectionPolicyTests
         var policy = new UpdateSelectionPolicy(Logger);
         var releases = new List<GitHubRelease>
         {
-            MakeRelease("v0.1.0", assets: ("release-manifest.json", "https://example.com/manifest")),
-            MakeRelease("v0.1.9", assets: ("release-manifest.json", "https://example.com/manifest")),
-            MakeRelease("v0.1.10", assets: ("release-manifest.json", "https://example.com/manifest")),
-            MakeRelease("v0.1.8", assets: ("release-manifest.json", "https://example.com/manifest"))
+            MakeRelease("v0.1.0", assets: Manifest),
+            MakeRelease("v0.1.9", assets: Manifest),
+            MakeRelease("v0.1.10", assets: Manifest),
+            MakeRelease("v0.1.8", assets: Manifest)
         };
-
         var candidate = policy.FindUpdate(info, releases);
         Assert.NotNull(candidate);
         Assert.Equal("v0.1.10", candidate!.TagName);
@@ -151,10 +147,9 @@ public class UpdateSelectionPolicyTests
         var policy = new UpdateSelectionPolicy(Logger);
         var releases = new List<GitHubRelease>
         {
-            MakeRelease("v0.1.0", assets: ("release-manifest.json", "https://example.com/manifest")),
-            MakeRelease("v0.1.1", draft: true, assets: ("release-manifest.json", "https://example.com/manifest"))
+            MakeRelease("v0.1.0", assets: Manifest),
+            MakeRelease("v0.1.1", draft: true, assets: Manifest)
         };
-
         Assert.Null(policy.FindUpdate(info, releases));
     }
 
@@ -165,24 +160,48 @@ public class UpdateSelectionPolicyTests
         var policy = new UpdateSelectionPolicy(Logger);
         var releases = new List<GitHubRelease>
         {
-            MakeRelease("v0.1.0", assets: ("release-manifest.json", "https://example.com/manifest")),
-            MakeRelease("v0.1.1", publishedAt: null, assets: ("release-manifest.json", "https://example.com/manifest"))
+            MakeRelease("v0.1.0", assets: Manifest),
+            MakeRelease("v0.1.1", published: false, assets: Manifest)
         };
-
         Assert.Null(policy.FindUpdate(info, releases));
     }
 
     [Fact]
-    public void MalformedTag_Ignored()
+    public void BareTag_Ignored()
     {
         var info = AppVersionInfo.FromRawVersion("0.1.0");
         var policy = new UpdateSelectionPolicy(Logger);
         var releases = new List<GitHubRelease>
         {
-            MakeRelease("v0.1.0", assets: ("release-manifest.json", "https://example.com/manifest")),
-            MakeRelease("not-a-tag", assets: ("release-manifest.json", "https://example.com/manifest"))
+            MakeRelease("v0.1.0", assets: Manifest),
+            MakeRelease("0.1.1", assets: Manifest)
         };
+        Assert.Null(policy.FindUpdate(info, releases));
+    }
 
+    [Fact]
+    public void UpperVTag_Ignored()
+    {
+        var info = AppVersionInfo.FromRawVersion("0.1.0");
+        var policy = new UpdateSelectionPolicy(Logger);
+        var releases = new List<GitHubRelease>
+        {
+            MakeRelease("v0.1.0", assets: Manifest),
+            MakeRelease("V0.1.1", assets: Manifest)
+        };
+        Assert.Null(policy.FindUpdate(info, releases));
+    }
+
+    [Fact]
+    public void LeadingZeroTag_Ignored()
+    {
+        var info = AppVersionInfo.FromRawVersion("0.1.0");
+        var policy = new UpdateSelectionPolicy(Logger);
+        var releases = new List<GitHubRelease>
+        {
+            MakeRelease("v0.1.0", assets: Manifest),
+            MakeRelease("v01.1.1", assets: Manifest)
+        };
         Assert.Null(policy.FindUpdate(info, releases));
     }
 
@@ -193,11 +212,23 @@ public class UpdateSelectionPolicyTests
         var policy = new UpdateSelectionPolicy(Logger);
         var releases = new List<GitHubRelease>
         {
-            MakeRelease("v0.1.0", assets: ("release-manifest.json", "https://example.com/manifest")),
-            MakeRelease("v0.1.2", assets: ("BDO-UA-Client-v0.1.2.zip", "https://example.com/zip")),
-            MakeRelease("v0.1.1", assets: ("release-manifest.json", "https://example.com/manifest"))
+            MakeRelease("v0.1.0", assets: Manifest),
+            MakeRelease("v0.1.2", assets: ("BDO-UA-Client-v0.1.2.zip", "https://example.com/zip", "uploaded")),
+            MakeRelease("v0.1.1", assets: Manifest)
         };
+        Assert.Null(policy.FindUpdate(info, releases));
+    }
 
+    [Fact]
+    public void ManifestNotUploaded_FailClosed()
+    {
+        var info = AppVersionInfo.FromRawVersion("0.1.0");
+        var policy = new UpdateSelectionPolicy(Logger);
+        var releases = new List<GitHubRelease>
+        {
+            MakeRelease("v0.1.0", assets: Manifest),
+            MakeRelease("v0.1.1", assets: ("release-manifest.json", "https://example.com/manifest", "pending"))
+        };
         Assert.Null(policy.FindUpdate(info, releases));
     }
 
@@ -208,11 +239,10 @@ public class UpdateSelectionPolicyTests
         var policy = new UpdateSelectionPolicy(Logger);
         var releases = new List<GitHubRelease>
         {
-            MakeRelease("v0.1.3", assets: ("release-manifest.json", "https://example.com/manifest")),
-            MakeRelease("v0.1.1", assets: ("release-manifest.json", "https://example.com/manifest")),
-            MakeRelease("v0.1.0", assets: ("release-manifest.json", "https://example.com/manifest"))
+            MakeRelease("v0.1.3", assets: Manifest),
+            MakeRelease("v0.1.1", assets: Manifest),
+            MakeRelease("v0.1.0", assets: Manifest)
         };
-
         Assert.Null(policy.FindUpdate(info, releases));
     }
 

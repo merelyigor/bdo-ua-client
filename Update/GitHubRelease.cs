@@ -14,7 +14,7 @@ public sealed class GitHubRelease
     public bool Prerelease { get; set; }
 
     [JsonPropertyName("published_at")]
-    public string? PublishedAt { get; set; }
+    public DateTimeOffset? PublishedAt { get; set; }
 
     [JsonPropertyName("assets")]
     public List<GitHubReleaseAsset>? Assets { get; set; }

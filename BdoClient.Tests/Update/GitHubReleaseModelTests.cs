@@ -14,7 +14,8 @@ public class GitHubReleaseModelTests
         Assert.Equal("v0.1.3", release.TagName);
         Assert.False(release.Draft);
         Assert.False(release.Prerelease);
-        Assert.Equal("2026-01-01T00:00:00Z", release.PublishedAt);
+        Assert.NotNull(release.PublishedAt);
+        Assert.Equal(2026, release.PublishedAt.Value.Year);
         Assert.Single(release.Assets!);
         Assert.Equal("release-manifest.json", release.Assets![0].Name);
         Assert.Equal("uploaded", release.Assets[0].State);
@@ -31,7 +32,7 @@ public class GitHubReleaseModelTests
     }
 
     [Fact]
-    public void Deserialize_NullPublishedAt()
+    public void Deserialize_NullPublishedAt_IsNull()
     {
         var json = """{"tag_name":"v0.1.3","draft":false,"prerelease":false,"published_at":null,"assets":[]}""";
         var release = JsonSerializer.Deserialize<GitHubRelease>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });

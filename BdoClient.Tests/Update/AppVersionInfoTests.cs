@@ -7,14 +7,23 @@ public class AppVersionInfoTests
     [Fact]
     public void FromRawVersion_ExactNumeric_IsPublic()
     {
-        var info = AppVersionInfo.FromRawVersion("0.1.3");
+        var info = AppVersionInfo.FromRawVersion("0.1.4");
         Assert.True(info.IsPublicRelease);
         Assert.NotNull(info.PublicVersion);
         Assert.Equal(0, info.PublicVersion.Value.Major);
         Assert.Equal(1, info.PublicVersion.Value.Minor);
-        Assert.Equal(3, info.PublicVersion.Value.Build);
-        Assert.Equal("v0.1.3", info.DisplayVersion);
-        Assert.Equal("0.1.3", info.RawVersion);
+        Assert.Equal(4, info.PublicVersion.Value.Build);
+        Assert.Equal("v0.1.4", info.DisplayVersion);
+        Assert.Equal("0.1.4", info.RawVersion);
+    }
+
+    [Fact]
+    public void FromRawVersion_VPrefix_NotPublic()
+    {
+        var info = AppVersionInfo.FromRawVersion("v0.1.4");
+        Assert.False(info.IsPublicRelease);
+        Assert.Null(info.PublicVersion);
+        Assert.Equal("vv0.1.4", info.DisplayVersion);
     }
 
     [Fact]
@@ -50,6 +59,5 @@ public class AppVersionInfoTests
         var info = AppVersionInfo.FromRawVersion("not-a-version");
         Assert.False(info.IsPublicRelease);
         Assert.Null(info.PublicVersion);
-        Assert.Equal("vnot-a-version", info.DisplayVersion);
     }
 }

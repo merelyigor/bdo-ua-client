@@ -384,7 +384,7 @@ Program                     — detect internal updater mode vs normal UI
 
 ### v13.1 — add update discovery and utility footer
 
-**Status:** IMPLEMENTED
+**Status:** IMPLEMENTED (v13.1 + v13.1.1 hardening)
 
 **Goal:** User can launch app, see version in footer, see update button when newer GitHub Release exists.
 

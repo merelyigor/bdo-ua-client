@@ -35,6 +35,7 @@ partial class MainForm
     private Button updateButton = null!;
     private Label versionLabel = null!;
     private Button logsButton = null!;
+    private ToolTip logsToolTip = null!;
 
     protected override void Dispose(bool disposing)
     {
@@ -352,22 +353,27 @@ partial class MainForm
 
         logsButton = new Button
         {
-            Text = "\U0001F4C1",
+            Text = "",
             AutoSize = false,
             Size = new System.Drawing.Size(28, 28),
             FlatStyle = FlatStyle.Flat,
             Margin = new Padding(0),
-            AccessibleName = "Відкрити папку журналів"
+            AccessibleName = "Відкрити папку журналів",
+            Image = BuildLogsIcon(),
+            ImageAlign = System.Drawing.ContentAlignment.MiddleCenter
         };
         logsButton.FlatAppearance.BorderSize = 0;
 
-        var logsToolTip = new ToolTip();
+        logsToolTip = new ToolTip();
         logsToolTip.SetToolTip(logsButton, "Відкрити папку журналів");
 
         rightUtilityPanel.Controls.AddRange(new Control[]
         {
             updateButton, versionLabel, logsButton
         });
+
+        components ??= new System.ComponentModel.Container();
+        components.Add(logsToolTip);
 
         footerPanel.Controls.Add(leftActionsPanel, 0, 0);
         footerPanel.Controls.Add(rightUtilityPanel, 1, 0);

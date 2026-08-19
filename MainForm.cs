@@ -43,7 +43,7 @@ public partial class MainForm : Form
 
     private CancellationTokenSource? _updateCheckCts;
     private Task? _updateCheckTask;
-    private UpdateCandidate? _currentUpdateCandidate;
+    private UpdateCandidate? _pendingUpdateCandidate;
 
     private static readonly Color SuccessGreen = Color.FromArgb(0, 128, 0);
 
@@ -827,10 +827,7 @@ public partial class MainForm : Form
         {
             if (c is RadioButton rb) rb.Enabled = enabled;
         }
-        if (!enabled)
-            updateButton.Enabled = false;
-        else if (_currentUpdateCandidate != null && !_operationInProgress)
-            updateButton.Enabled = true;
+        RefreshUpdateButtonPresentation();
     }
 
     // --- Background update check ---
@@ -846,66 +843,64 @@ public partial class MainForm : Form
         }
 
         _updateCheckCts = new CancellationTokenSource();
-        var token = _updateCheckCts.Token;
+        _updateCheckTask = RunUpdateCheckAsync(_updateCheckCts.Token);
+    }
 
-        _updateCheckTask = Task.Run(async () =>
+    private async Task RunUpdateCheckAsync(CancellationToken cancellationToken)
+    {
+        try
         {
-            try
+            _logger.Debug("Update check started");
+            var result = await _gitHubClient.FetchReleasesAsync(cancellationToken);
+
+            if (cancellationToken.IsCancellationRequested || _closing) return;
+
+            if (!result.IsSuccess)
             {
-                _logger.Debug("Update check started");
-                var result = await _gitHubClient.FetchReleasesAsync(token);
-
-                if (token.IsCancellationRequested) return;
-
-                if (!result.IsSuccess)
-                {
-                    _logger.Warning($"Update check failed: {result.ErrorMessage}");
-                    return;
-                }
-
-                var candidate = _selectionPolicy.FindUpdate(_appVersionInfo, result.Value!);
-
-                if (token.IsCancellationRequested) return;
-
-                if (candidate != null)
-                {
-                    _currentUpdateCandidate = candidate;
-                    _logger.Info($"Update available: {candidate.TagName}");
-
-                    if (!IsDisposed)
-                    {
-                        BeginInvoke(() =>
-                        {
-                            if (_closing || _operationInProgress) return;
-                            updateButton.Text = $"Оновити до {candidate.TagName}";
-                            updateButton.Visible = true;
-                            updateButton.Enabled = true;
-                        });
-                    }
-                }
-                else
-                {
-                    _logger.Debug("Update check: no eligible update");
-                }
+                _logger.Warning($"Update check failed: {result.ErrorMessage}");
+                return;
             }
-            catch (OperationCanceledException)
+
+            var candidate = _selectionPolicy.FindUpdate(_appVersionInfo, result.Value!);
+
+            if (cancellationToken.IsCancellationRequested || _closing) return;
+
+            if (candidate != null)
             {
-                // Expected during shutdown
+                _pendingUpdateCandidate = candidate;
+                _logger.Info($"Update available: {candidate.TagName}");
+                RefreshUpdateButtonPresentation();
             }
-            catch (Exception ex)
+            else
             {
-                _logger.Error($"Update check error: {ex.Message}");
+                _logger.Debug("Update check: no eligible update");
             }
-        }, token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected during shutdown
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Update check error: {ex.Message}");
+        }
+    }
+
+    private void RefreshUpdateButtonPresentation()
+    {
+        var state = UpdateButtonState.Compute(_pendingUpdateCandidate, _operationInProgress);
+        updateButton.Text = state.Text;
+        updateButton.Visible = state.Visible;
+        updateButton.Enabled = state.Enabled;
     }
 
     // --- Update button ---
 
     private void UpdateButton_Click(object? sender, EventArgs e)
     {
-        if (_currentUpdateCandidate == null) return;
+        if (_pendingUpdateCandidate == null) return;
 
-        var tag = _currentUpdateCandidate.TagName;
+        var tag = _pendingUpdateCandidate.TagName;
         _logger.Info($"Update button clicked: {tag}");
         MessageBox.Show(
             $"Автоматичне встановлення оновлення {tag} буде реалізовано у наступній версії.\n\nБудь ласка, завантажте оновлення вручну з GitHub Releases.",
@@ -932,7 +927,7 @@ public partial class MainForm : Form
         {
             _logger.Error($"Failed to open logs folder: {ex.Message}");
             MessageBox.Show(
-                "Не вдалося відкрити папку журналів. Перевірте шлях у налаштуваннях.",
+                "Не вдалося відкрити папку журналів.",
                 "Помилка",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
@@ -1342,4 +1337,20 @@ public partial class MainForm : Form
         RestoreError.StateRestoreFailed => "Не вдалося відновити стан локалізації. Попередній стан було повернуто.",
         _ => "Невідома помилка відновлення."
     };
+
+    internal static Image BuildLogsIcon()
+    {
+        var bmp = new Bitmap(16, 16, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(bmp))
+        {
+            g.Clear(Color.Transparent);
+            using var tab = new SolidBrush(Color.FromArgb(255, 180, 130, 20));
+            using var body = new SolidBrush(Color.FromArgb(255, 218, 165, 32));
+            using var highlight = new Pen(Color.FromArgb(100, 255, 255, 255), 1);
+            g.FillRectangle(tab, 1, 2, 6, 3);
+            g.FillRectangle(body, 0, 4, 15, 11);
+            g.DrawLine(highlight, 1, 5, 14, 5);
+        }
+        return bmp;
+    }
 }

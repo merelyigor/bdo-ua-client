@@ -1,7 +1,15 @@
+using System.Text.RegularExpressions;
+
 namespace BdoClient.Update;
 
 public readonly struct AppVersion : IComparable<AppVersion>, IEquatable<AppVersion>
 {
+    private static readonly Regex CoreVersionRegex = new(
+        @"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$", RegexOptions.Compiled);
+
+    private static readonly Regex ReleaseTagRegex = new(
+        @"^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$", RegexOptions.Compiled);
+
     public int Major { get; }
     public int Minor { get; }
     public int Build { get; }
@@ -34,26 +42,31 @@ public readonly struct AppVersion : IComparable<AppVersion>, IEquatable<AppVersi
     public static bool operator ==(AppVersion left, AppVersion right) => left.Equals(right);
     public static bool operator !=(AppVersion left, AppVersion right) => !left.Equals(right);
 
-    public static AppVersion? TryParse(string? text)
+    public static AppVersion? TryParseCoreVersion(string? text)
     {
-        if (string.IsNullOrWhiteSpace(text)) return null;
+        if (text == null) return null;
 
-        text = text.Trim();
-        if (text.StartsWith("v", StringComparison.OrdinalIgnoreCase))
-            text = text[1..];
+        var match = CoreVersionRegex.Match(text);
+        if (!match.Success) return null;
 
-        var parts = text.Split('.');
-        if (parts.Length != 3) return null;
-
-        if (!int.TryParse(parts[0], out var major) || major < 0) return null;
-        if (!int.TryParse(parts[1], out var minor) || minor < 0) return null;
-        if (!int.TryParse(parts[2], out var build) || build < 0) return null;
+        var major = int.Parse(match.Groups[1].Value);
+        var minor = int.Parse(match.Groups[2].Value);
+        var build = int.Parse(match.Groups[3].Value);
 
         return new AppVersion(major, minor, build);
     }
 
-    public static AppVersion Parse(string text)
+    public static AppVersion? TryParseReleaseTag(string? text)
     {
-        return TryParse(text) ?? throw new FormatException($"Invalid version format: '{text}'");
+        if (text == null) return null;
+
+        var match = ReleaseTagRegex.Match(text);
+        if (!match.Success) return null;
+
+        var major = int.Parse(match.Groups[1].Value);
+        var minor = int.Parse(match.Groups[2].Value);
+        var build = int.Parse(match.Groups[3].Value);
+
+        return new AppVersion(major, minor, build);
     }
 }

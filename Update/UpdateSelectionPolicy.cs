@@ -42,7 +42,7 @@ public sealed class UpdateSelectionPolicy
 
         var currentRelease = releases.FirstOrDefault(r =>
             !r.Draft &&
-            r.PublishedAt != null &&
+            r.PublishedAt.HasValue &&
             string.Equals(r.TagName, currentTag, StringComparison.Ordinal));
 
         if (currentRelease == null)
@@ -58,10 +58,10 @@ public sealed class UpdateSelectionPolicy
         foreach (var release in releases)
         {
             if (release.Draft) continue;
-            if (release.PublishedAt == null) continue;
+            if (!release.PublishedAt.HasValue) continue;
             if (release.TagName == null) continue;
 
-            var candidateVersion = AppVersion.TryParse(release.TagName);
+            var candidateVersion = AppVersion.TryParseReleaseTag(release.TagName);
             if (!candidateVersion.HasValue) continue;
 
             if (candidateVersion.Value <= currentVersion) continue;
@@ -81,11 +81,12 @@ public sealed class UpdateSelectionPolicy
         }
 
         var hasManifest = best.Release.Assets?.Any(a =>
-            string.Equals(a.Name, ManifestAssetName, StringComparison.Ordinal)) == true;
+            string.Equals(a.Name, ManifestAssetName, StringComparison.Ordinal) &&
+            string.Equals(a.State, "uploaded", StringComparison.OrdinalIgnoreCase)) == true;
 
         if (!hasManifest)
         {
-            _logger.Warning($"Update: candidate {best.TagName} lacks {ManifestAssetName}; fail closed");
+            _logger.Warning($"Update: candidate {best.TagName} lacks uploaded {ManifestAssetName}; fail closed");
             return null;
         }
 

@@ -31,7 +31,7 @@ public sealed class AppVersionInfo
         if (raw == "unknown")
             return new AppVersionInfo(raw, "версія невідома", false, null);
 
-        var publicVersion = AppVersion.TryParse(raw);
+        var publicVersion = AppVersion.TryParseCoreVersion(raw);
         if (publicVersion.HasValue)
         {
             var display = $"v{publicVersion.Value}";

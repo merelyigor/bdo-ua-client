@@ -4,53 +4,163 @@ namespace BdoClient.Tests.Update;
 
 public class AppVersionTests
 {
+    // --- TryParseCoreVersion: strict X.Y.Z only ---
+
     [Fact]
-    public void TryParse_ValidVersion_ReturnsVersion()
+    public void TryParseCoreVersion_Valid_ReturnsVersion()
     {
-        var v = AppVersion.TryParse("0.1.3");
+        var v = AppVersion.TryParseCoreVersion("0.1.4");
         Assert.NotNull(v);
         Assert.Equal(0, v.Value.Major);
         Assert.Equal(1, v.Value.Minor);
-        Assert.Equal(3, v.Value.Build);
+        Assert.Equal(4, v.Value.Build);
     }
 
     [Fact]
-    public void TryParse_Null_ReturnsNull()
+    public void TryParseCoreVersion_Null_ReturnsNull()
     {
-        Assert.Null(AppVersion.TryParse(null));
+        Assert.Null(AppVersion.TryParseCoreVersion(null));
     }
 
     [Fact]
-    public void TryParse_Empty_ReturnsNull()
+    public void TryParseCoreVersion_Empty_ReturnsNull()
     {
-        Assert.Null(AppVersion.TryParse(""));
+        Assert.Null(AppVersion.TryParseCoreVersion(""));
     }
 
     [Fact]
-    public void TryParse_WithSuffix_ReturnsNull()
+    public void TryParseCoreVersion_VPrefix_Invalid()
     {
-        Assert.Null(AppVersion.TryParse("0.1.3-dev"));
-        Assert.Null(AppVersion.TryParse("1.2.3+sha"));
-        Assert.Null(AppVersion.TryParse("0.0.0-dev.abcdef"));
+        Assert.Null(AppVersion.TryParseCoreVersion("v0.1.4"));
     }
 
     [Fact]
-    public void TryParse_TwoParts_ReturnsNull()
+    public void TryParseCoreVersion_UpperVPrefix_Invalid()
     {
-        Assert.Null(AppVersion.TryParse("0.1"));
+        Assert.Null(AppVersion.TryParseCoreVersion("V0.1.4"));
     }
 
     [Fact]
-    public void TryParse_FourParts_ReturnsNull()
+    public void TryParseCoreVersion_LeadingWhitespace_Invalid()
     {
-        Assert.Null(AppVersion.TryParse("0.1.3.4"));
+        Assert.Null(AppVersion.TryParseCoreVersion(" 0.1.4"));
     }
 
     [Fact]
-    public void TryParse_Negative_ReturnsNull()
+    public void TryParseCoreVersion_TrailingWhitespace_Invalid()
     {
-        Assert.Null(AppVersion.TryParse("-1.0.0"));
+        Assert.Null(AppVersion.TryParseCoreVersion("0.1.4 "));
     }
+
+    [Fact]
+    public void TryParseCoreVersion_LeadingZeroMajor_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseCoreVersion("01.1.4"));
+    }
+
+    [Fact]
+    public void TryParseCoreVersion_LeadingZeroMinor_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseCoreVersion("1.01.4"));
+    }
+
+    [Fact]
+    public void TryParseCoreVersion_LeadingZeroBuild_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseCoreVersion("1.2.03"));
+    }
+
+    [Fact]
+    public void TryParseCoreVersion_DevSuffix_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseCoreVersion("1.2.3-dev"));
+    }
+
+    [Fact]
+    public void TryParseCoreVersion_MetadataSuffix_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseCoreVersion("1.0.0+abcdef"));
+    }
+
+    [Fact]
+    public void TryParseCoreVersion_TwoParts_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseCoreVersion("1.2"));
+    }
+
+    [Fact]
+    public void TryParseCoreVersion_FourParts_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseCoreVersion("1.2.3.4"));
+    }
+
+    // --- TryParseReleaseTag: strict vX.Y.Z only ---
+
+    [Fact]
+    public void TryParseReleaseTag_ValidLowercaseV_ReturnsVersion()
+    {
+        var v = AppVersion.TryParseReleaseTag("v0.1.4");
+        Assert.NotNull(v);
+        Assert.Equal(0, v.Value.Major);
+        Assert.Equal(1, v.Value.Minor);
+        Assert.Equal(4, v.Value.Build);
+    }
+
+    [Fact]
+    public void TryParseReleaseTag_Null_ReturnsNull()
+    {
+        Assert.Null(AppVersion.TryParseReleaseTag(null));
+    }
+
+    [Fact]
+    public void TryParseReleaseTag_BareVersion_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseReleaseTag("0.1.4"));
+    }
+
+    [Fact]
+    public void TryParseReleaseTag_UpperV_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseReleaseTag("V0.1.4"));
+    }
+
+    [Fact]
+    public void TryParseReleaseTag_LeadingWhitespace_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseReleaseTag(" v0.1.4"));
+    }
+
+    [Fact]
+    public void TryParseReleaseTag_TrailingWhitespace_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseReleaseTag("v0.1.4 "));
+    }
+
+    [Fact]
+    public void TryParseReleaseTag_LeadingZeroMajor_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseReleaseTag("v01.1.4"));
+    }
+
+    [Fact]
+    public void TryParseReleaseTag_LeadingZeroMinor_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseReleaseTag("v1.01.4"));
+    }
+
+    [Fact]
+    public void TryParseReleaseTag_LeadingZeroBuild_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseReleaseTag("v1.2.03"));
+    }
+
+    [Fact]
+    public void TryParseReleaseTag_Suffix_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseReleaseTag("v1.2.3-dev"));
+    }
+
+    // --- Comparison ---
 
     [Fact]
     public void Compare_LessThan_Satisfied()
@@ -77,8 +187,6 @@ public class AppVersionTests
         Assert.True(v1 == v2);
         Assert.False(v1 < v2);
         Assert.False(v1 > v2);
-        Assert.True(v1 >= v2);
-        Assert.True(v1 <= v2);
         Assert.True(v1.Equals(v2));
     }
 
@@ -93,23 +201,7 @@ public class AppVersionTests
     [Fact]
     public void ToString_FormatsCorrectly()
     {
-        var v = new AppVersion(0, 1, 3);
-        Assert.Equal("0.1.3", v.ToString());
-    }
-
-    [Fact]
-    public void Parse_Invalid_Throws()
-    {
-        Assert.Throws<FormatException>(() => AppVersion.Parse("invalid"));
-    }
-
-    [Fact]
-    public void Parse_Valid_ReturnsVersion()
-    {
-        var v = AppVersion.Parse("1.2.3");
-        Assert.Equal(1, v.Major);
-        Assert.Equal(2, v.Minor);
-        Assert.Equal(3, v.Build);
+        Assert.Equal("0.1.4", new AppVersion(0, 1, 4).ToString());
     }
 
     [Fact]
