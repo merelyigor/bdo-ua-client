@@ -39,4 +39,11 @@ public sealed class UpdateSession
 
     [JsonPropertyName("staged_exe_sha256")]
     public string StagedExeSha256 { get; set; } = "";
+
+    [JsonPropertyName("original_exe_sha256")]
+    public string? OriginalExeSha256 { get; set; }
+
+    public const string StateStaged = "staged";
+    public const string StatePrepared = "prepared";
+    public const string StateApplied = "applied";
 }

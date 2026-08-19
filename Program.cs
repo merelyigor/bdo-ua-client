@@ -9,7 +9,44 @@ namespace BdoClient;
 static class Program
 {
     [STAThread]
-    static void Main()
+    static void Main(string[] args)
+    {
+        var commandLine = ApplicationCommandLine.Parse(args);
+
+        if (commandLine.IsApplyUpdateMode)
+        {
+            RunHelperMode(commandLine.ApplyUpdateSessionId!);
+            return;
+        }
+
+        // Prototype mode: BDO-UA-Client.exe --prototype
+        if (args.Length > 0 && args[0] == "--prototype")
+        {
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            Application.Run(new ThemePrototype());
+            return;
+        }
+
+        RunNormalMode();
+    }
+
+    private static void RunHelperMode(string sessionId)
+    {
+        var paths = new AppPaths();
+        paths.EnsureDirectories();
+        ILogger log = new FileLogger(paths.LogsDir);
+
+        log.Info($"Self-update helper mode: session={sessionId}");
+        var sessionStore = new UpdateSessionStore(paths, log);
+        var applier = new SelfUpdateApplier(sessionStore, log);
+
+        var exitCode = applier.RunAsync(sessionId).GetAwaiter().GetResult();
+        log.Info($"Self-update helper exited with code {exitCode}");
+        Environment.Exit(exitCode);
+    }
+
+    private static void RunNormalMode()
     {
         var appPaths = new AppPaths();
         appPaths.EnsureDirectories();

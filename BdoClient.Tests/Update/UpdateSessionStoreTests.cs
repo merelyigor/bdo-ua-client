@@ -204,12 +204,31 @@ public class UpdateSessionStoreTests : IDisposable
     }
 
     [Fact]
-    public void NormalizeSessionId_BraceFormat_Accepted()
+    public void NormalizeSessionId_BraceFormat_Rejected()
     {
         var guid = Guid.NewGuid();
         var brace = guid.ToString("B");
-        var normalized = UpdateSessionStore.NormalizeSessionId(brace);
-        Assert.Equal(guid.ToString("D"), normalized);
+        Assert.Throws<ArgumentException>(() => UpdateSessionStore.NormalizeSessionId(brace));
+    }
+
+    [Fact]
+    public void NormalizeSessionId_NFormat_Rejected()
+    {
+        var guid = Guid.NewGuid();
+        var n = guid.ToString("N");
+        Assert.Throws<ArgumentException>(() => UpdateSessionStore.NormalizeSessionId(n));
+    }
+
+    [Fact]
+    public void NormalizeSessionId_Empty_Rejected()
+    {
+        Assert.Throws<ArgumentException>(() => UpdateSessionStore.NormalizeSessionId(""));
+    }
+
+    [Fact]
+    public void NormalizeSessionId_Null_Rejected()
+    {
+        Assert.Throws<ArgumentException>(() => UpdateSessionStore.NormalizeSessionId(null!));
     }
 
     [Fact]
@@ -467,6 +486,89 @@ public class UpdateSessionStoreTests : IDisposable
 
         var loaded = _store.LoadSession(session.SessionId);
         Assert.Equal(UpdateSessionLoadStatus.Valid, loaded.Status);
+    }
+
+    // --- State lifecycle (§9) ---
+
+    [Fact]
+    public void LoadSessionForState_Prepared_AcceptsPreparedState()
+    {
+        var session = MakeSession();
+        session.State = "prepared";
+        _store.WriteSession(session);
+        var result = _store.LoadSessionForState(session.SessionId, "prepared");
+        Assert.Equal(UpdateSessionLoadStatus.Valid, result.Status);
+    }
+
+    [Fact]
+    public void LoadSessionForState_Staged_RejectsPreparedState()
+    {
+        var session = MakeSession();
+        session.State = "prepared";
+        _store.WriteSession(session);
+        var result = _store.LoadSession(session.SessionId);
+        Assert.Equal(UpdateSessionLoadStatus.Invalid, result.Status);
+    }
+
+    [Fact]
+    public void LoadSessionForState_Prepared_RejectsStagedState()
+    {
+        var session = MakeSession();
+        session.State = "staged";
+        _store.WriteSession(session);
+        var result = _store.LoadSessionForState(session.SessionId, "prepared");
+        Assert.Equal(UpdateSessionLoadStatus.Invalid, result.Status);
+    }
+
+    [Fact]
+    public void LoadSessionForState_DefaultsToStaged()
+    {
+        var session = MakeSession();
+        session.State = "staged";
+        _store.WriteSession(session);
+        var result = _store.LoadSession(session.SessionId);
+        Assert.Equal(UpdateSessionLoadStatus.Valid, result.Status);
+    }
+
+    // --- original_exe_sha256 (§10) ---
+
+    [Fact]
+    public void OriginalExeSha256_Null_SerializedAsNull()
+    {
+        var session = MakeSession();
+        session.OriginalExeSha256 = null;
+        _store.WriteSession(session);
+        var sessionDir = _store.GetSessionDir(session.SessionId);
+        var json = File.ReadAllText(Path.Combine(sessionDir, "update-session.json"));
+        Assert.Contains("original_exe_sha256", json);
+        var loaded = _store.LoadSession(session.SessionId);
+        Assert.Null(loaded.Session!.OriginalExeSha256);
+    }
+
+    [Fact]
+    public void OriginalExeSha256_Present_RoundTrips()
+    {
+        var session = MakeSession();
+        var sha = new string('c', 64);
+        session.OriginalExeSha256 = sha;
+        _store.WriteSession(session);
+        var loaded = _store.LoadSession(session.SessionId);
+        Assert.Equal(sha, loaded.Session!.OriginalExeSha256);
+    }
+
+    [Fact]
+    public void OriginalExeSha256_OldSessionWithoutField_DefaultsToNull()
+    {
+        var session = MakeSession();
+        _store.WriteSession(session);
+        var sessionDir = _store.GetSessionDir(session.SessionId);
+        var filePath = Path.Combine(sessionDir, "update-session.json");
+        var json = File.ReadAllText(filePath);
+        json = json.Replace("\"original_exe_sha256\": null,", "");
+        File.WriteAllText(filePath, json);
+        var loaded = _store.LoadSession(session.SessionId);
+        Assert.Equal(UpdateSessionLoadStatus.Valid, loaded.Status);
+        Assert.Null(loaded.Session!.OriginalExeSha256);
     }
 
     private static UpdateSession MakeSession() => new()

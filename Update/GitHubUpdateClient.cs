@@ -83,6 +83,12 @@ public sealed class GitHubUpdateClient
 
             return GitHubResult<List<GitHubRelease>>.Success(releases);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            sw.Stop();
+            _logger.Debug("GitHub update: cancelled (caller)");
+            throw;
+        }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
         {
             sw.Stop();
@@ -190,6 +196,12 @@ public sealed class GitHubUpdateClient
                 return GitHubResult<UpdateManifest>.Failure("Manifest deserialized to null");
 
             return GitHubResult<UpdateManifest>.Success(manifest);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            sw.Stop();
+            _logger.Debug("GitHub update: manifest cancelled (caller)");
+            throw;
         }
         catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
         {

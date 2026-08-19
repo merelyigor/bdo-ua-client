@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows.Forms;
 using BdoClient.Api;
 using BdoClient.Logging;
@@ -27,6 +28,7 @@ public partial class MainForm : Form
     private readonly AppPaths _appPaths;
     private readonly UpdatePackageService _updatePackageService;
     private readonly UpdateSessionStore _updateSessionStore;
+    private readonly SelfUpdatePreparationService _selfUpdatePreparation;
 
     private string? _gameRoot;
     private ReleasesResponse? _apiResponse;
@@ -82,6 +84,7 @@ public partial class MainForm : Form
         _updateSessionStore = new UpdateSessionStore(appPaths, logger);
         var manifestValidator = new UpdateManifestValidator(logger);
         _updatePackageService = new UpdatePackageService(gitHubClient, manifestValidator, _updateSessionStore, appPaths, logger);
+        _selfUpdatePreparation = new SelfUpdatePreparationService(_updateSessionStore, logger);
 
         _poller = new ReleaseFeedPoller(_apiClient, _logger);
         _feedCoordinator = new FeedApplicationCoordinator(ApplyFeedPipelineAsync, _poller, _logger);
@@ -804,6 +807,14 @@ public partial class MainForm : Form
 
     private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
+        if (_closing)
+        {
+            // Handoff in progress — allow close
+            _updateCheckCts?.Cancel();
+            _poller.Stop();
+            return;
+        }
+
         if (!_operationInProgress)
         {
             _closing = true;
@@ -964,9 +975,56 @@ public partial class MainForm : Form
             if (result.IsSuccess)
             {
                 SetOperationState(OperationState.Completed);
-                finalMessage = $"Оновлення {_pendingUpdateCandidate.TagName} завантажено та перевірено.";
                 _stagedUpdateSession = result.Session;
                 _pendingUpdateCandidate = null;
+
+                // Prepare: copy candidate, capture original SHA, mark prepared
+                SetMessage("Підготовка оновлення...");
+                var prepResult = await _selfUpdatePreparation.PrepareAsync(result.Session!.SessionId, _operationCts.Token);
+
+                if (!prepResult.IsSuccess)
+                {
+                    _logger.Error($"Self-update preparation failed: {prepResult.Error} — {prepResult.ErrorMessage}");
+                    finalMessage = $"Не вдалося підготувати оновлення: {prepResult.ErrorMessage}";
+                    _stagedUpdateSession = null;
+                    return;
+                }
+
+                // Handoff: launch helper and exit
+                SetMessage("Підготовка оновлення... Програма буде перезапущена.");
+                _closing = true;
+                _poller.Stop();
+                _updateCheckCts?.Cancel();
+
+                var helperPath = Environment.ProcessPath;
+                if (string.IsNullOrWhiteSpace(helperPath) || !Path.IsPathRooted(helperPath))
+                {
+                    _logger.Error("Self-update handoff: cannot determine current executable path");
+                    finalMessage = "Не вдалося визначити шлях до програми.";
+                    _closing = false;
+                    return;
+                }
+
+                try
+                {
+                    var psi = new ProcessStartInfo(helperPath, $"--apply-update {result.Session!.SessionId}")
+                    {
+                        UseShellExecute = true
+                    };
+                    Process.Start(psi);
+                    _logger.Info($"Self-update: launched helper at {helperPath}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error($"Self-update handoff: failed to launch helper: {ex.Message}");
+                    finalMessage = $"Не вдалося запустити оновлення: {ex.Message}";
+                    _closing = false;
+                    return;
+                }
+
+                // Exit current process
+                _logger.Info("Self-update: exiting old process");
+                Application.Exit();
             }
             else
             {

@@ -3,8 +3,8 @@
 Plan ID: `client-self-update`
 Status: **ACTIVE**
 Focus: **PRIMARY**
-Current phase: v13.2.2 implemented
-Next action: v13.3 — add self-update replacement and restart
+Current phase: v13.3 implemented
+Next action: v13.4 — harden updater lifecycle and UX
 
 ---
 

@@ -55,8 +55,12 @@ public sealed class UpdateSessionStore
 
     public static string NormalizeSessionId(string sessionId)
     {
+        if (string.IsNullOrEmpty(sessionId) || !GuidDRegex.IsMatch(sessionId))
+            throw new ArgumentException("Session ID must be in D-format (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)", nameof(sessionId));
+
         if (!Guid.TryParse(sessionId, out var guid))
-            throw new ArgumentException("Invalid session ID format", nameof(sessionId));
+            throw new ArgumentException("Invalid session ID", nameof(sessionId));
+
         return guid.ToString("D");
     }
 
@@ -111,6 +115,11 @@ public sealed class UpdateSessionStore
 
     public UpdateSessionLoadResult LoadSession(string sessionId)
     {
+        return LoadSessionForState(sessionId, UpdateSession.StateStaged);
+    }
+
+    public UpdateSessionLoadResult LoadSessionForState(string sessionId, string expectedState)
+    {
         try
         {
             var normalizedId = NormalizeSessionId(sessionId);
@@ -126,7 +135,7 @@ public sealed class UpdateSessionStore
             if (session == null)
                 return UpdateSessionLoadResult.Invalid;
 
-            return ValidateSession(session, normalizedId);
+            return ValidateSession(session, normalizedId, expectedState);
         }
         catch (JsonException ex)
         {
@@ -140,7 +149,7 @@ public sealed class UpdateSessionStore
         }
     }
 
-    private static UpdateSessionLoadResult ValidateSession(UpdateSession session, string expectedId)
+    private static UpdateSessionLoadResult ValidateSession(UpdateSession session, string expectedId, string expectedState)
     {
         if (session.SchemaVersion != 1)
             return UpdateSessionLoadResult.Invalid;
@@ -152,7 +161,7 @@ public sealed class UpdateSessionStore
         if (!string.Equals(normalizedStoredId, expectedId, StringComparison.Ordinal))
             return UpdateSessionLoadResult.Invalid;
 
-        if (!string.Equals(session.State, "staged", StringComparison.Ordinal))
+        if (!string.Equals(session.State, expectedState, StringComparison.Ordinal))
             return UpdateSessionLoadResult.Invalid;
 
         if (session.CreatedAt == default)

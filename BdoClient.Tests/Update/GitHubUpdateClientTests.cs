@@ -56,13 +56,12 @@ public class GitHubUpdateClientTests
     }
 
     [Fact]
-    public async Task FetchReleasesAsync_Cancellation_ReturnsFailure()
+    public async Task FetchReleasesAsync_Cancellation_Throws()
     {
         var client = CreateClient("[]");
         var cts = new CancellationTokenSource();
         await cts.CancelAsync();
-        var result = await client.FetchReleasesAsync(cts.Token);
-        Assert.False(result.IsSuccess);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.FetchReleasesAsync(cts.Token));
     }
 
     [Fact]
