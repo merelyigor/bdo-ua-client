@@ -11,6 +11,7 @@ public sealed class AppPaths
     public string BackupsDir { get; }
     public string OriginalBackupDir { get; }
     public string RestorePointsDir { get; }
+    public string UpdatesDir { get; }
     public string ConfigFile { get; }
     public string InstallationFile { get; }
 
@@ -25,6 +26,7 @@ public sealed class AppPaths
         BackupsDir = Path.Combine(root, "backups");
         OriginalBackupDir = Path.Combine(BackupsDir, "original");
         RestorePointsDir = Path.Combine(BackupsDir, "restore-points");
+        UpdatesDir = Path.Combine(root, "updates");
         ConfigFile = Path.Combine(root, "config.json");
         InstallationFile = Path.Combine(StateDir, "installation.json");
     }
@@ -36,5 +38,6 @@ public sealed class AppPaths
         Directory.CreateDirectory(CacheDir);
         Directory.CreateDirectory(OriginalBackupDir);
         Directory.CreateDirectory(RestorePointsDir);
+        Directory.CreateDirectory(UpdatesDir);
     }
 }

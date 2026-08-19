@@ -3,8 +3,8 @@
 Plan ID: `client-self-update`
 Status: **ACTIVE**
 Focus: **PRIMARY**
-Current phase: v13.1.2 accepted
-Next action: v13.2 — add verified update package staging
+Current phase: v13.2 implemented
+Next action: v13.3 — add self-update replacement and restart
 
 ---
 

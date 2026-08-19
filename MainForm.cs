@@ -25,6 +25,8 @@ public partial class MainForm : Form
     private readonly GitHubUpdateClient _gitHubClient;
     private readonly UpdateSelectionPolicy _selectionPolicy;
     private readonly AppPaths _appPaths;
+    private readonly UpdatePackageService _updatePackageService;
+    private readonly UpdateSessionStore _updateSessionStore;
 
     private string? _gameRoot;
     private ReleasesResponse? _apiResponse;
@@ -75,6 +77,10 @@ public partial class MainForm : Form
         _gitHubClient = gitHubClient;
         _selectionPolicy = selectionPolicy;
         _appPaths = appPaths;
+
+        _updateSessionStore = new UpdateSessionStore(appPaths, logger);
+        var manifestValidator = new UpdateManifestValidator(logger);
+        _updatePackageService = new UpdatePackageService(gitHubClient, manifestValidator, _updateSessionStore, appPaths, logger);
 
         _poller = new ReleaseFeedPoller(_apiClient, _logger);
         _feedCoordinator = new FeedApplicationCoordinator(ApplyFeedPipelineAsync, _poller, _logger);
@@ -896,18 +902,122 @@ public partial class MainForm : Form
 
     // --- Update button ---
 
-    private void UpdateButton_Click(object? sender, EventArgs e)
+    private async void UpdateButton_Click(object? sender, EventArgs e)
     {
+        try
+        {
+            await HandleApplicationUpdateDownloadAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"UpdateButton_Click unexpected: {ex.Message}");
+            SetMessage($"Помилка: {ex.Message}");
+        }
+    }
+
+    private async Task HandleApplicationUpdateDownloadAsync()
+    {
+        if (_operationInProgress) return;
         if (_pendingUpdateCandidate == null) return;
 
-        var tag = _pendingUpdateCandidate.TagName;
-        _logger.Info($"Update button clicked: {tag}");
-        MessageBox.Show(
-            $"Автоматичне встановлення оновлення {tag} буде реалізовано у наступній версії.\n\nБудь ласка, завантажте оновлення вручну з GitHub Releases.",
-            "Оновлення",
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Information);
+        string? finalMessage = null;
+
+        try
+        {
+            _operationInProgress = true;
+            _poller.Pause();
+            _feedCoordinator.BlockUpdates();
+            SetOperationState(OperationState.Idle);
+            SetActionsEnabled(false, false);
+            SetControlsDuringOperation(false);
+
+            SetMessage($"Завантаження оновлення {_pendingUpdateCandidate.TagName}...");
+            SetProgress(0);
+            SetOperationState(OperationState.Downloading);
+
+            _operationCts = new CancellationTokenSource();
+            cancelButton.Enabled = true;
+
+            var progress = new Progress<UpdateStageProgress>(stage =>
+            {
+                SetMessage(stage.Message);
+                if (stage.Percent > 0)
+                {
+                    var clamped = (int)Math.Clamp(Math.Round(stage.Percent), 0, 100);
+                    progressBar.Style = ProgressBarStyle.Continuous;
+                    progressBar.Value = clamped;
+                    progressLabel.Text = $"{clamped}%";
+                }
+            });
+
+            var result = await _updatePackageService.StageUpdateAsync(
+                _pendingUpdateCandidate, _appVersionInfo, progress, _operationCts.Token);
+
+            if (result.IsSuccess)
+            {
+                SetOperationState(OperationState.Completed);
+                finalMessage = $"Оновлення {_pendingUpdateCandidate.TagName} завантажено та перевірено.";
+                updateButton.Enabled = false;
+            }
+            else
+            {
+                SetOperationState(OperationState.Failed);
+                _logger.Error($"Update staging failed: {result.Error} — {result.ErrorMessage}");
+                finalMessage = MapUpdatePackageError(result.Error!.Value);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.Info("Update staging cancelled by user.");
+            SetOperationState(OperationState.Cancelled);
+            finalMessage = "Оновлення скасовано.";
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Update staging error: {ex.Message}");
+            SetOperationState(OperationState.Failed);
+            finalMessage = $"Помилка оновлення: {ex.Message}";
+        }
+        finally
+        {
+            cancelButton.Enabled = false;
+            _operationCts?.Dispose();
+            _operationCts = null;
+            _operationInProgress = false;
+            SetControlsDuringOperation(true);
+
+            try
+            {
+                if (finalMessage != null)
+                    SetMessage(finalMessage);
+
+                await _feedCoordinator.ApplyPendingIfAnyAsync();
+            }
+            finally
+            {
+                _feedCoordinator.UnblockUpdates();
+                if (!_closing)
+                    _poller.Resume();
+            }
+        }
     }
+
+    private static string MapUpdatePackageError(UpdatePackageError error) => error switch
+    {
+        UpdatePackageError.InvalidCandidate => "Неприйнятний кандидат оновлення.",
+        UpdatePackageError.ManifestDownloadFailed => "Не вдалося отримати метадані оновлення. Спробуйте ще раз пізніше.",
+        UpdatePackageError.ManifestInvalid => "Оновлення не пройшло перевірку цілісності. Поточна версія не змінена.",
+        UpdatePackageError.AssetMissing => "Не знайдено файл оновлення.",
+        UpdatePackageError.DownloadFailed => "Не вдалося завантажити оновлення. Спробуйте ще раз пізніше.",
+        UpdatePackageError.SizeMismatch => "Оновлення не пройшло перевірку цілісності. Поточна версія не змінена.",
+        UpdatePackageError.HashMismatch => "Оновлення не пройшло перевірку цілісності. Поточна версія не змінена.",
+        UpdatePackageError.PackageInvalid => "Оновлення не пройшло перевірку цілісності. Поточна версія не змінена.",
+        UpdatePackageError.ExecutableInvalid => "Оновлення не пройшло перевірку цілісності. Поточна версія не змінена.",
+        UpdatePackageError.SessionWriteFailed => "Не вдалося зберегти стан оновлення.",
+        UpdatePackageError.IoError => "Помилка введення-виведення під час оновлення.",
+        UpdatePackageError.Cancelled => "Оновлення скасовано.",
+        _ => "Невідома помилка оновлення."
+    };
 
     // --- Logs button ---
 
