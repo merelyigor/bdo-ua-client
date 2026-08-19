@@ -117,9 +117,10 @@ Trimming може видалити типи, які використовують
 - Автоматична перевірка кожного коміту/PR на компільність та проходження тестів
 
 ### B. Test Build (`test-build.yml`)
-- **Trigger:** `workflow_dispatch` (ручний запуск)
-- Тестовий білд для перевірок без версії/тегу
+- **Trigger:** push до main, PR до main, `workflow_dispatch`
+- Автоматичний білд при кожному коміті/PR
 - Artifact: `BDO-UA-Client-test-build` (тільки EXE)
+- Artifact доступний всім (Actions → Test Build → завантажити)
 - НЕ створює GitHub Release
 
 ### C. Release Candidate (`release-candidate.yml`)
