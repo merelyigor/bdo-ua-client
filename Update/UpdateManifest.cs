@@ -26,5 +26,5 @@ public sealed class UpdateManifest
     public string? Platform { get; set; }
 
     [JsonPropertyName("workflow_run_id")]
-    public long WorkflowRunId { get; set; }
+    public string? WorkflowRunId { get; set; }
 }

@@ -46,6 +46,7 @@ public partial class MainForm : Form
     private CancellationTokenSource? _updateCheckCts;
     private Task? _updateCheckTask;
     private UpdateCandidate? _pendingUpdateCandidate;
+    private UpdateSession? _stagedUpdateSession;
 
     private static readonly Color SuccessGreen = Color.FromArgb(0, 128, 0);
 
@@ -894,6 +895,13 @@ public partial class MainForm : Form
 
     private void RefreshUpdateButtonPresentation()
     {
+        if (_stagedUpdateSession != null)
+        {
+            updateButton.Visible = false;
+            updateButton.Enabled = false;
+            return;
+        }
+
         var state = UpdateButtonState.Compute(_pendingUpdateCandidate, _operationInProgress);
         updateButton.Text = state.Text;
         updateButton.Visible = state.Visible;
@@ -957,11 +965,16 @@ public partial class MainForm : Form
             {
                 SetOperationState(OperationState.Completed);
                 finalMessage = $"Оновлення {_pendingUpdateCandidate.TagName} завантажено та перевірено.";
-                updateButton.Enabled = false;
+                _stagedUpdateSession = result.Session;
+                _pendingUpdateCandidate = null;
             }
             else
             {
-                SetOperationState(OperationState.Failed);
+                if (result.Error == UpdatePackageError.Cancelled)
+                    SetOperationState(OperationState.Cancelled);
+                else
+                    SetOperationState(OperationState.Failed);
+
                 _logger.Error($"Update staging failed: {result.Error} — {result.ErrorMessage}");
                 finalMessage = MapUpdatePackageError(result.Error!.Value);
             }

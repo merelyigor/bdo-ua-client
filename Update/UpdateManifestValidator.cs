@@ -7,6 +7,7 @@ public sealed class UpdateManifestValidator
 {
     private static readonly Regex Sha256HexRegex = new("^[0-9a-fA-F]{64}$", RegexOptions.Compiled);
     private static readonly Regex CommitShaRegex = new("^[0-9a-fA-F]{40}$", RegexOptions.Compiled);
+    private static readonly Regex WorkflowRunIdRegex = new("^[1-9][0-9]*$", RegexOptions.Compiled);
 
     private readonly ILogger _logger;
 
@@ -70,6 +71,12 @@ public sealed class UpdateManifestValidator
         {
             _logger.Warning($"Manifest: invalid commit_sha '{manifest.CommitSha}'");
             return UpdateManifestValidationResult.Failure("Invalid commit_sha");
+        }
+
+        if (string.IsNullOrWhiteSpace(manifest.WorkflowRunId) || !WorkflowRunIdRegex.IsMatch(manifest.WorkflowRunId))
+        {
+            _logger.Warning($"Manifest: invalid workflow_run_id '{manifest.WorkflowRunId}'");
+            return UpdateManifestValidationResult.Failure("Invalid workflow_run_id");
         }
 
         _logger.Debug($"Manifest: validated successfully (version={coreVersion.Value}, tag={manifest.Tag})");

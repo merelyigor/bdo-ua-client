@@ -38,19 +38,20 @@ public sealed class UpdatePackageService
         IProgress<UpdateStageProgress>? progress,
         CancellationToken cancellationToken = default)
     {
-        var sessionId = Guid.NewGuid().ToString();
+        var sessionId = Guid.NewGuid().ToString("D");
         var sessionDir = _sessionStore.GetSessionDir(sessionId);
         _logger.Info($"Update staging started: {candidate.TagName} (session={sessionId})");
 
+        bool keepSession = false;
         try
         {
             Directory.CreateDirectory(sessionDir);
 
-            // 1. Download manifest
+            // 1. Find and download manifest
             progress?.Report(new UpdateStageProgress("Отримання метаданих оновлення...", 0));
-            var manifestAsset = FindManifestAsset(candidate);
+            var manifestAsset = FindExactlyOneAsset(candidate, ManifestFileName);
             if (manifestAsset == null)
-                return UpdatePackageResult.Failure(UpdatePackageError.AssetMissing, "Manifest asset not found");
+                return UpdatePackageResult.Failure(UpdatePackageError.AssetMissing, "Manifest asset not found or ambiguous");
 
             var manifestResult = await _gitHubClient.FetchManifestAsync(manifestAsset, cancellationToken);
             if (!manifestResult.IsSuccess)
@@ -66,19 +67,25 @@ public sealed class UpdatePackageService
             var expectedSha = validationResult.NormalizedSha256!;
 
             // 3. Find ZIP asset
-            var zipAsset = FindZipAsset(candidate, manifest.AssetName!);
+            var zipAsset = FindExactlyOneAsset(candidate, manifest.AssetName!);
             if (zipAsset == null)
-                return UpdatePackageResult.Failure(UpdatePackageError.AssetMissing, "ZIP asset not found");
+                return UpdatePackageResult.Failure(UpdatePackageError.AssetMissing, "ZIP asset not found or ambiguous");
 
             if (zipAsset.Size <= 0 || zipAsset.Size > GitHubUpdateClient.ZipMaxBytes)
                 return UpdatePackageResult.Failure(UpdatePackageError.SizeMismatch, $"Invalid ZIP size: {zipAsset.Size}");
 
-            // 4. Optional GitHub digest cross-check
+            // 4. GitHub digest cross-check
             if (!string.IsNullOrEmpty(zipAsset.Digest))
             {
                 if (zipAsset.Digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
                 {
-                    var gitHubHash = zipAsset.Digest["sha256:".Length..].ToLowerInvariant();
+                    var digestHex = zipAsset.Digest["sha256:".Length..];
+                    if (digestHex.Length != 64 || !System.Text.RegularExpressions.Regex.IsMatch(digestHex, "^[0-9a-fA-F]{64}$"))
+                    {
+                        _logger.Error($"Malformed GitHub digest: {zipAsset.Digest}");
+                        return UpdatePackageResult.Failure(UpdatePackageError.HashMismatch, "Malformed GitHub digest");
+                    }
+                    var gitHubHash = digestHex.ToLowerInvariant();
                     if (!string.Equals(gitHubHash, expectedSha, StringComparison.Ordinal))
                     {
                         _logger.Error($"GitHub digest {gitHubHash} != manifest SHA {expectedSha}");
@@ -93,7 +100,7 @@ public sealed class UpdatePackageService
                 }
             }
 
-            // 5. Download ZIP
+            // 5. Download ZIP with streamed SHA
             progress?.Report(new UpdateStageProgress($"Завантаження оновлення {candidate.TagName}...", 0));
             var zipPath = Path.Combine(sessionDir, "update-package.zip");
 
@@ -109,20 +116,21 @@ public sealed class UpdatePackageService
                 return UpdatePackageResult.Failure(UpdatePackageError.DownloadFailed, downloadResult.ErrorMessage!);
             }
 
-            // 6. SHA-256 verification
-            progress?.Report(new UpdateStageProgress("Перевірка цілісності...", 100));
-            _logger.Debug("Update: verifying ZIP SHA-256");
-            var actualSha = await HashHelper.ComputeFileSha256Async(zipPath, cancellationToken);
+            var downloadInfo = downloadResult.Value!;
 
-            if (!string.Equals(actualSha, expectedSha, StringComparison.Ordinal))
+            // 6. SHA-256 verification (streamed during download)
+            progress?.Report(new UpdateStageProgress("Перевірка цілісності...", 100));
+            _logger.Debug($"Update: verifying ZIP SHA-256 (streamed={downloadInfo.Sha256[..16]}...)");
+
+            if (!string.Equals(downloadInfo.Sha256, expectedSha, StringComparison.Ordinal))
             {
-                _logger.Error($"ZIP SHA mismatch: actual={actualSha} expected={expectedSha}");
+                _logger.Error($"ZIP SHA mismatch: actual={downloadInfo.Sha256} expected={expectedSha}");
                 SafeDelete(zipPath);
                 return UpdatePackageResult.Failure(UpdatePackageError.HashMismatch, "ZIP SHA-256 mismatch");
             }
-            _logger.Debug($"ZIP SHA-256 verified: {actualSha}");
+            _logger.Debug($"ZIP SHA-256 verified: {downloadInfo.Sha256}");
 
-            // 7. Validate ZIP structure
+            // 7. Validate and extract ZIP
             progress?.Report(new UpdateStageProgress("Перевірка пакета...", 100));
             _logger.Debug("Update: validating ZIP structure");
             var extractedExePath = Path.Combine(sessionDir, ExeFileName);
@@ -130,7 +138,7 @@ public sealed class UpdatePackageService
 
             try
             {
-                extractedSize = ExtractSingleExeFromZip(zipPath, extractedExePath, cancellationToken);
+                extractedSize = await ExtractSingleExeFromZipAsync(zipPath, extractedExePath, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -147,33 +155,30 @@ public sealed class UpdatePackageService
             progress?.Report(new UpdateStageProgress("Перевірка оновлення...", 100));
             _logger.Debug("Update: validating EXE version metadata");
             var fileVersionInfo = FileVersionInfo.GetVersionInfo(extractedExePath);
-            var expectedFileVersion = $"{candidate.Version}.0";
-            var expectedProductVersion = candidate.Version.ToString();
 
-            if (!string.Equals(fileVersionInfo.FileVersion, expectedFileVersion, StringComparison.Ordinal))
+            if (!ExecutableVersionValidator.Validate(fileVersionInfo.FileVersion, fileVersionInfo.ProductVersion, candidate.Version, out var versionError))
             {
-                _logger.Error($"EXE FileVersion '{fileVersionInfo.FileVersion}' != expected '{expectedFileVersion}'");
+                _logger.Error($"EXE version invalid: {versionError}");
                 SafeDelete(extractedExePath);
-                return UpdatePackageResult.Failure(UpdatePackageError.ExecutableInvalid, $"FileVersion mismatch: {fileVersionInfo.FileVersion}");
-            }
-
-            if (!string.Equals(fileVersionInfo.ProductVersion, expectedProductVersion, StringComparison.Ordinal))
-            {
-                _logger.Error($"EXE ProductVersion '{fileVersionInfo.ProductVersion}' != expected '{expectedProductVersion}'");
-                SafeDelete(extractedExePath);
-                return UpdatePackageResult.Failure(UpdatePackageError.ExecutableInvalid, $"ProductVersion mismatch: {fileVersionInfo.ProductVersion}");
+                return UpdatePackageResult.Failure(UpdatePackageError.ExecutableInvalid, versionError!);
             }
 
             _logger.Debug($"EXE version verified: FileVersion={fileVersionInfo.FileVersion} ProductVersion={fileVersionInfo.ProductVersion}");
 
-            // 9. Calculate staged EXE SHA-256
+            // 9. Staged EXE SHA-256
             var exeSha = await HashHelper.ComputeFileSha256Async(extractedExePath, cancellationToken);
             _logger.Debug($"Staged EXE SHA-256: {exeSha}");
 
-            // 10. Write session
-            progress?.Report(new UpdateStageProgress("Підготовка оновлення...", 100));
-            var targetPath = Environment.ProcessPath ?? "";
+            // 10. Validate target path
+            var targetPath = Environment.ProcessPath;
+            if (string.IsNullOrWhiteSpace(targetPath) || !Path.IsPathRooted(targetPath))
+            {
+                _logger.Error($"Invalid target path: '{targetPath}'");
+                return UpdatePackageResult.Failure(UpdatePackageError.IoError, "Cannot determine current executable path");
+            }
 
+            // 11. Write session
+            progress?.Report(new UpdateStageProgress("Підготовка оновлення...", 100));
             var session = new UpdateSession
             {
                 SchemaVersion = 1,
@@ -192,48 +197,63 @@ public sealed class UpdatePackageService
 
             var writeResult = _sessionStore.WriteSession(session);
             if (!writeResult.IsSuccess)
-            {
-                _logger.Error("Session write failed");
-                _sessionStore.CleanupSession(sessionId);
                 return writeResult;
-            }
 
+            keepSession = true;
             _logger.Info($"Update staging complete: {candidate.TagName} (session={sessionId})");
             return UpdatePackageResult.Success(session);
         }
         catch (OperationCanceledException)
         {
             _logger.Info($"Update staging cancelled (session={sessionId})");
-            _sessionStore.CleanupSession(sessionId);
             return UpdatePackageResult.Failure(UpdatePackageError.Cancelled, "Cancelled");
         }
         catch (Exception ex)
         {
             _logger.Error($"Update staging failed: {ex.Message}");
-            _sessionStore.CleanupSession(sessionId);
             return UpdatePackageResult.Failure(UpdatePackageError.IoError, ex.Message);
+        }
+        finally
+        {
+            if (!keepSession)
+                _sessionStore.CleanupSession(sessionId);
         }
     }
 
-    private GitHubReleaseAsset? FindManifestAsset(UpdateCandidate candidate)
+    private GitHubReleaseAsset? FindExactlyOneAsset(UpdateCandidate candidate, string assetName)
     {
-        return candidate.Release.Assets?.FirstOrDefault(a =>
-            string.Equals(a.Name, ManifestFileName, StringComparison.Ordinal) &&
-            string.Equals(a.State, "uploaded", StringComparison.OrdinalIgnoreCase) &&
-            !string.IsNullOrEmpty(a.BrowserDownloadUrl));
+        var matches = candidate.Release.Assets?
+            .Where(a =>
+                string.Equals(a.Name, assetName, StringComparison.Ordinal) &&
+                string.Equals(a.State, "uploaded", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrEmpty(a.BrowserDownloadUrl) &&
+                a.Size > 0)
+            .ToList();
+
+        if (matches == null || matches.Count == 0)
+            return null;
+
+        if (matches.Count > 1)
+        {
+            _logger.Warning($"Found {matches.Count} assets named '{assetName}'; expected exactly 1");
+            return null;
+        }
+
+        var asset = matches[0];
+
+        if (!Uri.TryCreate(asset.BrowserDownloadUrl, UriKind.Absolute, out var uri) || uri.Scheme != "https")
+        {
+            _logger.Warning($"Asset '{assetName}' has non-HTTPS URL");
+            return null;
+        }
+
+        return asset;
     }
 
-    private GitHubReleaseAsset? FindZipAsset(UpdateCandidate candidate, string assetName)
+    private static async Task<long> ExtractSingleExeFromZipAsync(string zipPath, string destinationPath, CancellationToken cancellationToken)
     {
-        return candidate.Release.Assets?.FirstOrDefault(a =>
-            string.Equals(a.Name, assetName, StringComparison.Ordinal) &&
-            string.Equals(a.State, "uploaded", StringComparison.OrdinalIgnoreCase) &&
-            !string.IsNullOrEmpty(a.BrowserDownloadUrl) &&
-            a.Size > 0);
-    }
+        const long maxExeBytes = GitHubUpdateClient.ExeMaxBytes;
 
-    private static long ExtractSingleExeFromZip(string zipPath, string destinationPath, CancellationToken cancellationToken)
-    {
         using var archive = ZipFile.OpenRead(zipPath);
 
         if (archive.Entries.Count != 1)
@@ -247,25 +267,33 @@ public sealed class UpdatePackageService
         if (entry.CompressedLength == 0)
             throw new InvalidOperationException("ZIP entry is empty");
 
+        if (entry.Length > maxExeBytes)
+            throw new InvalidOperationException($"Declared entry size {entry.Length} exceeds max ({maxExeBytes})");
+
         long totalRead = 0;
         var buffer = new byte[81920];
 
-        using var entryStream = entry.Open();
-        using var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous);
+        await using var entryStream = entry.Open();
+        await using var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous);
 
         int bytesRead;
-        while ((bytesRead = entryStream.Read(buffer, 0, buffer.Length)) > 0)
+        while ((bytesRead = await entryStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
         {
-            cancellationToken.ThrowIfCancellationRequested();
             totalRead += bytesRead;
+            if (totalRead > maxExeBytes)
+                throw new InvalidOperationException($"Extracted EXE exceeded max size ({maxExeBytes} bytes)");
 
-            if (totalRead > GitHubUpdateClient.ExeMaxBytes)
-                throw new InvalidOperationException($"Extracted EXE exceeded max size ({GitHubUpdateClient.ExeMaxBytes} bytes)");
-
-            fileStream.Write(buffer, 0, bytesRead);
+            await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
         }
 
-        fileStream.Flush();
+        await fileStream.FlushAsync(cancellationToken).ConfigureAwait(false);
+
+        if (totalRead == 0)
+            throw new InvalidOperationException("Extracted EXE is empty");
+
+        if (entry.Length > 0 && totalRead != entry.Length)
+            throw new InvalidOperationException($"Extracted {totalRead} bytes != declared {entry.Length}");
+
         return totalRead;
     }
 

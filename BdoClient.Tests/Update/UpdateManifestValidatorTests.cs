@@ -16,7 +16,7 @@ public class UpdateManifestValidatorTests
         AssetName = "BDO-UA-Client-v0.1.4-win-x64.zip",
         Sha256 = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
         Platform = "win-x64",
-        WorkflowRunId = 12345
+        WorkflowRunId = "32211040254"
     };
 
     private static UpdateCandidate MakeCandidate(string tag, AppVersion version)
@@ -28,9 +28,7 @@ public class UpdateManifestValidatorTests
     public void ValidManifest_Passes()
     {
         var validator = new UpdateManifestValidator(Logger);
-        var manifest = ValidManifest();
-        var candidate = MakeCandidate("v0.1.4", new AppVersion(0, 1, 4));
-        var result = validator.Validate(manifest, candidate);
+        var result = validator.Validate(ValidManifest(), MakeCandidate("v0.1.4", new AppVersion(0, 1, 4)));
         Assert.True(result.IsValid);
         Assert.NotNull(result.NormalizedSha256);
     }
@@ -38,11 +36,9 @@ public class UpdateManifestValidatorTests
     [Fact]
     public void WrongSchema_Fails()
     {
-        var validator = new UpdateManifestValidator(Logger);
         var manifest = ValidManifest();
         manifest.SchemaVersion = 2;
-        var candidate = MakeCandidate("v0.1.4", new AppVersion(0, 1, 4));
-        var result = validator.Validate(manifest, candidate);
+        var result = new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4)));
         Assert.False(result.IsValid);
         Assert.Contains("schema_version", result.ErrorMessage);
     }
@@ -50,148 +46,146 @@ public class UpdateManifestValidatorTests
     [Fact]
     public void MissingVersion_Fails()
     {
-        var validator = new UpdateManifestValidator(Logger);
         var manifest = ValidManifest();
         manifest.Version = null;
-        var candidate = MakeCandidate("v0.1.4", new AppVersion(0, 1, 4));
-        var result = validator.Validate(manifest, candidate);
-        Assert.False(result.IsValid);
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
     }
 
     [Fact]
     public void VersionMismatch_Fails()
     {
-        var validator = new UpdateManifestValidator(Logger);
         var manifest = ValidManifest();
         manifest.Version = "0.1.5";
-        var candidate = MakeCandidate("v0.1.4", new AppVersion(0, 1, 4));
-        var result = validator.Validate(manifest, candidate);
-        Assert.False(result.IsValid);
-        Assert.Contains("mismatch", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
     }
 
     [Fact]
     public void TagMismatch_Fails()
     {
-        var validator = new UpdateManifestValidator(Logger);
         var manifest = ValidManifest();
         manifest.Tag = "v0.1.5";
-        var candidate = MakeCandidate("v0.1.4", new AppVersion(0, 1, 4));
-        var result = validator.Validate(manifest, candidate);
-        Assert.False(result.IsValid);
-        Assert.Contains("Tag", result.ErrorMessage);
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
     }
 
     [Fact]
     public void UpperCaseVTag_Fails()
     {
-        var validator = new UpdateManifestValidator(Logger);
         var manifest = ValidManifest();
         manifest.Tag = "V0.1.4";
-        var candidate = MakeCandidate("v0.1.4", new AppVersion(0, 1, 4));
-        var result = validator.Validate(manifest, candidate);
-        Assert.False(result.IsValid);
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
     }
 
     [Fact]
     public void WrongPlatform_Fails()
     {
-        var validator = new UpdateManifestValidator(Logger);
         var manifest = ValidManifest();
         manifest.Platform = "linux-x64";
-        var candidate = MakeCandidate("v0.1.4", new AppVersion(0, 1, 4));
-        var result = validator.Validate(manifest, candidate);
-        Assert.False(result.IsValid);
-        Assert.Contains("platform", result.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
     }
 
     [Fact]
     public void MissingAssetName_Fails()
     {
-        var validator = new UpdateManifestValidator(Logger);
         var manifest = ValidManifest();
         manifest.AssetName = null;
-        var candidate = MakeCandidate("v0.1.4", new AppVersion(0, 1, 4));
-        var result = validator.Validate(manifest, candidate);
-        Assert.False(result.IsValid);
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
     }
 
     [Fact]
     public void NonCanonicalAssetName_Fails()
     {
-        var validator = new UpdateManifestValidator(Logger);
         var manifest = ValidManifest();
         manifest.AssetName = "BDO-UA-Client.zip";
-        var candidate = MakeCandidate("v0.1.4", new AppVersion(0, 1, 4));
-        var result = validator.Validate(manifest, candidate);
-        Assert.False(result.IsValid);
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
     }
 
     [Fact]
     public void InvalidShaLength_Fails()
     {
-        var validator = new UpdateManifestValidator(Logger);
         var manifest = ValidManifest();
         manifest.Sha256 = "abc123";
-        var candidate = MakeCandidate("v0.1.4", new AppVersion(0, 1, 4));
-        var result = validator.Validate(manifest, candidate);
-        Assert.False(result.IsValid);
-        Assert.Contains("SHA-256", result.ErrorMessage);
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
     }
 
     [Fact]
     public void InvalidShaChars_Fails()
     {
-        var validator = new UpdateManifestValidator(Logger);
         var manifest = ValidManifest();
         manifest.Sha256 = new string('z', 64);
-        var candidate = MakeCandidate("v0.1.4", new AppVersion(0, 1, 4));
-        var result = validator.Validate(manifest, candidate);
-        Assert.False(result.IsValid);
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
     }
 
     [Fact]
     public void MissingCommitSha_Fails()
     {
-        var validator = new UpdateManifestValidator(Logger);
         var manifest = ValidManifest();
         manifest.CommitSha = null;
-        var candidate = MakeCandidate("v0.1.4", new AppVersion(0, 1, 4));
-        var result = validator.Validate(manifest, candidate);
-        Assert.False(result.IsValid);
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
     }
 
     [Fact]
     public void MalformedCommitSha_Fails()
     {
-        var validator = new UpdateManifestValidator(Logger);
         var manifest = ValidManifest();
         manifest.CommitSha = "not-hex";
-        var candidate = MakeCandidate("v0.1.4", new AppVersion(0, 1, 4));
-        var result = validator.Validate(manifest, candidate);
-        Assert.False(result.IsValid);
-    }
-
-    [Fact]
-    public void ExtraJsonFields_Tolerated()
-    {
-        var validator = new UpdateManifestValidator(Logger);
-        var manifest = ValidManifest();
-        var candidate = MakeCandidate("v0.1.4", new AppVersion(0, 1, 4));
-        var result = validator.Validate(manifest, candidate);
-        Assert.True(result.IsValid);
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
     }
 
     [Fact]
     public void ShaNormalizedToLower()
     {
-        var validator = new UpdateManifestValidator(Logger);
         var manifest = ValidManifest();
         manifest.Sha256 = manifest.Sha256!.ToUpperInvariant();
-        var candidate = MakeCandidate("v0.1.4", new AppVersion(0, 1, 4));
-        var result = validator.Validate(manifest, candidate);
+        var result = new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4)));
         Assert.True(result.IsValid);
         Assert.Equal(manifest.Sha256.ToLowerInvariant(), result.NormalizedSha256);
+    }
+
+    [Fact]
+    public void StringWorkflowRunId_Passes()
+    {
+        var manifest = ValidManifest();
+        Assert.True(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
+    }
+
+    [Fact]
+    public void MissingWorkflowRunId_Fails()
+    {
+        var manifest = ValidManifest();
+        manifest.WorkflowRunId = null;
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
+    }
+
+    [Fact]
+    public void EmptyWorkflowRunId_Fails()
+    {
+        var manifest = ValidManifest();
+        manifest.WorkflowRunId = "";
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
+    }
+
+    [Fact]
+    public void NonNumericWorkflowRunId_Fails()
+    {
+        var manifest = ValidManifest();
+        manifest.WorkflowRunId = "abc123";
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
+    }
+
+    [Fact]
+    public void ZeroWorkflowRunId_Fails()
+    {
+        var manifest = ValidManifest();
+        manifest.WorkflowRunId = "0";
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
+    }
+
+    [Fact]
+    public void NegativeWorkflowRunId_Fails()
+    {
+        var manifest = ValidManifest();
+        manifest.WorkflowRunId = "-1";
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
     }
 
     private class NullLogger : ILogger

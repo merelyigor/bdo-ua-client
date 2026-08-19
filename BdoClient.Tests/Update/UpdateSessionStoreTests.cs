@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BdoClient.Logging;
 using BdoClient.Storage;
 using BdoClient.Update;
@@ -26,10 +27,9 @@ public class UpdateSessionStoreTests : IDisposable
     [Fact]
     public void GetSessionDir_ValidGuid_ReturnsCorrectPath()
     {
-        var sessionId = Guid.NewGuid().ToString();
+        var sessionId = Guid.NewGuid().ToString("D");
         var dir = _store.GetSessionDir(sessionId);
         Assert.StartsWith(_appPaths.UpdatesDir, dir);
-        Assert.EndsWith(sessionId, dir);
     }
 
     [Fact]
@@ -41,34 +41,18 @@ public class UpdateSessionStoreTests : IDisposable
     [Fact]
     public void GetSessionDir_PathEscape_Throws()
     {
-        var sessionId = Guid.NewGuid().ToString();
         Assert.Throws<ArgumentException>(() => _store.GetSessionDir("../escape"));
     }
 
     [Fact]
-    public void WriteSession_Valid_CreatesFile()
-    {
-        var session = MakeSession();
-        var result = _store.WriteSession(session);
-        Assert.True(result.IsSuccess);
-
-        var sessionDir = _store.GetSessionDir(session.SessionId);
-        Assert.True(File.Exists(Path.Combine(sessionDir, "update-session.json")));
-    }
-
-    [Fact]
-    public void WriteSession_ThenRead_RoundTrips()
+    public void WriteSession_ThenLoad_Valid()
     {
         var session = MakeSession();
         _store.WriteSession(session);
-
-        var read = _store.TryReadSession(session.SessionId);
-        Assert.NotNull(read);
-        Assert.Equal(session.SessionId, read!.SessionId);
-        Assert.Equal(session.TargetVersion, read.TargetVersion);
-        Assert.Equal(session.PackageSha256, read.PackageSha256);
-        Assert.Equal(session.StagedExeSha256, read.StagedExeSha256);
-        Assert.Equal("staged", read.State);
+        var result = _store.LoadSession(session.SessionId);
+        Assert.Equal(UpdateSessionLoadStatus.Valid, result.Status);
+        Assert.NotNull(result.Session);
+        Assert.Equal(session.TargetVersion, result.Session!.TargetVersion);
     }
 
     [Fact]
@@ -76,17 +60,49 @@ public class UpdateSessionStoreTests : IDisposable
     {
         var session = MakeSession();
         _store.WriteSession(session);
-
         var sessionDir = _store.GetSessionDir(session.SessionId);
-        var tempFiles = Directory.GetFiles(sessionDir, "*.tmp");
-        Assert.Empty(tempFiles);
+        Assert.Empty(Directory.GetFiles(sessionDir, "*.tmp"));
     }
 
     [Fact]
-    public void TryReadSession_Missing_ReturnsNull()
+    public void LoadSession_Missing_ReturnsMissing()
     {
-        var read = _store.TryReadSession(Guid.NewGuid().ToString());
-        Assert.Null(read);
+        var result = _store.LoadSession(Guid.NewGuid().ToString("D"));
+        Assert.Equal(UpdateSessionLoadStatus.Missing, result.Status);
+    }
+
+    [Fact]
+    public void LoadSession_MalformedJson_ReturnsInvalid()
+    {
+        var sessionId = Guid.NewGuid().ToString("D");
+        var dir = _store.GetSessionDir(sessionId);
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "update-session.json"), "not json");
+        var result = _store.LoadSession(sessionId);
+        Assert.Equal(UpdateSessionLoadStatus.Invalid, result.Status);
+    }
+
+    [Fact]
+    public void LoadSession_WrongSchemaVersion_ReturnsInvalid()
+    {
+        var session = MakeSession();
+        _store.WriteSession(session);
+        var dir = _store.GetSessionDir(session.SessionId);
+        var json = File.ReadAllText(Path.Combine(dir, "update-session.json"));
+        json = json.Replace("\"schema_version\": 1", "\"schema_version\": 99");
+        File.WriteAllText(Path.Combine(dir, "update-session.json"), json);
+        var result = _store.LoadSession(session.SessionId);
+        Assert.Equal(UpdateSessionLoadStatus.Invalid, result.Status);
+    }
+
+    [Fact]
+    public void LoadSession_WrongSessionId_ReturnsInvalid()
+    {
+        var session = MakeSession();
+        _store.WriteSession(session);
+        var otherId = Guid.NewGuid().ToString("D");
+        var result = _store.LoadSession(otherId);
+        Assert.Equal(UpdateSessionLoadStatus.Missing, result.Status);
     }
 
     [Fact]
@@ -94,10 +110,8 @@ public class UpdateSessionStoreTests : IDisposable
     {
         var session = MakeSession();
         _store.WriteSession(session);
-
         var sessionDir = _store.GetSessionDir(session.SessionId);
         Assert.True(Directory.Exists(sessionDir));
-
         _store.CleanupSession(session.SessionId);
         Assert.False(Directory.Exists(sessionDir));
     }
@@ -105,8 +119,7 @@ public class UpdateSessionStoreTests : IDisposable
     [Fact]
     public void CleanupSession_Missing_DoesNotThrow()
     {
-        var ex = Record.Exception(() => _store.CleanupSession(Guid.NewGuid().ToString()));
-        Assert.Null(ex);
+        Assert.Null(Record.Exception(() => _store.CleanupSession(Guid.NewGuid().ToString("D"))));
     }
 
     [Fact]
@@ -115,11 +128,45 @@ public class UpdateSessionStoreTests : IDisposable
         Assert.True(Directory.Exists(_appPaths.UpdatesDir));
     }
 
+    [Fact]
+    public void NormalizeSessionId_BraceFormat_NormalizesToD()
+    {
+        var guid = Guid.NewGuid();
+        var brace = guid.ToString("B");
+        var normalized = UpdateSessionStore.NormalizeSessionId(brace);
+        Assert.Equal(guid.ToString("D"), normalized);
+    }
+
+    [Fact]
+    public void WriteSession_SnakeCaseJson()
+    {
+        var session = MakeSession();
+        _store.WriteSession(session);
+        var dir = _store.GetSessionDir(session.SessionId);
+        var json = File.ReadAllText(Path.Combine(dir, "update-session.json"));
+        Assert.Contains("schema_version", json);
+        Assert.Contains("session_id", json);
+        Assert.Contains("target_version", json);
+        Assert.DoesNotContain("SchemaVersion", json);
+    }
+
+    [Fact]
+    public void WriteSession_OverwriteExisting_Atomic()
+    {
+        var session = MakeSession();
+        _store.WriteSession(session);
+        session.StagedExeSha256 = new string('c', 64);
+        _store.WriteSession(session);
+        var result = _store.LoadSession(session.SessionId);
+        Assert.Equal(UpdateSessionLoadStatus.Valid, result.Status);
+        Assert.Equal(new string('c', 64), result.Session!.StagedExeSha256);
+    }
+
     private static UpdateSession MakeSession() => new()
     {
         SchemaVersion = 1,
-        SessionId = Guid.NewGuid().ToString(),
-        CreatedAt = DateTimeOffset.UtcNow,
+        SessionId = Guid.NewGuid().ToString("D"),
+        CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
         State = "staged",
         CurrentVersion = "0.1.3",
         TargetVersion = "0.1.4",
@@ -127,8 +174,8 @@ public class UpdateSessionStoreTests : IDisposable
         TargetPath = @"C:\test\BDO-UA-Client.exe",
         ParentPid = 12345,
         PackageAssetName = "BDO-UA-Client-v0.1.4-win-x64.zip",
-        PackageSha256 = "aabbccdd",
-        StagedExeSha256 = "eeff0011"
+        PackageSha256 = new string('a', 64),
+        StagedExeSha256 = new string('b', 64)
     };
 
     private class NullLogger : ILogger

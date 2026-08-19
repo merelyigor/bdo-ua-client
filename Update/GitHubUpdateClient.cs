@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using BdoClient.Logging;
 
@@ -12,7 +14,8 @@ public sealed class GitHubUpdateClient
     private const string UserAgent = "BDO-UA-Client";
     private const string ApiVersion = "2022-11-28";
     private const int DiscoveryTimeoutSeconds = 15;
-    private const int ManifestMaxBytes = 65536;
+    private const int ManifestTimeoutSeconds = 15;
+    public const int ManifestMaxBytes = 65536;
     public const long ZipMaxBytes = 250_000_000;
     public const long ExeMaxBytes = 200_000_000;
     public const int DownloadTimeoutSeconds = 300;
@@ -117,6 +120,12 @@ public sealed class GitHubUpdateClient
             return GitHubResult<UpdateManifest>.Failure("Invalid manifest URL");
         }
 
+        if (manifestAsset.Size <= 0 || manifestAsset.Size > ManifestMaxBytes)
+            return GitHubResult<UpdateManifest>.Failure($"Invalid manifest asset size: {manifestAsset.Size}");
+
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(ManifestTimeoutSeconds));
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
         var sw = Stopwatch.StartNew();
 
         try
@@ -125,49 +134,75 @@ public sealed class GitHubUpdateClient
             request.Headers.UserAgent.ParseAdd(UserAgent);
 
             using var response = await _httpClient
-                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linkedCts.Token)
                 .ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
                 return GitHubResult<UpdateManifest>.Failure($"Manifest HTTP {(int)response.StatusCode}");
 
-            var contentBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+            var contentLength = response.Content.Headers.ContentLength;
+            if (contentLength.HasValue && contentLength.Value > ManifestMaxBytes)
+                return GitHubResult<UpdateManifest>.Failure($"Manifest Content-Length {contentLength.Value} exceeds max");
 
-            if (contentBytes.Length > ManifestMaxBytes)
-                return GitHubResult<UpdateManifest>.Failure("Manifest too large");
+            if (manifestAsset.Size > 0 && contentLength.HasValue && contentLength.Value != manifestAsset.Size)
+                return GitHubResult<UpdateManifest>.Failure($"Content-Length {contentLength.Value} != asset size {manifestAsset.Size}");
 
-            var content = System.Text.Encoding.UTF8.GetString(contentBytes);
+            var buffer = new byte[ManifestMaxBytes];
+            int totalRead = 0;
 
-            var manifest = JsonSerializer.Deserialize<UpdateManifest>(content, new JsonSerializerOptions
+            await using var stream = await response.Content.ReadAsStreamAsync(linkedCts.Token).ConfigureAwait(false);
+            int bytesRead;
+            while ((bytesRead = await stream.ReadAsync(buffer.AsMemory(totalRead, buffer.Length - totalRead), linkedCts.Token).ConfigureAwait(false)) > 0)
             {
-                PropertyNameCaseInsensitive = true
-            });
+                totalRead += bytesRead;
+                if (totalRead > ManifestMaxBytes)
+                    return GitHubResult<UpdateManifest>.Failure("Manifest too large (exceeded during read)");
+            }
+
+            if (manifestAsset.Size > 0 && totalRead != manifestAsset.Size)
+                return GitHubResult<UpdateManifest>.Failure($"Manifest size {totalRead} != asset size {manifestAsset.Size}");
+
+            var content = Encoding.UTF8.GetString(buffer, 0, totalRead);
+
+            UpdateManifest? manifest;
+            try
+            {
+                manifest = JsonSerializer.Deserialize<UpdateManifest>(content, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+            }
+            catch (JsonException ex)
+            {
+                _logger.Warning($"GitHub update: manifest JSON error: {ex.Message}");
+                return GitHubResult<UpdateManifest>.Failure($"JSON error: {ex.Message}");
+            }
 
             sw.Stop();
-            _logger.Debug($"GitHub update: manifest fetched in {sw.ElapsedMilliseconds}ms ({contentBytes.Length} bytes)");
+            _logger.Debug($"GitHub update: manifest fetched in {sw.ElapsedMilliseconds}ms ({totalRead} bytes)");
 
             if (manifest == null)
                 return GitHubResult<UpdateManifest>.Failure("Manifest deserialized to null");
 
             return GitHubResult<UpdateManifest>.Success(manifest);
         }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+        {
+            sw.Stop();
+            _logger.Warning($"GitHub update: manifest timeout after {ManifestTimeoutSeconds}s");
+            return GitHubResult<UpdateManifest>.Failure("Manifest timeout");
+        }
         catch (OperationCanceledException)
         {
             sw.Stop();
             _logger.Debug("GitHub update: manifest cancelled");
-            return GitHubResult<UpdateManifest>.Failure("Cancelled");
+            throw;
         }
         catch (HttpRequestException ex)
         {
             sw.Stop();
             _logger.Warning($"GitHub update: manifest network error: {ex.Message}");
             return GitHubResult<UpdateManifest>.Failure($"Network error: {ex.Message}");
-        }
-        catch (JsonException ex)
-        {
-            sw.Stop();
-            _logger.Warning($"GitHub update: manifest JSON error: {ex.Message}");
-            return GitHubResult<UpdateManifest>.Failure($"JSON error: {ex.Message}");
         }
         catch (Exception ex)
         {
@@ -177,7 +212,7 @@ public sealed class GitHubUpdateClient
         }
     }
 
-    public async Task<GitHubResult<long>> DownloadAssetAsync(
+    public async Task<GitHubResult<GitHubAssetDownloadInfo>> DownloadAssetAsync(
         string downloadUrl,
         string destinationPath,
         long expectedSize,
@@ -187,7 +222,7 @@ public sealed class GitHubUpdateClient
         _logger.Debug($"GitHub update: downloading asset to {destinationPath}");
 
         if (!Uri.TryCreate(downloadUrl, UriKind.Absolute, out var uri) || uri.Scheme != "https")
-            return GitHubResult<long>.Failure("Invalid download URL");
+            return GitHubResult<GitHubAssetDownloadInfo>.Failure("Invalid download URL");
 
         for (int attempt = 0; attempt <= MaxRetries; attempt++)
         {
@@ -195,7 +230,15 @@ public sealed class GitHubUpdateClient
             {
                 var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt));
                 _logger.Debug($"GitHub update: retry {attempt}/{MaxRetries} after {delay.TotalSeconds}s");
-                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.Debug("GitHub update: retry delay cancelled (caller)");
+                    throw;
+                }
             }
 
             try
@@ -203,32 +246,39 @@ public sealed class GitHubUpdateClient
                 return await DownloadAssetCoreAsync(uri, destinationPath, expectedSize, progress, cancellationToken)
                     .ConfigureAwait(false);
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                _logger.Debug("GitHub update: download cancelled (caller)");
+                throw;
+            }
             catch (OperationCanceledException)
             {
-                throw;
+                _logger.Warning("GitHub update: download attempt timed out");
+                if (attempt == MaxRetries)
+                    return GitHubResult<GitHubAssetDownloadInfo>.Failure($"Download timed out after {MaxRetries + 1} attempts");
             }
             catch (HttpRequestException ex) when (IsRetryable(ex))
             {
                 _logger.Warning($"GitHub update: retryable download error: {ex.Message}");
                 if (attempt == MaxRetries)
-                    return GitHubResult<long>.Failure($"Download failed after {MaxRetries + 1} attempts: {ex.Message}");
+                    return GitHubResult<GitHubAssetDownloadInfo>.Failure($"Download failed after {MaxRetries + 1} attempts: {ex.Message}");
             }
             catch (HttpRequestException ex)
             {
                 _logger.Warning($"GitHub update: non-retryable download error: {ex.Message}");
-                return GitHubResult<long>.Failure($"Download failed: {ex.Message}");
+                return GitHubResult<GitHubAssetDownloadInfo>.Failure($"Download failed: {ex.Message}");
             }
             catch (Exception ex)
             {
                 _logger.Error($"GitHub update: download unexpected error: {ex.Message}");
-                return GitHubResult<long>.Failure($"Download failed: {ex.Message}");
+                return GitHubResult<GitHubAssetDownloadInfo>.Failure($"Download failed: {ex.Message}");
             }
         }
 
-        return GitHubResult<long>.Failure("Download failed: exhausted retries");
+        return GitHubResult<GitHubAssetDownloadInfo>.Failure("Download failed: exhausted retries");
     }
 
-    private async Task<GitHubResult<long>> DownloadAssetCoreAsync(
+    private async Task<GitHubResult<GitHubAssetDownloadInfo>> DownloadAssetCoreAsync(
         Uri uri,
         string destinationPath,
         long expectedSize,
@@ -246,7 +296,7 @@ public sealed class GitHubUpdateClient
             .ConfigureAwait(false);
 
         if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException($"HTTP {(int)response.StatusCode}");
+            throw new HttpRequestException($"HTTP {(int)response.StatusCode}", null, response.StatusCode);
 
         long? contentLength = response.Content.Headers.ContentLength;
 
@@ -259,6 +309,8 @@ public sealed class GitHubUpdateClient
         long totalBytes = 0;
         var buffer = new byte[81920];
 
+        using var sha256 = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+
         await using var contentStream = await response.Content.ReadAsStreamAsync(linkedCts.Token).ConfigureAwait(false);
         await using var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous);
 
@@ -269,6 +321,7 @@ public sealed class GitHubUpdateClient
             if (totalBytes > maxBytes)
                 throw new InvalidOperationException($"Download exceeded max size ({maxBytes} bytes)");
 
+            sha256.AppendData(buffer, 0, bytesRead);
             await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), linkedCts.Token).ConfigureAwait(false);
 
             if (progress != null && expectedSize > 0)
@@ -277,13 +330,16 @@ public sealed class GitHubUpdateClient
 
         await fileStream.FlushAsync(linkedCts.Token).ConfigureAwait(false);
 
+        var hashBytes = sha256.GetHashAndReset();
+        var sha256Hex = Convert.ToHexString(hashBytes).ToLowerInvariant();
+
         sw.Stop();
-        _logger.Debug($"GitHub update: downloaded {totalBytes} bytes in {sw.ElapsedMilliseconds}ms");
+        _logger.Debug($"GitHub update: downloaded {totalBytes} bytes in {sw.ElapsedMilliseconds}ms, SHA-256={sha256Hex[..16]}...");
 
         if (expectedSize > 0 && totalBytes != expectedSize)
             throw new InvalidOperationException($"Downloaded {totalBytes} bytes != expected {expectedSize}");
 
-        return GitHubResult<long>.Success(totalBytes);
+        return GitHubResult<GitHubAssetDownloadInfo>.Success(new GitHubAssetDownloadInfo(totalBytes, sha256Hex));
     }
 
     private static bool IsRetryable(HttpRequestException ex)
@@ -292,6 +348,20 @@ public sealed class GitHubUpdateClient
             return true;
         if (ex.StatusCode is >= HttpStatusCode.InternalServerError)
             return true;
+        if (ex.StatusCode is null)
+            return true;
         return false;
+    }
+}
+
+public readonly struct GitHubAssetDownloadInfo
+{
+    public long BytesDownloaded { get; }
+    public string Sha256 { get; }
+
+    public GitHubAssetDownloadInfo(long bytesDownloaded, string sha256)
+    {
+        BytesDownloaded = bytesDownloaded;
+        Sha256 = sha256;
     }
 }
