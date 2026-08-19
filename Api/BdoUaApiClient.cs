@@ -22,6 +22,33 @@ public sealed class BdoUaApiClient
         _timeoutSeconds = timeoutSeconds;
     }
 
+    /// <summary>
+    /// Lightweight HEAD request to pre-warm DNS/TLS cache. Fire-and-forget at startup.
+    /// </summary>
+    public async Task WarmupConnectionAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+            var sw = Stopwatch.StartNew();
+            using var request = new HttpRequestMessage(HttpMethod.Head, "https://bdo-ua.com.ua/");
+            using var response = await _httpClient.SendAsync(request, cts.Token).ConfigureAwait(false);
+            sw.Stop();
+
+            _logger.Debug($"Connection warmup completed in {sw.ElapsedMilliseconds}ms (status {(int)response.StatusCode})");
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.Debug("Connection warmup cancelled/timed out");
+        }
+        catch (Exception ex)
+        {
+            _logger.Debug($"Connection warmup failed: {ex.Message}");
+        }
+    }
+
     public async Task<ApiResult<ReleasesResponse>> GetReleasesAsync(CancellationToken cancellationToken = default)
     {
         var url = $"{BaseUrl}/releases";

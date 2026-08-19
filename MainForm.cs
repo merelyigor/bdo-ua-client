@@ -91,6 +91,9 @@ public partial class MainForm : Form
             SetGameSearching();
             ShowModeLoadingPlaceholder();
 
+            // Fire-and-forget warmup to pre-warm DNS/TLS cache
+            _ = _apiClient.WarmupConnectionAsync();
+
             var coordinator = new StartupCoordinator(
                 () => _apiClient.GetReleasesAsync(),
                 (patterns) => _gameDetector.DetectAsync(patterns),
