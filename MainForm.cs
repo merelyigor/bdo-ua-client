@@ -33,6 +33,8 @@ public partial class MainForm : Form
     private LocalizationState _lastResolvedState;
     private OperationState _operationState = OperationState.Idle;
     private CancellationTokenSource? _operationCts;
+    private System.Windows.Forms.Timer? _startupTimer;
+    private DateTime _startupStartTime;
 
     private static readonly Color SuccessGreen = Color.FromArgb(0, 128, 0);
 
@@ -90,6 +92,18 @@ public partial class MainForm : Form
             SetOperationState(OperationState.LoadingApi);
             SetGameSearching();
             ShowModeLoadingPlaceholder();
+            SetMessage("Завантаження даних з сервера...\nПерший запит може зайняти до 30 секунд. Будь ласка, зачекайте.");
+
+            // Timer to show elapsed time during startup
+            _startupStartTime = DateTime.Now;
+            _startupTimer = new System.Windows.Forms.Timer();
+            _startupTimer.Interval = 1000;
+            _startupTimer.Tick += (s, args) =>
+            {
+                var elapsed = (int)(DateTime.Now - _startupStartTime).TotalSeconds;
+                SetMessage($"Завантаження даних з сервера... ({elapsed} сек)\nПерший запит може зайняти до 30 секунд. Будь ласка, зачекайте.");
+            };
+            _startupTimer.Start();
 
             // Fire-and-forget warmup to pre-warm DNS/TLS cache
             _ = _apiClient.WarmupConnectionAsync();
@@ -156,6 +170,9 @@ public partial class MainForm : Form
         }
         finally
         {
+            _startupTimer?.Stop();
+            _startupTimer?.Dispose();
+            _startupTimer = null;
             _initializing = false;
             SetOperationState(OperationState.Idle);
             if (!_closing)
