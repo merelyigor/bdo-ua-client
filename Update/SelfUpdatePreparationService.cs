@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using BdoClient.Logging;
 using BdoClient.Services;
 
@@ -7,17 +8,33 @@ public sealed class SelfUpdatePreparationService
 {
     private readonly UpdateSessionStore _sessionStore;
     private readonly ILogger _logger;
+    private readonly Func<string> _getCurrentProcessPath;
+    private readonly Func<string, FileVersionInfo> _getFileVersionInfo;
 
     public SelfUpdatePreparationService(UpdateSessionStore sessionStore, ILogger logger)
+        : this(sessionStore, logger,
+            () => Environment.ProcessPath ?? "",
+            path => FileVersionInfo.GetVersionInfo(path))
+    {
+    }
+
+    internal SelfUpdatePreparationService(
+        UpdateSessionStore sessionStore,
+        ILogger logger,
+        Func<string> getCurrentProcessPath,
+        Func<string, FileVersionInfo> getFileVersionInfo)
     {
         _sessionStore = sessionStore ?? throw new ArgumentNullException(nameof(sessionStore));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _getCurrentProcessPath = getCurrentProcessPath ?? throw new ArgumentNullException(nameof(getCurrentProcessPath));
+        _getFileVersionInfo = getFileVersionInfo ?? throw new ArgumentNullException(nameof(getFileVersionInfo));
     }
 
     public async Task<SelfUpdatePreparationResult> PrepareAsync(string sessionId, CancellationToken cancellationToken = default)
     {
         _logger.Info($"Self-update preparation started (session={sessionId})");
 
+        // 1. Load staged session
         var loadResult = _sessionStore.LoadSession(sessionId);
         if (loadResult.Status != UpdateSessionLoadStatus.Valid || loadResult.Session == null)
         {
@@ -27,7 +44,7 @@ public sealed class SelfUpdatePreparationService
 
         var session = loadResult.Session;
 
-        // Verify staged EXE exists and hash matches
+        // 2. Verify staged EXE exists
         var stagedDir = _sessionStore.GetSessionDir(sessionId);
         var stagedExePath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
 
@@ -37,6 +54,7 @@ public sealed class SelfUpdatePreparationService
             return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.StagedExeMissing, "Staged executable not found");
         }
 
+        // 3. Staged SHA matches session
         var stagedExeSha = await HashHelper.ComputeFileSha256Async(stagedExePath, cancellationToken);
         if (!string.Equals(stagedExeSha, session.StagedExeSha256, StringComparison.Ordinal))
         {
@@ -44,21 +62,96 @@ public sealed class SelfUpdatePreparationService
             return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.HashMismatch, "Staged executable hash mismatch");
         }
 
-        // Verify target exists
+        // 4. Staged FileVersion matches target
+        var targetVersion = AppVersion.TryParseCoreVersion(session.TargetVersion);
+        if (!targetVersion.HasValue)
+        {
+            _logger.Error("Self-update preparation failed: cannot parse target version");
+            return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.VersionMismatch, "Cannot parse target version");
+        }
+
+        var stagedVersionInfo = _getFileVersionInfo(stagedExePath);
+        var expectedFileVersion = $"{targetVersion.Value.Major}.{targetVersion.Value.Minor}.{targetVersion.Value.Build}.0";
+        var expectedProductVersion = $"{targetVersion.Value.Major}.{targetVersion.Value.Minor}.{targetVersion.Value.Build}";
+
+        if (string.IsNullOrWhiteSpace(stagedVersionInfo.FileVersion) ||
+            string.IsNullOrWhiteSpace(stagedVersionInfo.ProductVersion))
+        {
+            _logger.Error($"Self-update preparation failed: staged EXE has no version metadata");
+            return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.VersionMismatch, "Staged executable has no version metadata");
+        }
+
+        if (!string.Equals(stagedVersionInfo.FileVersion, expectedFileVersion, StringComparison.Ordinal) ||
+            !string.Equals(stagedVersionInfo.ProductVersion, expectedProductVersion, StringComparison.Ordinal))
+        {
+            _logger.Error($"Self-update preparation failed: staged EXE version mismatch (FileVersion={stagedVersionInfo.FileVersion}, ProductVersion={stagedVersionInfo.ProductVersion})");
+            return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.VersionMismatch, "Staged executable version mismatch");
+        }
+
+        // 5. Target path is absolute
+        if (!Path.IsPathRooted(session.TargetPath))
+        {
+            _logger.Error($"Self-update preparation failed: target path not rooted: {session.TargetPath}");
+            return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.TargetInvalid, "Target path is not absolute");
+        }
+
+        // 6. Target exists
         if (!File.Exists(session.TargetPath))
         {
             _logger.Error($"Self-update preparation failed: target EXE not found at {session.TargetPath}");
             return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.TargetMissing, "Current executable not found");
         }
 
-        // Capture original target SHA
+        // 7. Current process path matches session target
+        var currentProcessPath = _getCurrentProcessPath();
+        var normalizedCurrent = Path.GetFullPath(currentProcessPath);
+        var normalizedTarget = Path.GetFullPath(session.TargetPath);
+        if (!string.Equals(normalizedCurrent, normalizedTarget, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.Error($"Self-update preparation failed: current process path mismatch ({normalizedCurrent} != {normalizedTarget})");
+            return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.TargetInvalid, "Current process path does not match session target");
+        }
+
+        // 8. Target FileVersion matches current
+        var currentVersion = AppVersion.TryParseCoreVersion(session.CurrentVersion);
+        if (!currentVersion.HasValue)
+        {
+            _logger.Error("Self-update preparation failed: cannot parse current version");
+            return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.VersionMismatch, "Cannot parse current version");
+        }
+
+        var targetVersionInfo = _getFileVersionInfo(session.TargetPath);
+        var expectedCurrentFileVersion = $"{currentVersion.Value.Major}.{currentVersion.Value.Minor}.{currentVersion.Value.Build}.0";
+        var expectedCurrentProductVersion = $"{currentVersion.Value.Major}.{currentVersion.Value.Minor}.{currentVersion.Value.Build}";
+
+        if (string.IsNullOrWhiteSpace(targetVersionInfo.FileVersion) ||
+            string.IsNullOrWhiteSpace(targetVersionInfo.ProductVersion))
+        {
+            _logger.Error($"Self-update preparation failed: target EXE has no version metadata");
+            return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.VersionMismatch, "Current executable has no version metadata");
+        }
+
+        if (!string.Equals(targetVersionInfo.FileVersion, expectedCurrentFileVersion, StringComparison.Ordinal) ||
+            !string.Equals(targetVersionInfo.ProductVersion, expectedCurrentProductVersion, StringComparison.Ordinal))
+        {
+            _logger.Error($"Self-update preparation failed: target EXE version mismatch (FileVersion={targetVersionInfo.FileVersion}, ProductVersion={targetVersionInfo.ProductVersion})");
+            return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.VersionMismatch, "Current executable version mismatch");
+        }
+
+        // 9. Capture original target SHA
         var originalExeSha = await HashHelper.ComputeFileSha256Async(session.TargetPath, cancellationToken);
         _logger.Debug($"Self-update: original EXE SHA-256 = {originalExeSha}");
 
-        // Copy staged EXE to target dir as unique temp sibling (candidate)
+        // 10. Create candidate sibling (fail-closed: no overwrite)
         var targetDir = Path.GetDirectoryName(session.TargetPath)!;
         var targetFileName = Path.GetFileName(session.TargetPath);
         var candidatePath = Path.Combine(targetDir, $"{targetFileName}.update-{sessionId}.new");
+
+        if (File.Exists(candidatePath))
+        {
+            _logger.Error($"Self-update preparation failed: candidate already exists at {candidatePath}");
+            return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.CandidateCollision, "Candidate file already exists");
+        }
 
         try
         {
@@ -71,7 +164,34 @@ public sealed class SelfUpdatePreparationService
             return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.CandidateCopyFailed, $"Cannot create candidate in target directory: {ex.Message}");
         }
 
-        // Mark session as prepared
+        // 11. Revalidate candidate SHA
+        var candidateSha = await HashHelper.ComputeFileSha256Async(candidatePath, cancellationToken);
+        if (!string.Equals(candidateSha, session.StagedExeSha256, StringComparison.Ordinal))
+        {
+            SafeDelete(candidatePath);
+            _logger.Error($"Self-update preparation failed: candidate SHA mismatch after copy ({candidateSha} != {session.StagedExeSha256})");
+            return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.CandidateCopyFailed, "Candidate hash mismatch after copy");
+        }
+
+        // 12. Revalidate candidate version
+        var candidateVersionInfo = _getFileVersionInfo(candidatePath);
+        if (string.IsNullOrWhiteSpace(candidateVersionInfo.FileVersion) ||
+            string.IsNullOrWhiteSpace(candidateVersionInfo.ProductVersion))
+        {
+            SafeDelete(candidatePath);
+            _logger.Error($"Self-update preparation failed: candidate has no version metadata");
+            return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.CandidateCopyFailed, "Candidate has no version metadata");
+        }
+
+        if (!string.Equals(candidateVersionInfo.FileVersion, expectedFileVersion, StringComparison.Ordinal) ||
+            !string.Equals(candidateVersionInfo.ProductVersion, expectedProductVersion, StringComparison.Ordinal))
+        {
+            SafeDelete(candidatePath);
+            _logger.Error($"Self-update preparation failed: candidate version mismatch (FileVersion={candidateVersionInfo.FileVersion}, ProductVersion={candidateVersionInfo.ProductVersion})");
+            return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.CandidateCopyFailed, "Candidate version mismatch");
+        }
+
+        // 13. Mark session as prepared
         session.State = UpdateSession.StatePrepared;
         session.OriginalExeSha256 = originalExeSha;
         var writeResult = _sessionStore.WriteSession(session);
@@ -97,7 +217,10 @@ public enum SelfUpdatePreparationError
     SessionInvalid,
     StagedExeMissing,
     HashMismatch,
+    VersionMismatch,
+    TargetInvalid,
     TargetMissing,
+    CandidateCollision,
     CandidateCopyFailed,
     SessionWriteFailed
 }

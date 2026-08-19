@@ -495,6 +495,7 @@ public class UpdateSessionStoreTests : IDisposable
     {
         var session = MakeSession();
         session.State = "prepared";
+        session.OriginalExeSha256 = new string('c', 64);
         _store.WriteSession(session);
         var result = _store.LoadSessionForState(session.SessionId, "prepared");
         Assert.Equal(UpdateSessionLoadStatus.Valid, result.Status);
@@ -569,6 +570,90 @@ public class UpdateSessionStoreTests : IDisposable
         var loaded = _store.LoadSession(session.SessionId);
         Assert.Equal(UpdateSessionLoadStatus.Valid, loaded.Status);
         Assert.Null(loaded.Session!.OriginalExeSha256);
+    }
+
+    // --- Unsupported state rejection (§8) ---
+
+    [Fact]
+    public void LoadSessionForState_UnsupportedState_ReturnsInvalid()
+    {
+        var result = _store.LoadSessionForState(Guid.NewGuid().ToString("D"), "unknown_state");
+        Assert.Equal(UpdateSessionLoadStatus.Invalid, result.Status);
+    }
+
+    [Fact]
+    public void LoadSessionForState_EmptyState_ReturnsInvalid()
+    {
+        var result = _store.LoadSessionForState(Guid.NewGuid().ToString("D"), "");
+        Assert.Equal(UpdateSessionLoadStatus.Invalid, result.Status);
+    }
+
+    // --- State-specific original_exe_sha256 (§8) ---
+
+    [Fact]
+    public void LoadSessionForState_Prepared_MissingOriginalSha_ReturnsInvalid()
+    {
+        var session = MakeSession();
+        session.State = "prepared";
+        session.OriginalExeSha256 = null;
+        _store.WriteSession(session);
+        var result = _store.LoadSessionForState(session.SessionId, "prepared");
+        Assert.Equal(UpdateSessionLoadStatus.Invalid, result.Status);
+    }
+
+    [Fact]
+    public void LoadSessionForState_Prepared_InvalidOriginalSha_ReturnsInvalid()
+    {
+        var session = MakeSession();
+        session.State = "prepared";
+        session.OriginalExeSha256 = "not-a-sha";
+        _store.WriteSession(session);
+        var result = _store.LoadSessionForState(session.SessionId, "prepared");
+        Assert.Equal(UpdateSessionLoadStatus.Invalid, result.Status);
+    }
+
+    [Fact]
+    public void LoadSessionForState_Prepared_ValidOriginalSha_ReturnsValid()
+    {
+        var session = MakeSession();
+        session.State = "prepared";
+        session.OriginalExeSha256 = new string('c', 64);
+        _store.WriteSession(session);
+        var result = _store.LoadSessionForState(session.SessionId, "prepared");
+        Assert.Equal(UpdateSessionLoadStatus.Valid, result.Status);
+    }
+
+    [Fact]
+    public void LoadSessionForState_Applied_MissingOriginalSha_ReturnsInvalid()
+    {
+        var session = MakeSession();
+        session.State = "applied";
+        session.OriginalExeSha256 = null;
+        _store.WriteSession(session);
+        var result = _store.LoadSessionForState(session.SessionId, "applied");
+        Assert.Equal(UpdateSessionLoadStatus.Invalid, result.Status);
+    }
+
+    [Fact]
+    public void LoadSessionForState_Applied_ValidOriginalSha_ReturnsValid()
+    {
+        var session = MakeSession();
+        session.State = "applied";
+        session.OriginalExeSha256 = new string('d', 64);
+        _store.WriteSession(session);
+        var result = _store.LoadSessionForState(session.SessionId, "applied");
+        Assert.Equal(UpdateSessionLoadStatus.Valid, result.Status);
+    }
+
+    [Fact]
+    public void LoadSessionForState_Staged_NullOriginalSha_ReturnsValid()
+    {
+        var session = MakeSession();
+        session.State = "staged";
+        session.OriginalExeSha256 = null;
+        _store.WriteSession(session);
+        var result = _store.LoadSessionForState(session.SessionId, "staged");
+        Assert.Equal(UpdateSessionLoadStatus.Valid, result.Status);
     }
 
     private static UpdateSession MakeSession() => new()

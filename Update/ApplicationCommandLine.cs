@@ -1,28 +1,49 @@
 namespace BdoClient.Update;
 
+public enum CommandLineMode
+{
+    Normal,
+    ApplyUpdate,
+    InvalidApplyUpdate
+}
+
 public sealed class ApplicationCommandLine
 {
+    public CommandLineMode Mode { get; }
     public string? ApplyUpdateSessionId { get; }
-    public bool IsApplyUpdateMode => ApplyUpdateSessionId != null;
 
-    private ApplicationCommandLine(string? applyUpdateSessionId)
+    private ApplicationCommandLine(CommandLineMode mode, string? applyUpdateSessionId)
     {
+        Mode = mode;
         ApplyUpdateSessionId = applyUpdateSessionId;
     }
 
     public static ApplicationCommandLine Parse(string[] args)
     {
-        for (int i = 0; i < args.Length - 1; i++)
+        int applyUpdateIndex = -1;
+        for (int i = 0; i < args.Length; i++)
         {
             if (string.Equals(args[i], "--apply-update", StringComparison.Ordinal))
             {
-                var sessionId = args[i + 1];
-                if (UpdateSessionStore.IsValidSessionId(sessionId))
-                    return new ApplicationCommandLine(sessionId);
-                return new ApplicationCommandLine(null);
+                if (applyUpdateIndex >= 0)
+                    return new ApplicationCommandLine(CommandLineMode.InvalidApplyUpdate, null);
+                applyUpdateIndex = i;
             }
         }
 
-        return new ApplicationCommandLine(null);
+        if (applyUpdateIndex < 0)
+            return new ApplicationCommandLine(CommandLineMode.Normal, null);
+
+        // --apply-update must be last flag with exactly one following arg
+        if (applyUpdateIndex != args.Length - 2)
+            return new ApplicationCommandLine(CommandLineMode.InvalidApplyUpdate, null);
+
+        var sessionId = args[applyUpdateIndex + 1];
+        if (!UpdateSessionStore.IsValidSessionId(sessionId))
+            return new ApplicationCommandLine(CommandLineMode.InvalidApplyUpdate, null);
+
+        return new ApplicationCommandLine(CommandLineMode.ApplyUpdate, sessionId);
     }
+
+    public const int ExitCodeInvalidArgs = 1;
 }

@@ -49,6 +49,7 @@ public partial class MainForm : Form
     private Task? _updateCheckTask;
     private UpdateCandidate? _pendingUpdateCandidate;
     private UpdateSession? _stagedUpdateSession;
+    private volatile bool _updateHandoffInProgress;
 
     private static readonly Color SuccessGreen = Color.FromArgb(0, 128, 0);
 
@@ -807,9 +808,9 @@ public partial class MainForm : Form
 
     private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
-        if (_closing)
+        if (_updateHandoffInProgress)
         {
-            // Handoff in progress — allow close
+            // Updater handoff in progress — allow close, stop background tasks
             _updateCheckCts?.Cancel();
             _poller.Stop();
             return;
@@ -976,7 +977,6 @@ public partial class MainForm : Form
             {
                 SetOperationState(OperationState.Completed);
                 _stagedUpdateSession = result.Session;
-                _pendingUpdateCandidate = null;
 
                 // Prepare: copy candidate, capture original SHA, mark prepared
                 SetMessage("Підготовка оновлення...");
@@ -990,39 +990,60 @@ public partial class MainForm : Form
                     return;
                 }
 
-                // Handoff: launch helper and exit
-                SetMessage("Підготовка оновлення... Програма буде перезапущена.");
-                _closing = true;
-                _poller.Stop();
-                _updateCheckCts?.Cancel();
+                // Derive staged helper path from session store
+                var stagedHelperPath = Path.Combine(
+                    _updateSessionStore.GetSessionDir(result.Session!.SessionId),
+                    "BDO-UA-Client.exe");
 
-                var helperPath = Environment.ProcessPath;
-                if (string.IsNullOrWhiteSpace(helperPath) || !Path.IsPathRooted(helperPath))
+                if (!File.Exists(stagedHelperPath))
                 {
-                    _logger.Error("Self-update handoff: cannot determine current executable path");
-                    finalMessage = "Не вдалося визначити шлях до програми.";
-                    _closing = false;
+                    _logger.Error($"Self-update handoff: staged helper not found at {stagedHelperPath}");
+                    finalMessage = "Не вдалося знайти підготовлений файл оновлення.";
+                    _stagedUpdateSession = null;
                     return;
                 }
 
+                // Disable cancel before handoff boundary
+                cancelButton.Enabled = false;
+
+                // Launch helper
+                SetMessage("Підготовка оновлення... Програма буде перезапущена.");
+                Process? helperProcess = null;
                 try
                 {
-                    var psi = new ProcessStartInfo(helperPath, $"--apply-update {result.Session!.SessionId}")
+                    var stagedDir = Path.GetDirectoryName(stagedHelperPath)!;
+                    var psi = new ProcessStartInfo
                     {
-                        UseShellExecute = true
+                        FileName = stagedHelperPath,
+                        UseShellExecute = false,
+                        WorkingDirectory = stagedDir
                     };
-                    Process.Start(psi);
-                    _logger.Info($"Self-update: launched helper at {helperPath}");
+                    psi.ArgumentList.Add("--apply-update");
+                    psi.ArgumentList.Add(result.Session!.SessionId);
+                    helperProcess = Process.Start(psi);
+                    _logger.Info($"Self-update: launched helper at {stagedHelperPath}");
                 }
                 catch (Exception ex)
                 {
                     _logger.Error($"Self-update handoff: failed to launch helper: {ex.Message}");
                     finalMessage = $"Не вдалося запустити оновлення: {ex.Message}";
-                    _closing = false;
+                    // Retry recovery: restore UI state
+                    RestorePostHandoffFailureState();
                     return;
                 }
 
-                // Exit current process
+                if (helperProcess == null)
+                {
+                    _logger.Error("Self-update handoff: Process.Start returned null");
+                    finalMessage = "Не вдалося запустити оновлення.";
+                    RestorePostHandoffFailureState();
+                    return;
+                }
+
+                // Handoff successful — set flag and exit
+                _updateHandoffInProgress = true;
+                _poller.Stop();
+                _updateCheckCts?.Cancel();
                 _logger.Info("Self-update: exiting old process");
                 Application.Exit();
             }
@@ -1089,6 +1110,19 @@ public partial class MainForm : Form
         UpdatePackageError.Cancelled => "Оновлення скасовано.",
         _ => "Невідома помилка оновлення."
     };
+
+    private void RestorePostHandoffFailureState()
+    {
+        _operationInProgress = false;
+        _updateHandoffInProgress = false;
+        _stagedUpdateSession = null;
+        SetOperationState(OperationState.Idle);
+        SetControlsDuringOperation(true);
+        _feedCoordinator.UnblockUpdates();
+        if (!_closing)
+            _poller.Resume();
+        RefreshUpdateButtonPresentation();
+    }
 
     // --- Logs button ---
 

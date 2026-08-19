@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using BdoClient.Logging;
 using BdoClient.Services;
@@ -29,7 +30,7 @@ public class SelfUpdatePreparationServiceTests : IDisposable
     [Fact]
     public async Task PrepareAsync_SessionMissing_ReturnsSessionInvalid()
     {
-        var service = new SelfUpdatePreparationService(_store, _logger);
+        var service = CreateService("C:\\nonexistent.exe", "0.1.3", "0.1.4");
         var result = await service.PrepareAsync(Guid.NewGuid().ToString("D"));
         Assert.False(result.IsSuccess);
         Assert.Equal(SelfUpdatePreparationError.SessionInvalid, result.Error);
@@ -42,7 +43,7 @@ public class SelfUpdatePreparationServiceTests : IDisposable
         session.State = "prepared";
         _store.WriteSession(session);
 
-        var service = new SelfUpdatePreparationService(_store, _logger);
+        var service = CreateService("C:\\nonexistent.exe", "0.1.3", "0.1.4");
         var result = await service.PrepareAsync(session.SessionId);
         Assert.False(result.IsSuccess);
         Assert.Equal(SelfUpdatePreparationError.SessionInvalid, result.Error);
@@ -54,7 +55,7 @@ public class SelfUpdatePreparationServiceTests : IDisposable
         var session = MakeSession();
         _store.WriteSession(session);
 
-        var service = new SelfUpdatePreparationService(_store, _logger);
+        var service = CreateService("C:\\nonexistent.exe", "0.1.3", "0.1.4");
         var result = await service.PrepareAsync(session.SessionId);
         Assert.False(result.IsSuccess);
         Assert.Equal(SelfUpdatePreparationError.StagedExeMissing, result.Error);
@@ -66,15 +67,34 @@ public class SelfUpdatePreparationServiceTests : IDisposable
         var session = MakeSession();
         _store.WriteSession(session);
 
-        // Create staged EXE with wrong hash
         var stagedDir = _store.GetSessionDir(session.SessionId);
         var stagedExePath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
         File.WriteAllText(stagedExePath, "wrong content");
 
-        var service = new SelfUpdatePreparationService(_store, _logger);
+        var service = CreateService("C:\\nonexistent.exe", "0.1.3", "0.1.4");
         var result = await service.PrepareAsync(session.SessionId);
         Assert.False(result.IsSuccess);
         Assert.Equal(SelfUpdatePreparationError.HashMismatch, result.Error);
+    }
+
+    [Fact]
+    public async Task PrepareAsync_VersionMismatch_ReturnsVersionMismatch()
+    {
+        var session = MakeSession();
+        _store.WriteSession(session);
+
+        var stagedDir = _store.GetSessionDir(session.SessionId);
+        var stagedExePath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
+        File.WriteAllText(stagedExePath, "staged");
+        session.StagedExeSha256 = await HashHelper.ComputeFileSha256Async(stagedExePath);
+        _store.WriteSession(session);
+
+        // Mock returns wrong version for staged exe
+        var service = CreateService(session.TargetPath, "0.1.3", "0.1.4",
+            (path, tv, cv) => MakeVersionInfoWithVersion("9.9.9", "9.9.9"));
+        var result = await service.PrepareAsync(session.SessionId);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(SelfUpdatePreparationError.VersionMismatch, result.Error);
     }
 
     [Fact]
@@ -83,18 +103,74 @@ public class SelfUpdatePreparationServiceTests : IDisposable
         var session = MakeSession();
         _store.WriteSession(session);
 
-        // Create staged EXE with correct hash
         var stagedDir = _store.GetSessionDir(session.SessionId);
         var stagedExePath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
-        File.WriteAllText(stagedExePath, "staged content");
+        File.WriteAllText(stagedExePath, "staged");
         session.StagedExeSha256 = await HashHelper.ComputeFileSha256Async(stagedExePath);
         _store.WriteSession(session);
 
-        // Target doesn't exist
-        var service = new SelfUpdatePreparationService(_store, _logger);
+        // Target file doesn't exist, process path doesn't match — but version check passes
+        // First check is path rooted check — TargetPath is rooted, so it passes
+        // Then check is File.Exists — fails
+        var service = CreateService(session.TargetPath, session.CurrentVersion, session.TargetVersion);
         var result = await service.PrepareAsync(session.SessionId);
         Assert.False(result.IsSuccess);
         Assert.Equal(SelfUpdatePreparationError.TargetMissing, result.Error);
+    }
+
+    [Fact]
+    public async Task PrepareAsync_ProcessPathMismatch_ReturnsTargetInvalid()
+    {
+        var session = MakeSession();
+        _store.WriteSession(session);
+
+        var stagedDir = _store.GetSessionDir(session.SessionId);
+        var stagedExePath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
+        File.WriteAllText(stagedExePath, "staged");
+        session.StagedExeSha256 = await HashHelper.ComputeFileSha256Async(stagedExePath);
+
+        var targetDir = Path.GetDirectoryName(session.TargetPath)!;
+        Directory.CreateDirectory(targetDir);
+        File.WriteAllText(session.TargetPath, "target");
+
+        _store.WriteSession(session);
+
+        // Process path differs from target
+        var service = CreateService("C:\\different-path\\BDO-UA-Client.exe",
+            session.CurrentVersion, session.TargetVersion);
+        var result = await service.PrepareAsync(session.SessionId);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(SelfUpdatePreparationError.TargetInvalid, result.Error);
+    }
+
+    [Fact]
+    public async Task PrepareAsync_CandidateCollision_ReturnsCandidateCollision()
+    {
+        var session = MakeSession();
+        _store.WriteSession(session);
+
+        var stagedDir = _store.GetSessionDir(session.SessionId);
+        var stagedExePath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
+        File.WriteAllText(stagedExePath, "staged");
+        session.StagedExeSha256 = await HashHelper.ComputeFileSha256Async(stagedExePath);
+
+        var targetDir = Path.GetDirectoryName(session.TargetPath)!;
+        Directory.CreateDirectory(targetDir);
+        File.WriteAllText(session.TargetPath, "target");
+
+        // Pre-create candidate
+        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        File.WriteAllText(candidatePath, "existing candidate");
+
+        _store.WriteSession(session);
+
+        var service = CreateService(session.TargetPath, session.CurrentVersion, session.TargetVersion);
+        var result = await service.PrepareAsync(session.SessionId);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(SelfUpdatePreparationError.CandidateCollision, result.Error);
+
+        // Candidate must NOT be overwritten
+        Assert.Equal("existing candidate", File.ReadAllText(candidatePath));
     }
 
     [Fact]
@@ -103,19 +179,18 @@ public class SelfUpdatePreparationServiceTests : IDisposable
         var session = MakeSession();
         _store.WriteSession(session);
 
-        // Create staged EXE
         var stagedDir = _store.GetSessionDir(session.SessionId);
         var stagedExePath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
         File.WriteAllText(stagedExePath, "new version");
         session.StagedExeSha256 = await HashHelper.ComputeFileSha256Async(stagedExePath);
-        _store.WriteSession(session);
 
-        // Create target
         var targetDir = Path.GetDirectoryName(session.TargetPath)!;
         Directory.CreateDirectory(targetDir);
         File.WriteAllText(session.TargetPath, "old version");
 
-        var service = new SelfUpdatePreparationService(_store, _logger);
+        _store.WriteSession(session);
+
+        var service = CreateService(session.TargetPath, session.CurrentVersion, session.TargetVersion);
         var result = await service.PrepareAsync(session.SessionId);
 
         Assert.True(result.IsSuccess);
@@ -123,42 +198,13 @@ public class SelfUpdatePreparationServiceTests : IDisposable
         Assert.NotNull(result.CandidatePath);
         Assert.NotNull(result.OriginalExeSha256);
 
-        // Candidate should exist
         Assert.True(File.Exists(result.CandidatePath));
-        var candidateContent = File.ReadAllText(result.CandidatePath);
-        Assert.Equal("new version", candidateContent);
+        Assert.Equal("new version", File.ReadAllText(result.CandidatePath));
 
-        // Session should be marked prepared
         Assert.Equal(UpdateSession.StatePrepared, result.Session.State);
-        Assert.NotNull(result.Session.OriginalExeSha256);
 
-        // Verify loaded session
         var loaded = _store.LoadSessionForState(session.SessionId, UpdateSession.StatePrepared);
         Assert.Equal(UpdateSessionLoadStatus.Valid, loaded.Status);
-    }
-
-    [Fact]
-    public async Task PrepareAsync_CandidateInTargetDir()
-    {
-        var session = MakeSession();
-        _store.WriteSession(session);
-
-        var stagedDir = _store.GetSessionDir(session.SessionId);
-        var stagedExePath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
-        File.WriteAllText(stagedExePath, "new");
-        session.StagedExeSha256 = await HashHelper.ComputeFileSha256Async(stagedExePath);
-        _store.WriteSession(session);
-
-        var targetDir = Path.GetDirectoryName(session.TargetPath)!;
-        Directory.CreateDirectory(targetDir);
-        File.WriteAllText(session.TargetPath, "old");
-
-        var service = new SelfUpdatePreparationService(_store, _logger);
-        var result = await service.PrepareAsync(session.SessionId);
-
-        Assert.True(result.IsSuccess);
-        // Candidate should be in the same directory as target
-        Assert.Equal(targetDir, Path.GetDirectoryName(result.CandidatePath));
     }
 
     [Fact]
@@ -171,21 +217,98 @@ public class SelfUpdatePreparationServiceTests : IDisposable
         var stagedExePath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
         File.WriteAllText(stagedExePath, "new");
         session.StagedExeSha256 = await HashHelper.ComputeFileSha256Async(stagedExePath);
-        _store.WriteSession(session);
 
         var targetDir = Path.GetDirectoryName(session.TargetPath)!;
         Directory.CreateDirectory(targetDir);
         File.WriteAllText(session.TargetPath, "original content");
         var originalSha = await HashHelper.ComputeFileSha256Async(session.TargetPath);
 
-        var service = new SelfUpdatePreparationService(_store, _logger);
+        _store.WriteSession(session);
+
+        var service = CreateService(session.TargetPath, session.CurrentVersion, session.TargetVersion);
         var result = await service.PrepareAsync(session.SessionId);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(originalSha, result.OriginalExeSha256);
     }
 
+    [Fact]
+    public async Task PrepareAsync_CandidateInTargetDir()
+    {
+        var session = MakeSession();
+        _store.WriteSession(session);
+
+        var stagedDir = _store.GetSessionDir(session.SessionId);
+        var stagedExePath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
+        File.WriteAllText(stagedExePath, "new");
+        session.StagedExeSha256 = await HashHelper.ComputeFileSha256Async(stagedExePath);
+
+        var targetDir = Path.GetDirectoryName(session.TargetPath)!;
+        Directory.CreateDirectory(targetDir);
+        File.WriteAllText(session.TargetPath, "old");
+
+        _store.WriteSession(session);
+
+        var service = CreateService(session.TargetPath, session.CurrentVersion, session.TargetVersion);
+        var result = await service.PrepareAsync(session.SessionId);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(targetDir, Path.GetDirectoryName(result.CandidatePath));
+    }
+
     // --- Helpers ---
+
+    private SelfUpdatePreparationService CreateService(
+        string currentProcessPath,
+        string currentVersion,
+        string targetVersion)
+    {
+        return CreateService(currentProcessPath, currentVersion, targetVersion, null);
+    }
+
+    private SelfUpdatePreparationService CreateService(
+        string currentProcessPath,
+        string currentVersion,
+        string targetVersion,
+        Func<string, string, string, FileVersionInfo>? versionInfoOverride)
+    {
+        var currentParsed = AppVersion.TryParseCoreVersion(currentVersion);
+        var targetParsed = AppVersion.TryParseCoreVersion(targetVersion);
+
+        FileVersionInfo VersionInfoFor(string path)
+        {
+            if (versionInfoOverride != null)
+                return versionInfoOverride(path, targetVersion, currentVersion);
+
+            // Staged exe gets target version, target exe gets current version
+            var isTarget = string.Equals(
+                Path.GetFullPath(path),
+                Path.GetFullPath(currentProcessPath),
+                StringComparison.OrdinalIgnoreCase);
+
+            var v = isTarget ? currentParsed : targetParsed;
+            if (!v.HasValue)
+                return FileVersionInfo.GetVersionInfo(typeof(object).Assembly.Location);
+
+            var fileVer = $"{v.Value.Major}.{v.Value.Minor}.{v.Value.Build}.0";
+            var prodVer = $"{v.Value.Major}.{v.Value.Minor}.{v.Value.Build}";
+            return MakeVersionInfoWithVersion(fileVer, prodVer);
+        }
+
+        return new SelfUpdatePreparationService(
+            _store,
+            _logger,
+            () => currentProcessPath,
+            VersionInfoFor);
+    }
+
+    private static FileVersionInfo MakeVersionInfoWithVersion(string fileVersion, string productVersion)
+    {
+        var info = FileVersionInfo.GetVersionInfo(typeof(object).Assembly.Location);
+        typeof(FileVersionInfo).GetField("_fileVersion", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(info, fileVersion);
+        typeof(FileVersionInfo).GetField("_productVersion", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(info, productVersion);
+        return info;
+    }
 
     private static UpdateSession MakeSession() => new()
     {

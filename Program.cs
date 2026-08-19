@@ -13,22 +13,22 @@ static class Program
     {
         var commandLine = ApplicationCommandLine.Parse(args);
 
-        if (commandLine.IsApplyUpdateMode)
+        switch (commandLine.Mode)
         {
-            RunHelperMode(commandLine.ApplyUpdateSessionId!);
-            return;
-        }
+            case CommandLineMode.ApplyUpdate:
+                RunHelperMode(commandLine.ApplyUpdateSessionId!);
+                return;
 
-        // Prototype mode: BDO-UA-Client.exe --prototype
-        if (args.Length > 0 && args[0] == "--prototype")
-        {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new ThemePrototype());
-            return;
-        }
+            case CommandLineMode.InvalidApplyUpdate:
+                Console.Error.WriteLine("Invalid --apply-update arguments. Expected: --apply-update <session-id>");
+                Environment.Exit(ApplicationCommandLine.ExitCodeInvalidArgs);
+                return;
 
-        RunNormalMode();
+            case CommandLineMode.Normal:
+            default:
+                RunNormalMode();
+                return;
+        }
     }
 
     private static void RunHelperMode(string sessionId)

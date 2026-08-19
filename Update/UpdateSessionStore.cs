@@ -44,6 +44,13 @@ public sealed class UpdateSessionStore
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
     };
 
+    private static readonly HashSet<string> SupportedStates = new(StringComparer.Ordinal)
+    {
+        UpdateSession.StateStaged,
+        UpdateSession.StatePrepared,
+        UpdateSession.StateApplied
+    };
+
     private readonly AppPaths _appPaths;
     private readonly ILogger _logger;
 
@@ -120,6 +127,12 @@ public sealed class UpdateSessionStore
 
     public UpdateSessionLoadResult LoadSessionForState(string sessionId, string expectedState)
     {
+        if (!SupportedStates.Contains(expectedState))
+        {
+            _logger.Warning($"LoadSessionForState: unsupported expected state '{expectedState}'");
+            return UpdateSessionLoadResult.Invalid;
+        }
+
         try
         {
             var normalizedId = NormalizeSessionId(sessionId);
@@ -197,6 +210,13 @@ public sealed class UpdateSessionStore
 
         if (!IsValidSha256Hex(session.StagedExeSha256))
             return UpdateSessionLoadResult.Invalid;
+
+        // State-specific: original_exe_sha256
+        if (expectedState == UpdateSession.StatePrepared || expectedState == UpdateSession.StateApplied)
+        {
+            if (!IsValidSha256Hex(session.OriginalExeSha256))
+                return UpdateSessionLoadResult.Invalid;
+        }
 
         return UpdateSessionLoadResult.Valid(session);
     }
