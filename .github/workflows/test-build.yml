@@ -71,5 +71,5 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: BDO-UA-Client-test-build
+        name: BDO-UA-Client-test-build-win-x64
         path: artifacts/publish/win-x64/BDO-UA-Client.exe

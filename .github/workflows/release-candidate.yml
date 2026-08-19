@@ -246,9 +246,9 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: BDO-UA-Client-v${{ steps.resolve.outputs.RELEASE_VERSION }}-release-assets
+        name: BDO-UA-Client-v${{ steps.resolve.outputs.RELEASE_VERSION }}-win-x64
         path: |
-          artifacts/BDO-UA-Client-v${{ steps.resolve.outputs.RELEASE_VERSION }}-win-x64.zip
+          artifacts/publish/win-x64/BDO-UA-Client.exe
           artifacts/SHA256SUMS.txt
           artifacts/release-manifest.json
           artifacts/RELEASE_NOTES-v${{ steps.resolve.outputs.RELEASE_VERSION }}.md
@@ -279,24 +279,28 @@ jobs:
         | **Commit** | ``$sha`` |
         | **Asset** | $assetName |
         | **SHA-256** | ``$hash`` |
-        | **Artifact** | ``BDO-UA-Client-v$version-release-assets`` (CI transport container) |
+        | **Artifact** | ``BDO-UA-Client-v$version-win-x64`` |
 
-        ### Public user package
+        ### Artifact contents
 
-        The production user-facing package is ``$assetName`` (contains exactly ``BDO-UA-Client.exe``).
-        It will be uploaded manually to the GitHub Release.
+        Downloaded artifact (GitHub wraps it in a ZIP) contains:
+        - ``BDO-UA-Client.exe`` — the application
+        - ``SHA256SUMS.txt``
+        - ``release-manifest.json``
+        - ``RELEASE_NOTES-v$version.md``
 
         ### Next steps
 
-        1. Download artifact ``BDO-UA-Client-v$version-release-assets``
-        2. Test exact ``$assetName`` locally
-        3. Verify SHA-256 if desired
-        4. Draft GitHub Release → select existing tag ``$tag``
-        5. Use generated ``RELEASE_NOTES-v$version.md`` as release body (auto-generated from commits, edit if needed)
-        6. Upload exact ``$assetName`` from artifact (this is the public user ZIP)
-        7. Upload ``SHA256SUMS.txt`` from artifact
-        8. Upload ``release-manifest.json`` from artifact
-        9. Click **Publish release**
+        1. Download artifact ``BDO-UA-Client-v$version-win-x64``
+        2. Create ``$assetName`` from ``BDO-UA-Client.exe`` (zip it for GitHub Release upload)
+        3. Test locally
+        4. Verify SHA-256 if desired
+        5. Draft GitHub Release → select existing tag ``$tag``
+        6. Use generated ``RELEASE_NOTES-v$version.md`` as release body (auto-generated from commits, edit if needed)
+        7. Upload ``$assetName`` to GitHub Release
+        8. Upload ``SHA256SUMS.txt`` to GitHub Release
+        9. Upload ``release-manifest.json`` to GitHub Release
+        10. Click **Publish release**
 
         > GitHub Release is NOT created automatically.
         "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8
