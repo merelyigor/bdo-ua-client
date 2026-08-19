@@ -25,11 +25,16 @@ partial class MainForm
     private Label progressLabel = null!;
     private TextBox messageTextBox = null!;
 
-    // --- Actions ---
-    private FlowLayoutPanel actionsPanel = null!;
+    // --- Footer ---
+    private TableLayoutPanel footerPanel = null!;
+    private FlowLayoutPanel leftActionsPanel = null!;
     private Button installButton = null!;
     private Button restoreOriginalButton = null!;
     private Button cancelButton = null!;
+    private FlowLayoutPanel rightUtilityPanel = null!;
+    private Button updateButton = null!;
+    private Label versionLabel = null!;
+    private Button logsButton = null!;
 
     protected override void Dispose(bool disposing)
     {
@@ -266,15 +271,27 @@ partial class MainForm
         statusGroupBox.Controls.Add(statusLayout);
 
         // ==========================================
-        // Actions Block
+        // Footer (actions + utility)
         // ==========================================
-        actionsPanel = new FlowLayoutPanel
+        footerPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Bottom,
             AutoSize = true,
+            ColumnCount = 2,
+            RowCount = 1,
+            Padding = new Padding(0, 8, 0, 0)
+        };
+        footerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        footerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        footerPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        leftActionsPanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
-            Padding = new Padding(0, 8, 0, 0)
+            Anchor = AnchorStyles.Left | AnchorStyles.Top,
+            Margin = new Padding(0)
         };
 
         installButton = new Button
@@ -301,10 +318,59 @@ partial class MainForm
             Margin = new Padding(0)
         };
 
-        actionsPanel.Controls.AddRange(new Control[]
+        leftActionsPanel.Controls.AddRange(new Control[]
         {
             installButton, restoreOriginalButton, cancelButton
         });
+
+        rightUtilityPanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Anchor = AnchorStyles.Right | AnchorStyles.Top,
+            Margin = new Padding(0)
+        };
+
+        updateButton = new Button
+        {
+            Text = "Оновити до vX.Y.Z",
+            AutoSize = true,
+            Visible = false,
+            Margin = new Padding(0, 0, 8, 0)
+        };
+
+        versionLabel = new Label
+        {
+            Text = "",
+            AutoSize = true,
+            TextAlign = System.Drawing.ContentAlignment.MiddleLeft,
+            Font = new System.Drawing.Font("Segoe UI", 9F),
+            ForeColor = System.Drawing.SystemColors.GrayText,
+            Margin = new Padding(0, 4, 8, 0)
+        };
+
+        logsButton = new Button
+        {
+            Text = "\U0001F4C1",
+            AutoSize = false,
+            Size = new System.Drawing.Size(28, 28),
+            FlatStyle = FlatStyle.Flat,
+            Margin = new Padding(0),
+            AccessibleName = "Відкрити папку журналів"
+        };
+        logsButton.FlatAppearance.BorderSize = 0;
+
+        var logsToolTip = new ToolTip();
+        logsToolTip.SetToolTip(logsButton, "Відкрити папку журналів");
+
+        rightUtilityPanel.Controls.AddRange(new Control[]
+        {
+            updateButton, versionLabel, logsButton
+        });
+
+        footerPanel.Controls.Add(leftActionsPanel, 0, 0);
+        footerPanel.Controls.Add(rightUtilityPanel, 1, 0);
 
         // ==========================================
         // Assemble main layout
@@ -312,7 +378,7 @@ partial class MainForm
         mainLayout.Controls.Add(gameGroupBox, 0, 0);
         mainLayout.Controls.Add(modeGroupBox, 0, 1);
         mainLayout.Controls.Add(statusGroupBox, 0, 2);
-        mainLayout.Controls.Add(actionsPanel, 0, 3);
+        mainLayout.Controls.Add(footerPanel, 0, 3);
 
         this.Controls.Add(mainLayout);
         this.ResumeLayout(false);

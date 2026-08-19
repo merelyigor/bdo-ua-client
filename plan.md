@@ -41,7 +41,7 @@
 
 ## Поточна фаза
 
-**Stage 13 — Application self-update + utility footer**
+**Stage 13 — Application self-update + utility footer (v13.1 IMPLEMENTED)**
 
 ### v12.3 / v12.3.1 — fix mode selection and game detection UX
 
@@ -374,7 +374,7 @@ Program                     — detect internal updater mode vs normal UI
 
 ### v13.0 — document client self-update architecture
 
-**Status:** ACTIVE
+**Status:** IMPLEMENTED (commit 8319973)
 
 **Goal:** Documentation/contracts only. Reconcile plan with repo state. Full Stage 13 plan. AGENTS §41 critical invariants.
 
@@ -383,6 +383,8 @@ Program                     — detect internal updater mode vs normal UI
 ---
 
 ### v13.1 — add update discovery and utility footer
+
+**Status:** IMPLEMENTED
 
 **Goal:** User can launch app, see version in footer, see update button when newer GitHub Release exists.
 

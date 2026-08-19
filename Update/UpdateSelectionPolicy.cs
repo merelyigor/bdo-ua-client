@@ -1,0 +1,95 @@
+using BdoClient.Logging;
+
+namespace BdoClient.Update;
+
+public sealed class UpdateCandidate
+{
+    public AppVersion Version { get; }
+    public string TagName { get; }
+    public GitHubRelease Release { get; }
+
+    public UpdateCandidate(AppVersion version, string tagName, GitHubRelease release)
+    {
+        Version = version;
+        TagName = tagName;
+        Release = release;
+    }
+}
+
+public sealed class UpdateSelectionPolicy
+{
+    private const string ManifestAssetName = "release-manifest.json";
+
+    private readonly ILogger _logger;
+
+    public UpdateSelectionPolicy(ILogger logger)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    public UpdateCandidate? FindUpdate(
+        AppVersionInfo currentVersionInfo,
+        List<GitHubRelease> releases)
+    {
+        if (!currentVersionInfo.IsPublicRelease || !currentVersionInfo.PublicVersion.HasValue)
+        {
+            _logger.Debug("Update: current version is not a public release; updater disabled");
+            return null;
+        }
+
+        var currentVersion = currentVersionInfo.PublicVersion.Value;
+        var currentTag = $"v{currentVersion}";
+
+        var currentRelease = releases.FirstOrDefault(r =>
+            !r.Draft &&
+            r.PublishedAt != null &&
+            string.Equals(r.TagName, currentTag, StringComparison.Ordinal));
+
+        if (currentRelease == null)
+        {
+            _logger.Debug($"Update: current release {currentTag} not found in published releases; updater disabled");
+            return null;
+        }
+
+        var currentIsPrerelease = currentRelease.Prerelease;
+
+        UpdateCandidate? best = null;
+
+        foreach (var release in releases)
+        {
+            if (release.Draft) continue;
+            if (release.PublishedAt == null) continue;
+            if (release.TagName == null) continue;
+
+            var candidateVersion = AppVersion.TryParse(release.TagName);
+            if (!candidateVersion.HasValue) continue;
+
+            if (candidateVersion.Value <= currentVersion) continue;
+
+            if (!currentIsPrerelease && release.Prerelease) continue;
+
+            if (best == null || candidateVersion.Value > best.Version)
+            {
+                best = new UpdateCandidate(candidateVersion.Value, release.TagName, release);
+            }
+        }
+
+        if (best == null)
+        {
+            _logger.Debug("Update: no eligible newer release found");
+            return null;
+        }
+
+        var hasManifest = best.Release.Assets?.Any(a =>
+            string.Equals(a.Name, ManifestAssetName, StringComparison.Ordinal)) == true;
+
+        if (!hasManifest)
+        {
+            _logger.Warning($"Update: candidate {best.TagName} lacks {ManifestAssetName}; fail closed");
+            return null;
+        }
+
+        _logger.Debug($"Update: candidate selected: {best.TagName} (prerelease={best.Release.Prerelease})");
+        return best;
+    }
+}

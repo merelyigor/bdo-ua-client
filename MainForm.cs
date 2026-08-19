@@ -4,6 +4,7 @@ using BdoClient.Logging;
 using BdoClient.Models;
 using BdoClient.Services;
 using BdoClient.Storage;
+using BdoClient.Update;
 
 namespace BdoClient;
 
@@ -20,6 +21,10 @@ public partial class MainForm : Form
     private readonly ILogger _logger;
     private readonly ReleaseFeedPoller _poller;
     private readonly FeedApplicationCoordinator _feedCoordinator;
+    private readonly AppVersionInfo _appVersionInfo;
+    private readonly GitHubUpdateClient _gitHubClient;
+    private readonly UpdateSelectionPolicy _selectionPolicy;
+    private readonly AppPaths _appPaths;
 
     private string? _gameRoot;
     private ReleasesResponse? _apiResponse;
@@ -36,6 +41,10 @@ public partial class MainForm : Form
     private System.Windows.Forms.Timer? _startupTimer;
     private DateTime _startupStartTime;
 
+    private CancellationTokenSource? _updateCheckCts;
+    private Task? _updateCheckTask;
+    private UpdateCandidate? _currentUpdateCandidate;
+
     private static readonly Color SuccessGreen = Color.FromArgb(0, 128, 0);
 
     public MainForm(
@@ -47,7 +56,11 @@ public partial class MainForm : Form
         LocalizationInstaller localizationInstaller,
         BackupStore backupStore,
         InstallationStateStore stateStore,
-        ILogger logger)
+        ILogger logger,
+        AppVersionInfo appVersionInfo,
+        GitHubUpdateClient gitHubClient,
+        UpdateSelectionPolicy selectionPolicy,
+        AppPaths appPaths)
     {
         _configStore = configStore;
         _apiClient = apiClient;
@@ -58,6 +71,10 @@ public partial class MainForm : Form
         _backupStore = backupStore;
         _stateStore = stateStore;
         _logger = logger;
+        _appVersionInfo = appVersionInfo;
+        _gitHubClient = gitHubClient;
+        _selectionPolicy = selectionPolicy;
+        _appPaths = appPaths;
 
         _poller = new ReleaseFeedPoller(_apiClient, _logger);
         _feedCoordinator = new FeedApplicationCoordinator(ApplyFeedPipelineAsync, _poller, _logger);
@@ -76,6 +93,8 @@ public partial class MainForm : Form
         installButton.Click += InstallButton_Click;
         restoreOriginalButton.Click += RestoreOriginalButton_Click;
         cancelButton.Click += CancelButton_Click;
+        updateButton.Click += UpdateButton_Click;
+        logsButton.Click += LogsButton_Click;
         this.FormClosing += MainForm_FormClosing;
     }
 
@@ -176,7 +195,10 @@ public partial class MainForm : Form
             _initializing = false;
             SetOperationState(OperationState.Idle);
             if (!_closing)
+            {
                 _poller.Start(_apiResponse);
+                StartBackgroundUpdateCheck();
+            }
         }
     }
 
@@ -778,6 +800,7 @@ public partial class MainForm : Form
         if (!_operationInProgress)
         {
             _closing = true;
+            _updateCheckCts?.Cancel();
             _poller.Stop();
             return;
         }
@@ -803,6 +826,116 @@ public partial class MainForm : Form
         foreach (Control c in modesFlowPanel.Controls)
         {
             if (c is RadioButton rb) rb.Enabled = enabled;
+        }
+        if (!enabled)
+            updateButton.Enabled = false;
+        else if (_currentUpdateCandidate != null && !_operationInProgress)
+            updateButton.Enabled = true;
+    }
+
+    // --- Background update check ---
+
+    private void StartBackgroundUpdateCheck()
+    {
+        versionLabel.Text = _appVersionInfo.DisplayVersion;
+
+        if (!_appVersionInfo.IsPublicRelease)
+        {
+            _logger.Debug($"Update check skipped: not a public release ({_appVersionInfo.RawVersion})");
+            return;
+        }
+
+        _updateCheckCts = new CancellationTokenSource();
+        var token = _updateCheckCts.Token;
+
+        _updateCheckTask = Task.Run(async () =>
+        {
+            try
+            {
+                _logger.Debug("Update check started");
+                var result = await _gitHubClient.FetchReleasesAsync(token);
+
+                if (token.IsCancellationRequested) return;
+
+                if (!result.IsSuccess)
+                {
+                    _logger.Warning($"Update check failed: {result.ErrorMessage}");
+                    return;
+                }
+
+                var candidate = _selectionPolicy.FindUpdate(_appVersionInfo, result.Value!);
+
+                if (token.IsCancellationRequested) return;
+
+                if (candidate != null)
+                {
+                    _currentUpdateCandidate = candidate;
+                    _logger.Info($"Update available: {candidate.TagName}");
+
+                    if (!IsDisposed)
+                    {
+                        BeginInvoke(() =>
+                        {
+                            if (_closing || _operationInProgress) return;
+                            updateButton.Text = $"Оновити до {candidate.TagName}";
+                            updateButton.Visible = true;
+                            updateButton.Enabled = true;
+                        });
+                    }
+                }
+                else
+                {
+                    _logger.Debug("Update check: no eligible update");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected during shutdown
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"Update check error: {ex.Message}");
+            }
+        }, token);
+    }
+
+    // --- Update button ---
+
+    private void UpdateButton_Click(object? sender, EventArgs e)
+    {
+        if (_currentUpdateCandidate == null) return;
+
+        var tag = _currentUpdateCandidate.TagName;
+        _logger.Info($"Update button clicked: {tag}");
+        MessageBox.Show(
+            $"Автоматичне встановлення оновлення {tag} буде реалізовано у наступній версії.\n\nБудь ласка, завантажте оновлення вручну з GitHub Releases.",
+            "Оновлення",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
+    }
+
+    // --- Logs button ---
+
+    private void LogsButton_Click(object? sender, EventArgs e)
+    {
+        try
+        {
+            var logsDir = _appPaths.LogsDir;
+            Directory.CreateDirectory(logsDir);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = logsDir,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Failed to open logs folder: {ex.Message}");
+            MessageBox.Show(
+                "Не вдалося відкрити папку журналів. Перевірте шлях у налаштуваннях.",
+                "Помилка",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
         }
     }
 

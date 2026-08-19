@@ -1,8 +1,8 @@
-using System.Reflection;
 using System.Windows.Forms;
 using BdoClient.Logging;
 using BdoClient.Services;
 using BdoClient.Storage;
+using BdoClient.Update;
 
 namespace BdoClient;
 
@@ -27,10 +27,12 @@ static class Program
         var stateService = new LocalizationStateService(stateStore, logger);
         var compatService = new LocalizationCompatibilityService();
 
-        var version = Assembly.GetEntryAssembly()?
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
-            .InformationalVersion ?? "unknown";
-        logger.Info($"Application started. version={version}");
+        var appVersionInfo = AppVersionInfo.Detect();
+        logger.Info($"Application started. version={appVersionInfo.RawVersion}");
+
+        var gitHubHttpClient = new HttpClient();
+        var gitHubClient = new GitHubUpdateClient(gitHubHttpClient, logger);
+        var selectionPolicy = new UpdateSelectionPolicy(logger);
 
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
@@ -40,7 +42,8 @@ static class Program
             Application.Run(new MainForm(
                 configStore, apiClient, gameDetector,
                 stateService, compatService,
-                localizationInstaller, backupStore, stateStore, logger));
+                localizationInstaller, backupStore, stateStore, logger,
+                appVersionInfo, gitHubClient, selectionPolicy, appPaths));
         }
         catch (Exception ex)
         {
