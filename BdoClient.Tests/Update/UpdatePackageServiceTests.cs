@@ -25,6 +25,88 @@ public class UpdatePackageServiceTests : IDisposable
         try { Directory.Delete(_tempRoot, recursive: true); } catch { }
     }
 
+    // --- Candidate validation (§7) ---
+
+    [Fact]
+    public async Task StageUpdate_NonPublicCurrentVersion_ReturnsInvalidCandidate()
+    {
+        var handler = new QueuedHandler();
+        var service = CreateServiceWithHandler(handler);
+        var candidate = MakeCandidate("v0.1.4", Array.Empty<GitHubReleaseAsset>());
+        var currentInfo = AppVersionInfo.FromRawVersion("0.0.0-dev.abcdef");
+        var result = await service.StageUpdateAsync(candidate, currentInfo, null, CancellationToken.None);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpdatePackageError.InvalidCandidate, result.Error);
+        Assert.Contains("not a public release", result.ErrorMessage!);
+    }
+
+    [Fact]
+    public async Task StageUpdate_CandidateEqualToCurrent_ReturnsInvalidCandidate()
+    {
+        var handler = new QueuedHandler();
+        var service = CreateServiceWithHandler(handler);
+        var candidate = MakeCandidate("v0.1.3", Array.Empty<GitHubReleaseAsset>());
+        var result = await service.StageUpdateAsync(candidate, PublicVersionInfo(), null, CancellationToken.None);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpdatePackageError.InvalidCandidate, result.Error);
+        Assert.Contains("not newer", result.ErrorMessage!);
+    }
+
+    [Fact]
+    public async Task StageUpdate_MalformedCandidateTag_ReturnsInvalidCandidate()
+    {
+        var handler = new QueuedHandler();
+        var service = CreateServiceWithHandler(handler);
+        var candidate = new UpdateCandidate(new AppVersion(0, 1, 4), "0.1.4", new GitHubRelease
+        {
+            TagName = "0.1.4",
+            Draft = false,
+            PublishedAt = DateTimeOffset.UtcNow
+        });
+        var result = await service.StageUpdateAsync(candidate, PublicVersionInfo(), null, CancellationToken.None);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpdatePackageError.InvalidCandidate, result.Error);
+        Assert.Contains("tag does not match", result.ErrorMessage!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task StageUpdate_DraftCandidate_ReturnsInvalidCandidate()
+    {
+        var handler = new QueuedHandler();
+        var service = CreateServiceWithHandler(handler);
+        var version = AppVersion.TryParseReleaseTag("v0.1.4")!.Value;
+        var candidate = new UpdateCandidate(version, "v0.1.4", new GitHubRelease
+        {
+            TagName = "v0.1.4",
+            Draft = true,
+            PublishedAt = DateTimeOffset.UtcNow
+        });
+        var result = await service.StageUpdateAsync(candidate, PublicVersionInfo(), null, CancellationToken.None);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpdatePackageError.InvalidCandidate, result.Error);
+        Assert.Contains("draft", result.ErrorMessage!);
+    }
+
+    [Fact]
+    public async Task StageUpdate_UnpublishedCandidate_ReturnsInvalidCandidate()
+    {
+        var handler = new QueuedHandler();
+        var service = CreateServiceWithHandler(handler);
+        var version = AppVersion.TryParseReleaseTag("v0.1.4")!.Value;
+        var candidate = new UpdateCandidate(version, "v0.1.4", new GitHubRelease
+        {
+            TagName = "v0.1.4",
+            Draft = false,
+            PublishedAt = null
+        });
+        var result = await service.StageUpdateAsync(candidate, PublicVersionInfo(), null, CancellationToken.None);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpdatePackageError.InvalidCandidate, result.Error);
+        Assert.Contains("not published", result.ErrorMessage!);
+    }
+
+    // --- Asset tests ---
+
     [Fact]
     public async Task StageUpdate_MissingManifestAsset_FailsAndCleansSession()
     {
@@ -95,6 +177,8 @@ public class UpdatePackageServiceTests : IDisposable
         Assert.Empty(Directory.GetDirectories(_appPaths.UpdatesDir));
     }
 
+    // --- Duplicate asset (§6) ---
+
     [Fact]
     public async Task StageUpdate_DuplicateManifestAsset_Fails()
     {
@@ -109,6 +193,42 @@ public class UpdatePackageServiceTests : IDisposable
         Assert.False(result.IsSuccess);
         Assert.Equal(UpdatePackageError.AssetMissing, result.Error);
     }
+
+    [Fact]
+    public async Task StageUpdate_DuplicateZipAsset_Fails()
+    {
+        var validManifestSha = new string('a', 64);
+        var manifestJson = $"{{\"schema_version\":1,\"version\":\"0.1.4\",\"tag\":\"v0.1.4\",\"commit_sha\":\"74875dfcc6762ec0edb75c40e225150f94fa45e5\",\"asset_name\":\"BDO-UA-Client-v0.1.4-win-x64.zip\",\"sha256\":\"{validManifestSha}\",\"platform\":\"win-x64\",\"workflow_run_id\":\"1\"}}";
+        var manifestBytes = Encoding.UTF8.GetBytes(manifestJson);
+        var candidate = MakeCandidate("v0.1.4", new[]
+        {
+            new GitHubReleaseAsset { Name = "release-manifest.json", BrowserDownloadUrl = "https://github.com/m", Size = manifestBytes.Length, State = "uploaded" },
+            new GitHubReleaseAsset { Name = "BDO-UA-Client-v0.1.4-win-x64.zip", BrowserDownloadUrl = "https://github.com/a", Size = 100, State = "uploaded" },
+            new GitHubReleaseAsset { Name = "BDO-UA-Client-v0.1.4-win-x64.zip", BrowserDownloadUrl = "https://github.com/b", Size = 100, State = "uploaded" }
+        });
+        var handler = new QueuedHandler(manifestBytes);
+        var service = CreateServiceWithHandler(handler);
+        var result = await service.StageUpdateAsync(candidate, PublicVersionInfo(), null, CancellationToken.None);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpdatePackageError.AssetMissing, result.Error);
+    }
+
+    [Fact]
+    public async Task StageUpdate_DuplicateManifestOneMalformed_Fails()
+    {
+        var candidate = MakeCandidate("v0.1.4", new[]
+        {
+            new GitHubReleaseAsset { Name = "release-manifest.json", BrowserDownloadUrl = "https://github.com/a", Size = 100, State = "uploaded" },
+            new GitHubReleaseAsset { Name = "release-manifest.json", Size = 0, State = "uploaded" }
+        });
+        var handler = new QueuedHandler();
+        var service = CreateServiceWithHandler(handler);
+        var result = await service.StageUpdateAsync(candidate, PublicVersionInfo(), null, CancellationToken.None);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpdatePackageError.AssetMissing, result.Error);
+    }
+
+    // --- Digest tests ---
 
     [Fact]
     public async Task StageUpdate_MalformedDigest_Fails()
@@ -128,6 +248,93 @@ public class UpdatePackageServiceTests : IDisposable
         Assert.False(result.IsSuccess);
         Assert.Equal(UpdatePackageError.HashMismatch, result.Error);
     }
+
+    [Fact]
+    public async Task StageUpdate_DigestMismatch_Fails()
+    {
+        var sha = new string('a', 64);
+        var manifestJson = $"{{\"schema_version\":1,\"version\":\"0.1.4\",\"tag\":\"v0.1.4\",\"commit_sha\":\"74875dfcc6762ec0edb75c40e225150f94fa45e5\",\"asset_name\":\"BDO-UA-Client-v0.1.4-win-x64.zip\",\"sha256\":\"{sha}\",\"platform\":\"win-x64\",\"workflow_run_id\":\"1\"}}";
+        var manifestBytes = Encoding.UTF8.GetBytes(manifestJson);
+        var handler = new QueuedHandler(manifestBytes);
+        var service = CreateServiceWithHandler(handler);
+        var assets = new[]
+        {
+            new GitHubReleaseAsset { Name = "release-manifest.json", BrowserDownloadUrl = "https://github.com/m", Size = manifestBytes.Length, State = "uploaded" },
+            new GitHubReleaseAsset { Name = "BDO-UA-Client-v0.1.4-win-x64.zip", BrowserDownloadUrl = "https://github.com/z", Size = 100, State = "uploaded", Digest = "sha256:" + new string('b', 64) }
+        };
+        var candidate = MakeCandidate("v0.1.4", assets);
+        var result = await service.StageUpdateAsync(candidate, PublicVersionInfo(), null, CancellationToken.None);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpdatePackageError.HashMismatch, result.Error);
+    }
+
+    // --- Cancellation / cleanup ---
+
+    [Fact]
+    public async Task StageUpdate_Cancellation_CleansSession()
+    {
+        var handler = new CancellationPropagatingHandler();
+        var service = CreateServiceWithHandler(handler);
+        var candidate = MakeCandidate("v0.1.4", ManifestAsset(100));
+        var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+        var result = await service.StageUpdateAsync(candidate, PublicVersionInfo(), null, cts.Token);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpdatePackageError.Cancelled, result.Error);
+        Assert.Empty(Directory.GetDirectories(_appPaths.UpdatesDir));
+    }
+
+    [Fact]
+    public async Task StageUpdate_DownloadFailure_CleansSession()
+    {
+        var sha = new string('a', 64);
+        var manifestJson = $"{{\"schema_version\":1,\"version\":\"0.1.4\",\"tag\":\"v0.1.4\",\"commit_sha\":\"74875dfcc6762ec0edb75c40e225150f94fa45e5\",\"asset_name\":\"BDO-UA-Client-v0.1.4-win-x64.zip\",\"sha256\":\"{sha}\",\"platform\":\"win-x64\",\"workflow_run_id\":\"1\"}}";
+        var manifestBytes = Encoding.UTF8.GetBytes(manifestJson);
+        var handler = new QueuedHandler(manifestBytes, HttpStatusCode.NotFound);
+        var service = CreateServiceWithHandler(handler);
+        var assets = FullAssets(manifestBytes.Length, 100);
+        var candidate = MakeCandidate("v0.1.4", assets);
+        var result = await service.StageUpdateAsync(candidate, PublicVersionInfo(), null, CancellationToken.None);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpdatePackageError.DownloadFailed, result.Error);
+        Assert.Empty(Directory.GetDirectories(_appPaths.UpdatesDir));
+    }
+
+    [Fact]
+    public async Task StageUpdate_ZipInvalid_CleansSession()
+    {
+        var invalidZipBytes = Encoding.UTF8.GetBytes("not a zip");
+        var invalidZipSha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(invalidZipBytes)).ToLowerInvariant();
+        var manifestJson = $"{{\"schema_version\":1,\"version\":\"0.1.4\",\"tag\":\"v0.1.4\",\"commit_sha\":\"74875dfcc6762ec0edb75c40e225150f94fa45e5\",\"asset_name\":\"BDO-UA-Client-v0.1.4-win-x64.zip\",\"sha256\":\"{invalidZipSha}\",\"platform\":\"win-x64\",\"workflow_run_id\":\"1\"}}";
+        var manifestBytes = Encoding.UTF8.GetBytes(manifestJson);
+        var handler = new QueuedHandler(manifestBytes, invalidZipBytes);
+        var service = CreateServiceWithHandler(handler);
+        var assets = FullAssets(manifestBytes.Length, invalidZipBytes.Length);
+        var candidate = MakeCandidate("v0.1.4", assets);
+        var result = await service.StageUpdateAsync(candidate, PublicVersionInfo(), null, CancellationToken.None);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpdatePackageError.PackageInvalid, result.Error);
+        Assert.Empty(Directory.GetDirectories(_appPaths.UpdatesDir));
+    }
+
+    [Fact]
+    public async Task StageUpdate_ExeValidationFailure_CleansSession()
+    {
+        var badExeZip = CreateMinimalZipWithExe("wrong version content");
+        var badExeSha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(badExeZip)).ToLowerInvariant();
+        var manifestJson = $"{{\"schema_version\":1,\"version\":\"0.1.4\",\"tag\":\"v0.1.4\",\"commit_sha\":\"74875dfcc6762ec0edb75c40e225150f94fa45e5\",\"asset_name\":\"BDO-UA-Client-v0.1.4-win-x64.zip\",\"sha256\":\"{badExeSha}\",\"platform\":\"win-x64\",\"workflow_run_id\":\"1\"}}";
+        var manifestBytes = Encoding.UTF8.GetBytes(manifestJson);
+        var handler = new QueuedHandler(manifestBytes, badExeZip);
+        var service = CreateServiceWithHandler(handler);
+        var assets = FullAssets(manifestBytes.Length, badExeZip.Length);
+        var candidate = MakeCandidate("v0.1.4", assets);
+        var result = await service.StageUpdateAsync(candidate, PublicVersionInfo(), null, CancellationToken.None);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(UpdatePackageError.ExecutableInvalid, result.Error);
+        Assert.Empty(Directory.GetDirectories(_appPaths.UpdatesDir));
+    }
+
+    // --- Helpers ---
 
     private UpdatePackageService CreateServiceWithHandler(HttpMessageHandler handler)
     {
@@ -182,6 +389,8 @@ public class UpdatePackageServiceTests : IDisposable
         private readonly Queue<object> _responses = new();
         public QueuedHandler(params object[] responses) { foreach (var r in responses) _responses.Enqueue(r); }
 
+        public void Enqueue(object response) => _responses.Enqueue(response);
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             if (_responses.Count == 0)
@@ -208,6 +417,29 @@ public class UpdatePackageServiceTests : IDisposable
                 response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json") { CharSet = "utf-8" };
             }
             return Task.FromResult(response);
+        }
+    }
+
+    private class BlockingHttpResponse : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            try { await Task.Delay(Timeout.Infinite, cancellationToken); }
+            catch (OperationCanceledException) { throw; }
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }
+    }
+
+    private class CancellationPropagatingHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (cancellationToken.IsCancellationRequested)
+                throw new OperationCanceledException(cancellationToken);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("{}", Encoding.UTF8, "application/json")
+            });
         }
     }
 

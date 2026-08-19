@@ -28,6 +28,7 @@ public sealed class GitHubUpdateClient
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _httpClient.Timeout = Timeout.InfiniteTimeSpan;
     }
 
     public async Task<GitHubResult<List<GitHubRelease>>> FetchReleasesAsync(CancellationToken cancellationToken = default)
@@ -147,17 +148,21 @@ public sealed class GitHubUpdateClient
             if (manifestAsset.Size > 0 && contentLength.HasValue && contentLength.Value != manifestAsset.Size)
                 return GitHubResult<UpdateManifest>.Failure($"Content-Length {contentLength.Value} != asset size {manifestAsset.Size}");
 
-            var buffer = new byte[ManifestMaxBytes];
+            var buffer = new byte[ManifestMaxBytes + 1];
             int totalRead = 0;
 
             await using var stream = await response.Content.ReadAsStreamAsync(linkedCts.Token).ConfigureAwait(false);
-            int bytesRead;
-            while ((bytesRead = await stream.ReadAsync(buffer.AsMemory(totalRead, buffer.Length - totalRead), linkedCts.Token).ConfigureAwait(false)) > 0)
+
+            while (totalRead < buffer.Length)
             {
+                int bytesRead = await stream.ReadAsync(buffer.AsMemory(totalRead, buffer.Length - totalRead), linkedCts.Token).ConfigureAwait(false);
+                if (bytesRead == 0)
+                    break;
                 totalRead += bytesRead;
-                if (totalRead > ManifestMaxBytes)
-                    return GitHubResult<UpdateManifest>.Failure("Manifest too large (exceeded during read)");
             }
+
+            if (totalRead > ManifestMaxBytes)
+                return GitHubResult<UpdateManifest>.Failure($"Manifest body {totalRead} bytes exceeds max {ManifestMaxBytes}");
 
             if (manifestAsset.Size > 0 && totalRead != manifestAsset.Size)
                 return GitHubResult<UpdateManifest>.Failure($"Manifest size {totalRead} != asset size {manifestAsset.Size}");

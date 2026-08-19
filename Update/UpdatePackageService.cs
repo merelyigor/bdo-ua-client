@@ -38,6 +38,37 @@ public sealed class UpdatePackageService
         IProgress<UpdateStageProgress>? progress,
         CancellationToken cancellationToken = default)
     {
+        if (!currentVersionInfo.IsPublicRelease || !currentVersionInfo.PublicVersion.HasValue)
+        {
+            _logger.Warning("Update staging rejected: current version is not a public release");
+            return UpdatePackageResult.Failure(UpdatePackageError.InvalidCandidate, "Current version is not a public release");
+        }
+
+        if (candidate.Version <= currentVersionInfo.PublicVersion.Value)
+        {
+            _logger.Warning($"Update staging rejected: candidate {candidate.Version} <= current {currentVersionInfo.PublicVersion.Value}");
+            return UpdatePackageResult.Failure(UpdatePackageError.InvalidCandidate, "Candidate version is not newer than current");
+        }
+
+        if (candidate.Release.Draft)
+        {
+            _logger.Warning($"Update staging rejected: candidate {candidate.TagName} is a draft");
+            return UpdatePackageResult.Failure(UpdatePackageError.InvalidCandidate, "Candidate release is a draft");
+        }
+
+        if (!candidate.Release.PublishedAt.HasValue)
+        {
+            _logger.Warning($"Update staging rejected: candidate {candidate.TagName} is not published");
+            return UpdatePackageResult.Failure(UpdatePackageError.InvalidCandidate, "Candidate release is not published");
+        }
+
+        var expectedTag = $"v{candidate.Version}";
+        if (!string.Equals(candidate.TagName, expectedTag, StringComparison.Ordinal))
+        {
+            _logger.Warning($"Update staging rejected: candidate tag '{candidate.TagName}' != expected '{expectedTag}'");
+            return UpdatePackageResult.Failure(UpdatePackageError.InvalidCandidate, "Candidate tag does not match version");
+        }
+
         var sessionId = Guid.NewGuid().ToString("D");
         var sessionDir = _sessionStore.GetSessionDir(sessionId);
         _logger.Info($"Update staging started: {candidate.TagName} (session={sessionId})");
@@ -177,6 +208,12 @@ public sealed class UpdatePackageService
                 return UpdatePackageResult.Failure(UpdatePackageError.IoError, "Cannot determine current executable path");
             }
 
+            if (!File.Exists(targetPath))
+            {
+                _logger.Error($"Target executable does not exist: '{targetPath}'");
+                return UpdatePackageResult.Failure(UpdatePackageError.IoError, "Current executable file does not exist");
+            }
+
             // 11. Write session
             progress?.Report(new UpdateStageProgress("Підготовка оновлення...", 100));
             var session = new UpdateSession
@@ -220,32 +257,31 @@ public sealed class UpdatePackageService
         }
     }
 
-    private GitHubReleaseAsset? FindExactlyOneAsset(UpdateCandidate candidate, string assetName)
+    internal static GitHubReleaseAsset? FindExactlyOneAsset(UpdateCandidate candidate, string assetName)
     {
-        var matches = candidate.Release.Assets?
-            .Where(a =>
-                string.Equals(a.Name, assetName, StringComparison.Ordinal) &&
-                string.Equals(a.State, "uploaded", StringComparison.OrdinalIgnoreCase) &&
-                !string.IsNullOrEmpty(a.BrowserDownloadUrl) &&
-                a.Size > 0)
+        var exactNameMatches = candidate.Release.Assets?
+            .Where(a => string.Equals(a.Name, assetName, StringComparison.Ordinal))
             .ToList();
 
-        if (matches == null || matches.Count == 0)
+        if (exactNameMatches == null || exactNameMatches.Count == 0)
             return null;
 
-        if (matches.Count > 1)
-        {
-            _logger.Warning($"Found {matches.Count} assets named '{assetName}'; expected exactly 1");
+        if (exactNameMatches.Count > 1)
             return null;
-        }
 
-        var asset = matches[0];
+        var asset = exactNameMatches[0];
+
+        if (!string.Equals(asset.State, "uploaded", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        if (asset.Size <= 0)
+            return null;
+
+        if (string.IsNullOrEmpty(asset.BrowserDownloadUrl))
+            return null;
 
         if (!Uri.TryCreate(asset.BrowserDownloadUrl, UriKind.Absolute, out var uri) || uri.Scheme != "https")
-        {
-            _logger.Warning($"Asset '{assetName}' has non-HTTPS URL");
             return null;
-        }
 
         return asset;
     }

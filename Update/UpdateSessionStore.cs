@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using BdoClient.Logging;
 using BdoClient.Storage;
 
@@ -31,6 +32,11 @@ public sealed class UpdateSessionLoadResult
 public sealed class UpdateSessionStore
 {
     private const string SessionFileName = "update-session.json";
+    private const string GuidDRegexPattern = @"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+    private const string Sha256HexPattern = @"^[0-9a-fA-F]{64}$";
+
+    private static readonly Regex GuidDRegex = new(GuidDRegexPattern, RegexOptions.Compiled);
+    private static readonly Regex Sha256HexRegex = new(Sha256HexPattern, RegexOptions.Compiled);
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -52,6 +58,16 @@ public sealed class UpdateSessionStore
         if (!Guid.TryParse(sessionId, out var guid))
             throw new ArgumentException("Invalid session ID format", nameof(sessionId));
         return guid.ToString("D");
+    }
+
+    public static bool IsValidSessionId(string sessionId)
+    {
+        return !string.IsNullOrEmpty(sessionId) && GuidDRegex.IsMatch(sessionId);
+    }
+
+    public static bool IsValidSha256Hex(string? value)
+    {
+        return !string.IsNullOrEmpty(value) && Sha256HexRegex.IsMatch(value);
     }
 
     public string GetSessionDir(string sessionId)
@@ -129,6 +145,9 @@ public sealed class UpdateSessionStore
         if (session.SchemaVersion != 1)
             return UpdateSessionLoadResult.Invalid;
 
+        if (!IsValidSessionId(session.SessionId))
+            return UpdateSessionLoadResult.Invalid;
+
         var normalizedStoredId = NormalizeSessionId(session.SessionId);
         if (!string.Equals(normalizedStoredId, expectedId, StringComparison.Ordinal))
             return UpdateSessionLoadResult.Invalid;
@@ -164,10 +183,10 @@ public sealed class UpdateSessionStore
         if (!string.Equals(session.PackageAssetName, expectedAssetName, StringComparison.Ordinal))
             return UpdateSessionLoadResult.Invalid;
 
-        if (string.IsNullOrWhiteSpace(session.PackageSha256) || session.PackageSha256.Length != 64)
+        if (!IsValidSha256Hex(session.PackageSha256))
             return UpdateSessionLoadResult.Invalid;
 
-        if (string.IsNullOrWhiteSpace(session.StagedExeSha256) || session.StagedExeSha256.Length != 64)
+        if (!IsValidSha256Hex(session.StagedExeSha256))
             return UpdateSessionLoadResult.Invalid;
 
         return UpdateSessionLoadResult.Valid(session);
