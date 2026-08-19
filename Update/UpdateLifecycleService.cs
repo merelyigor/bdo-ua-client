@@ -16,6 +16,7 @@ public sealed class UpdateLifecycleService
     private readonly ILogger _logger;
     private readonly Func<string> _getCurrentProcessPath;
     private readonly Func<string, FileVersionInfo> _getFileVersionInfo;
+    private readonly Func<DateTimeOffset> _utcNow;
 
     public UpdateLifecycleService(UpdateSessionStore sessionStore, AppPaths appPaths, ILogger logger)
         : this(sessionStore, appPaths, logger,
@@ -28,13 +29,15 @@ public sealed class UpdateLifecycleService
         UpdateSessionStore sessionStore,
         AppPaths appPaths, ILogger logger,
         Func<string> getCurrentProcessPath,
-        Func<string, FileVersionInfo> getFileVersionInfo)
+        Func<string, FileVersionInfo> getFileVersionInfo,
+        Func<DateTimeOffset>? utcNow = null)
     {
         _sessionStore = sessionStore ?? throw new ArgumentNullException(nameof(sessionStore));
         _appPaths = appPaths ?? throw new ArgumentNullException(nameof(appPaths));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _getCurrentProcessPath = getCurrentProcessPath ?? throw new ArgumentNullException(nameof(getCurrentProcessPath));
         _getFileVersionInfo = getFileVersionInfo ?? throw new ArgumentNullException(nameof(getFileVersionInfo));
+        _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
     }
 
     public void RunStartupMaintenance()
@@ -55,7 +58,7 @@ public sealed class UpdateLifecycleService
             var currentVersionInfo = _getFileVersionInfo(currentExePath);
 
             ScanAndProcessSessions(currentExePath, currentExeSha, currentVersionInfo);
-            CleanupAbandonedSessions();
+            CleanupAbandonedSessions(currentExePath, currentExeSha, currentVersionInfo);
         }
         catch (Exception ex)
         {
@@ -278,13 +281,13 @@ public sealed class UpdateLifecycleService
         }
     }
 
-    private void CleanupAbandonedSessions()
+    private void CleanupAbandonedSessions(string currentExePath, string currentExeSha, FileVersionInfo currentVersionInfo)
     {
         var updatesDir = _appPaths.UpdatesDir;
         if (!Directory.Exists(updatesDir))
             return;
 
-        var cutoff = DateTimeOffset.UtcNow - RetentionPeriod;
+        var cutoff = _utcNow() - RetentionPeriod;
 
         foreach (var sessionDir in Directory.GetDirectories(updatesDir))
         {
@@ -294,7 +297,7 @@ public sealed class UpdateLifecycleService
 
             try
             {
-                ProcessAbandonedSession(dirName, sessionDir, cutoff);
+                ProcessAbandonedSession(dirName, sessionDir, cutoff, currentExePath, currentExeSha, currentVersionInfo);
             }
             catch (Exception ex)
             {
@@ -303,7 +306,13 @@ public sealed class UpdateLifecycleService
         }
     }
 
-    private void ProcessAbandonedSession(string sessionId, string sessionDir, DateTimeOffset cutoff)
+    private void ProcessAbandonedSession(
+        string sessionId,
+        string sessionDir,
+        DateTimeOffset cutoff,
+        string currentExePath,
+        string currentExeSha,
+        FileVersionInfo currentVersionInfo)
     {
         var loadResult = _sessionStore.LoadSessionAnyState(sessionId);
 
@@ -330,17 +339,27 @@ public sealed class UpdateLifecycleService
                 break;
 
             case UpdateSession.StatePrepared:
-                ProcessAbandonedPrepared(session, cutoff);
+                ProcessAbandonedPrepared(session, currentExePath, currentExeSha, currentVersionInfo);
                 break;
 
             case UpdateSession.StateApplied:
-                ProcessAbandonedApplied(session, cutoff);
+                ProcessAbandonedApplied(session, currentExePath, currentExeSha, currentVersionInfo);
                 break;
         }
     }
 
-    private void ProcessAbandonedPrepared(UpdateSession session, DateTimeOffset cutoff)
+    private void ProcessAbandonedPrepared(
+        UpdateSession session,
+        string currentExePath,
+        string currentExeSha,
+        FileVersionInfo currentVersionInfo)
     {
+        if (!IsCurrentProcessTarget(session, currentExePath))
+        {
+            _logger.Warning($"Update lifecycle: abandoned prepared session {session.SessionId} targets a foreign executable, preserving");
+            return;
+        }
+
         var targetPath = Path.GetFullPath(session.TargetPath);
         if (!File.Exists(targetPath))
         {
@@ -348,17 +367,17 @@ public sealed class UpdateLifecycleService
             return;
         }
 
-        var targetSha = HashHelper.ComputeFileSha256(targetPath);
+        var targetSha = currentExeSha;
         var isOriginal = !string.IsNullOrEmpty(session.OriginalExeSha256) &&
             string.Equals(targetSha, session.OriginalExeSha256, StringComparison.Ordinal);
 
         if (isOriginal)
         {
             _logger.Info($"Update lifecycle: abandoned prepared session {session.SessionId} — target is original, cleaning up verified siblings");
-            if (CleanupVerifiedSiblings(session))
+            if (MatchesVersion(currentVersionInfo, session.CurrentVersion) && CleanupVerifiedSiblings(session))
                 CleanupSessionDir(session.SessionId);
             else
-                _logger.Warning($"Update lifecycle: abandoned prepared session {session.SessionId} retained because sibling cleanup was not fully verified");
+                _logger.Warning($"Update lifecycle: abandoned prepared session {session.SessionId} retained because target/version/sibling verification failed");
         }
         else
         {
@@ -366,8 +385,18 @@ public sealed class UpdateLifecycleService
         }
     }
 
-    private void ProcessAbandonedApplied(UpdateSession session, DateTimeOffset cutoff)
+    private void ProcessAbandonedApplied(
+        UpdateSession session,
+        string currentExePath,
+        string currentExeSha,
+        FileVersionInfo currentVersionInfo)
     {
+        if (!IsCurrentProcessTarget(session, currentExePath))
+        {
+            _logger.Warning($"Update lifecycle: abandoned applied session {session.SessionId} targets a foreign executable, preserving");
+            return;
+        }
+
         var targetPath = Path.GetFullPath(session.TargetPath);
         if (!File.Exists(targetPath))
         {
@@ -375,10 +404,10 @@ public sealed class UpdateLifecycleService
             return;
         }
 
-        var targetSha = HashHelper.ComputeFileSha256(targetPath);
+        var targetSha = currentExeSha;
         var isNewTarget = !string.IsNullOrEmpty(session.StagedExeSha256) &&
             string.Equals(targetSha, session.StagedExeSha256, StringComparison.Ordinal) &&
-            MatchesVersion(_getFileVersionInfo(targetPath), session.TargetVersion);
+            MatchesVersion(currentVersionInfo, session.TargetVersion);
 
         if (isNewTarget)
         {
@@ -405,6 +434,21 @@ public sealed class UpdateLifecycleService
         var expectedProductVersion = $"{parsed.Value.Major}.{parsed.Value.Minor}.{parsed.Value.Build}";
         return string.Equals(versionInfo.FileVersion, expectedFileVersion, StringComparison.Ordinal) &&
             string.Equals(versionInfo.ProductVersion, expectedProductVersion, StringComparison.Ordinal);
+    }
+
+    private static bool IsCurrentProcessTarget(UpdateSession session, string currentExePath)
+    {
+        try
+        {
+            return string.Equals(
+                Path.GetFullPath(session.TargetPath),
+                currentExePath,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private void CleanupSessionDir(string sessionId)

@@ -210,25 +210,25 @@ public partial class MainForm : Form
             if (!_closing)
             {
                 _poller.Start(_apiResponse);
-                StartBackgroundUpdateCheck();
-                RunStartupLifecycleMaintenance();
+                await StartupUpdateLifecycleCoordinator.RunAsync(
+                    RunStartupLifecycleMaintenanceAsync,
+                    () => _closing,
+                    StartBackgroundUpdateCheck,
+                    ex => _logger.Warning($"Startup lifecycle maintenance failed: {ex.Message}"));
             }
         }
     }
 
-    private void RunStartupLifecycleMaintenance()
+    private async Task RunStartupLifecycleMaintenanceAsync()
     {
-        _ = Task.Run(() =>
+        try
         {
-            try
-            {
-                _updateLifecycle.RunStartupMaintenance();
-            }
-            catch (Exception ex)
-            {
-                _logger.Warning($"Startup lifecycle maintenance failed: {ex.Message}");
-            }
-        });
+            await Task.Run(() => _updateLifecycle.RunStartupMaintenance());
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"Startup lifecycle maintenance failed: {ex.Message}");
+        }
     }
 
     // --- Dynamic modes ---
@@ -1169,20 +1169,16 @@ public partial class MainForm : Form
 
         if (_stagedUpdateSession != null)
         {
+            var session = _stagedUpdateSession;
             try
             {
-                var targetDir = Path.GetDirectoryName(_stagedUpdateSession.TargetPath);
-                if (targetDir != null)
+                if (TryCleanupPreparedAttempt(session))
                 {
-                    var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{_stagedUpdateSession.SessionId}.new");
-                    if (File.Exists(candidatePath))
-                    {
-                        File.Delete(candidatePath);
-                        _logger.Debug($"Self-update: cleaned up candidate {candidatePath}");
-                    }
+                    _updateSessionStore.CleanupSession(session.SessionId);
+                    _logger.Debug($"Self-update: cleaned up session {session.SessionId}");
                 }
-                _updateSessionStore.CleanupSession(_stagedUpdateSession.SessionId);
-                _logger.Debug($"Self-update: cleaned up session {_stagedUpdateSession.SessionId}");
+                else
+                    _logger.Warning($"Self-update: retained session {session.SessionId} because candidate identity was not verified");
             }
             catch (Exception ex)
             {
@@ -1199,6 +1195,11 @@ public partial class MainForm : Form
         if (!_closing)
             _poller.Resume();
         RefreshUpdateButtonPresentation();
+    }
+
+    private bool TryCleanupPreparedAttempt(UpdateSession session)
+    {
+        return PreparedAttemptCleanup.TryDeleteCandidate(session, _logger);
     }
 
     private void CleanupAbandonedStagingSession()

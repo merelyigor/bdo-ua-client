@@ -160,6 +160,61 @@ public class UpdateLifecycleServiceTests : IDisposable
         Assert.True(Directory.Exists(_store.GetSessionDir(session.SessionId)));
     }
 
+    [Fact]
+    public void RunStartupMaintenance_AbandonedPreparedForeignTarget_PreservesCandidateAndSession()
+    {
+        var currentPath = Path.Combine(_tempRoot, "current", "BDO-UA-Client.exe");
+        var foreignPath = Path.Combine(_tempRoot, "foreign", "BDO-UA-Client.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(currentPath)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(foreignPath)!);
+        File.WriteAllText(currentPath, "old content");
+        File.WriteAllText(foreignPath, "old content");
+
+        var session = CreatePreparedSession(foreignPath);
+        session.CreatedAt = DateTimeOffset.UtcNow - TimeSpan.FromDays(8);
+        session.OriginalExeSha256 = HashHelper.ComputeFileSha256(foreignPath);
+        var candidatePath = Path.Combine(
+            Path.GetDirectoryName(foreignPath)!,
+            $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        File.WriteAllText(candidatePath, "new content");
+        session.StagedExeSha256 = HashHelper.ComputeFileSha256(candidatePath);
+        _store.WriteSession(session);
+
+        var service = CreateService(currentPath);
+        service.RunStartupMaintenance();
+
+        Assert.True(File.Exists(candidatePath));
+        Assert.True(File.Exists(foreignPath));
+        Assert.True(Directory.Exists(_store.GetSessionDir(session.SessionId)));
+    }
+
+    [Fact]
+    public void RunStartupMaintenance_AbandonedAppliedForeignTarget_PreservesBackupAndSession()
+    {
+        var currentPath = Path.Combine(_tempRoot, "current", "BDO-UA-Client.exe");
+        var foreignPath = Path.Combine(_tempRoot, "foreign", "BDO-UA-Client.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(currentPath)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(foreignPath)!);
+        File.WriteAllText(currentPath, "old content");
+        File.WriteAllText(foreignPath, "new content");
+
+        var session = CreateAppliedSession(foreignPath, HashHelper.ComputeFileSha256(foreignPath));
+        session.CreatedAt = DateTimeOffset.UtcNow - TimeSpan.FromDays(8);
+        var backupPath = Path.Combine(
+            Path.GetDirectoryName(foreignPath)!,
+            $"BDO-UA-Client.exe.update-{session.SessionId}.bak");
+        File.WriteAllText(backupPath, "old content");
+        session.OriginalExeSha256 = HashHelper.ComputeFileSha256(backupPath);
+        _store.WriteSession(session);
+
+        var service = CreateService(currentPath);
+        service.RunStartupMaintenance();
+
+        Assert.True(File.Exists(backupPath));
+        Assert.True(File.Exists(foreignPath));
+        Assert.True(Directory.Exists(_store.GetSessionDir(session.SessionId)));
+    }
+
     // --- §32 Retention tests ---
 
     [Fact]
@@ -242,6 +297,45 @@ public class UpdateLifecycleServiceTests : IDisposable
         Assert.True(File.Exists(Path.Combine(nonGuidDir, "test.txt")));
     }
 
+    [Fact]
+    public void RunStartupMaintenance_RetentionBoundary_ExactlySevenDays_IsEligible()
+    {
+        var now = new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero);
+        var targetPath = CreateCurrentTarget();
+        var session = CreateStagedSession(targetPath, now - TimeSpan.FromDays(7));
+        _store.WriteSession(session);
+
+        CreateService(targetPath, now).RunStartupMaintenance();
+
+        Assert.False(Directory.Exists(_store.GetSessionDir(session.SessionId)));
+    }
+
+    [Fact]
+    public void RunStartupMaintenance_RetentionBoundary_OneTickRecent_IsRetained()
+    {
+        var now = new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero);
+        var targetPath = CreateCurrentTarget();
+        var session = CreateStagedSession(targetPath, now - TimeSpan.FromDays(7) + TimeSpan.FromTicks(1));
+        _store.WriteSession(session);
+
+        CreateService(targetPath, now).RunStartupMaintenance();
+
+        Assert.True(Directory.Exists(_store.GetSessionDir(session.SessionId)));
+    }
+
+    [Fact]
+    public void RunStartupMaintenance_RetentionBoundary_OneTickOld_IsEligible()
+    {
+        var now = new DateTimeOffset(2026, 8, 19, 12, 0, 0, TimeSpan.Zero);
+        var targetPath = CreateCurrentTarget();
+        var session = CreateStagedSession(targetPath, now - TimeSpan.FromDays(7) - TimeSpan.FromTicks(1));
+        _store.WriteSession(session);
+
+        CreateService(targetPath, now).RunStartupMaintenance();
+
+        Assert.False(Directory.Exists(_store.GetSessionDir(session.SessionId)));
+    }
+
     // --- §33 Delete safety tests ---
 
     [Fact]
@@ -268,7 +362,7 @@ public class UpdateLifecycleServiceTests : IDisposable
 
     // --- Helpers ---
 
-    private UpdateLifecycleService CreateService(string currentProcessPath)
+    private UpdateLifecycleService CreateService(string currentProcessPath, DateTimeOffset? utcNow = null)
     {
         return new UpdateLifecycleService(
             _store,
@@ -288,7 +382,35 @@ public class UpdateLifecycleServiceTests : IDisposable
                     .GetField("_productVersion", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
                     .SetValue(info, version.Item2);
                 return info;
-            });
+            },
+            utcNow is null ? null : () => utcNow.Value);
+    }
+
+    private string CreateCurrentTarget()
+    {
+        var targetPath = Path.Combine(_tempRoot, "current", "BDO-UA-Client.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+        File.WriteAllText(targetPath, "old content");
+        return targetPath;
+    }
+
+    private static UpdateSession CreateStagedSession(string targetPath, DateTimeOffset createdAt)
+    {
+        return new UpdateSession
+        {
+            SchemaVersion = 1,
+            SessionId = Guid.NewGuid().ToString("D"),
+            CreatedAt = createdAt,
+            State = UpdateSession.StateStaged,
+            CurrentVersion = "0.1.3",
+            TargetVersion = "0.1.4",
+            TargetTag = "v0.1.4",
+            TargetPath = targetPath,
+            ParentPid = 12345,
+            PackageAssetName = "BDO-UA-Client-v0.1.4-win-x64.zip",
+            PackageSha256 = new string('a', 64),
+            StagedExeSha256 = new string('b', 64)
+        };
     }
 
     private UpdateSession CreateAppliedSession(string targetPath, string stagedExeSha)
