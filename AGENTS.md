@@ -569,7 +569,7 @@ BDO-UA-Client/
 - Після першого рядка — порожній рядок, потім **детальний опис** того, що зроблено
 - Опис містить: що реалізовано, що змінено, що оновлено, чому саме так (якщо неочевидно)
 - Кожен завершений етап/підетап — окремий коміт
-- Деталі в `plan.md` (розділ "Правила комітів та версійності")
+- Деталі в `docs/plans/active/client-self-update.md` (розділ "Правила комітів та версійності")
 
 §34.3 **Звіт після коміту/пушу — ОБОВ'ЯЗКОВИЙ.** Після кожного коміту та пушу агент повинен чітко повідомити:
 
@@ -680,9 +680,13 @@ BDO-UA-Client/
 
 ## §39 📋 Плани
 
-§39.1 `/plan.md` — canonical ACTIVE plan. `docs/plans/archive/` — historical plans, never active instructions.
+§39.1 `docs/plans/README.md` — canonical plans registry. Реєстр містить ACTIVE, BACKLOG та ARCHIVED плани.
 
-§39.2 Archived plans must not override AGENTS.md or active plan.md.
+§39.2 Implementation plans live only in `docs/plans/active/`, `docs/plans/backlog/`, `docs/plans/archive/`. No canonical `/plan.md` in repository root.
+
+§39.3 Exactly one ACTIVE plan should be marked PRIMARY. BACKLOG plans must NOT be implemented automatically. ARCHIVED plans are historical references only.
+
+§39.4 Moving lifecycle state requires file move + registry update in same commit. Folder status and registry status must always match.
 
 ---
 
@@ -722,4 +726,4 @@ BDO-UA-Client/
 
 §41.11 Stage 13 first implementation: NO automatic UAC elevation.
 
-§41.12 Detailed implementation roadmap живе тільки у canonical `/plan.md` (розділ Stage 13).
+§41.12 Detailed implementation roadmap живе тільки у canonical `docs/plans/active/client-self-update.md` (розділ Stage 13).

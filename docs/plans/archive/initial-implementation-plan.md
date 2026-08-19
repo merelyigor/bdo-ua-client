@@ -1,7 +1,7 @@
 > **Status: ARCHIVED**
 > **Coverage:** Stage 1 through v12.2
 > **Last accepted baseline:** `5d79f567f8b1937a53ae68173021d89f0c813c5d`
-> **Current active plan:** [/plan.md](/plan.md)
+> **Current active plan:** [docs/plans/README.md](../README.md) (see registry)
 > **This document is historical and must NOT be treated as active implementation instructions.**
 
 ---

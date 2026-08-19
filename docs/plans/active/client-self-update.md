@@ -1,4 +1,12 @@
-# BDO UA Client — Active Plan
+# Client Self-Update
+
+Plan ID: `client-self-update`
+Status: **ACTIVE**
+Focus: **PRIMARY**
+Current phase: v13.1.2 accepted
+Next action: v13.2 — add verified update package staging
+
+---
 
 ## Accepted baseline (before E2E iteration)
 
@@ -706,6 +714,6 @@ Program                     — detect internal updater mode vs normal UI
 
 ## Історичні плани
 
-Детальний план Stage 1–12.2: [docs/plans/archive/initial-implementation-plan.md](docs/plans/archive/initial-implementation-plan.md)
+Детальний план Stage 1–12.2: [../archive/initial-implementation-plan.md](../archive/initial-implementation-plan.md)
 
 Історія змін: Git commits.
