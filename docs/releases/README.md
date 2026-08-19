@@ -14,7 +14,7 @@ Production GitHub Releases завжди публікуються вручну в
 - GitHub Actions → **Release Candidate** → **Run workflow**
 - Оберіть гілку `main`
 - **Version**: залиште порожнім для автоматичного наступного patch (найпоширеніший випадок), або введіть версію вручну для minor/major
-- Дочекайтеся завершення: Validate → Resolve → Build → Test → Publish → Package → Tag
+- Дочекайтеся завершення: Validate → Resolve → Build → Test → Publish → Prepare flat release artifact → SHA/manifest/notes → Tag
 
 #### Автоматична версія (порожнє поле)
 
@@ -28,7 +28,7 @@ Production GitHub Releases завжди публікуються вручну в
 
 ### 3. Завантаження artifact
 
-- Завантажте artifact `BDO-UA-Client-vX.Y.Z-release-assets` з workflow run
+- Завантажте artifact `BDO-UA-Client-vX.Y.Z-win-x64` з workflow run
 - Всередині flat-файли: `BDO-UA-Client.exe`, SHA256SUMS.txt, release-manifest.json, RELEASE_NOTES
 - Локально протестуйте EXE
 - Перевірте SHA-256 за бажанням

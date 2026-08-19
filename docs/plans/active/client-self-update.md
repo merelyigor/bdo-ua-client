@@ -3,7 +3,7 @@
 Plan ID: `client-self-update`
 Status: **ACTIVE**
 Focus: **PRIMARY**
-Current phase: v13.4.2 implemented — pending acceptance
+Current phase: v13.4.2.1 implemented — pending acceptance
 Next action: v13.5 — real published-release E2E verification
 ONLY after v13.4.2 acceptance
 
@@ -473,7 +473,7 @@ Program                     — detect internal updater mode vs normal UI
 - HTTPS only; no TLS bypass
 - Streaming download; bounded memory
 - Don't trust manifest URLs for download (use GitHub API asset URL)
-- Don't run extracted EXE before full validation
+- Don't run downloaded/staged EXE before full validation
 
 **Automated tests:**
 - Manifest: valid, wrong schema, version mismatch, tag mismatch, platform mismatch, invalid SHA, missing manifest, missing EXE, wrong asset_name
