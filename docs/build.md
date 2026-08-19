@@ -83,7 +83,7 @@ Trimming може видалити типи, які використовують
 
 Мета: швидка перевірка кожного коміту/PR на компільність та проходження тестів.
 
-### .github/workflows/release-build.yml
+### .github/workflows/test-build.yml
 
 **Trigger:** `workflow_dispatch` (ручний запуск).
 
@@ -94,9 +94,9 @@ Trimming може видалити типи, які використовують
 4. Build Release: `dotnet build BdoUaClient.sln -c Release --no-restore`
 5. Test Release: `dotnet test BdoUaClient.sln -c Release --no-build`
 6. Publish single-file: `dotnet publish BdoClient.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false -p:AssemblyName=BDO-UA-Client -o artifacts/publish/win-x64`
-7. Upload artifact: тільки `BDO-UA-Client.exe`
+7. Upload artifact: тільки `BDO-UA-Client.exe` (artifact: `BDO-UA-Client-test-build`)
 
-Restore + Build + Test обов'язкові перед publish.
+Призначення: тестовий білд для перевірок. Не створює тег, не генерує реліз-нотатки.
 
 ## Actions artifact vs public package
 
@@ -116,9 +116,10 @@ Restore + Build + Test обов'язкові перед publish.
 - **Trigger:** push до main, PR до main
 - Автоматична перевірка кожного коміту/PR на компільність та проходження тестів
 
-### B. Release Build (`release-build.yml`)
+### B. Test Build (`test-build.yml`)
 - **Trigger:** `workflow_dispatch` (ручний запуск)
-- Загальний E2E/testing artifact без версії/тегу
+- Тестовий білд для перевірок без версії/тегу
+- Artifact: `BDO-UA-Client-test-build` (тільки EXE)
 - НЕ створює GitHub Release
 
 ### C. Release Candidate (`release-candidate.yml`)

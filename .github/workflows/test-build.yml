@@ -1,4 +1,4 @@
-name: Release Build
+name: Test Build
 
 on:
   workflow_dispatch:
@@ -40,5 +40,5 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: BDO-UA-Client-win-x64
+        name: BDO-UA-Client-test-build
         path: artifacts/publish/win-x64/BDO-UA-Client.exe
