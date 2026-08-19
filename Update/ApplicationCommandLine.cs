@@ -20,25 +20,25 @@ public sealed class ApplicationCommandLine
 
     public static ApplicationCommandLine Parse(string[] args)
     {
-        int applyUpdateIndex = -1;
+        // Fast path: no --apply-update anywhere → Normal
+        int flagIndex = -1;
         for (int i = 0; i < args.Length; i++)
         {
             if (string.Equals(args[i], "--apply-update", StringComparison.Ordinal))
             {
-                if (applyUpdateIndex >= 0)
-                    return new ApplicationCommandLine(CommandLineMode.InvalidApplyUpdate, null);
-                applyUpdateIndex = i;
+                flagIndex = i;
+                break;
             }
         }
 
-        if (applyUpdateIndex < 0)
+        if (flagIndex < 0)
             return new ApplicationCommandLine(CommandLineMode.Normal, null);
 
-        // --apply-update must be last flag with exactly one following arg
-        if (applyUpdateIndex != args.Length - 2)
+        // Exact grammar: ["--apply-update", <canonical-guid>]
+        if (args.Length != 2 || flagIndex != 0)
             return new ApplicationCommandLine(CommandLineMode.InvalidApplyUpdate, null);
 
-        var sessionId = args[applyUpdateIndex + 1];
+        var sessionId = args[1];
         if (!UpdateSessionStore.IsValidSessionId(sessionId))
             return new ApplicationCommandLine(CommandLineMode.InvalidApplyUpdate, null);
 

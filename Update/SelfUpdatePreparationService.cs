@@ -142,21 +142,33 @@ public sealed class SelfUpdatePreparationService
         var originalExeSha = await HashHelper.ComputeFileSha256Async(session.TargetPath, cancellationToken);
         _logger.Debug($"Self-update: original EXE SHA-256 = {originalExeSha}");
 
-        // 10. Create candidate sibling (fail-closed: no overwrite)
+        // 10. Check backup collision before handoff
         var targetDir = Path.GetDirectoryName(session.TargetPath)!;
         var targetFileName = Path.GetFileName(session.TargetPath);
-        var candidatePath = Path.Combine(targetDir, $"{targetFileName}.update-{sessionId}.new");
+        var backupPath = Path.Combine(targetDir, $"{targetFileName}.update-{sessionId}.bak");
 
-        if (File.Exists(candidatePath))
+        if (File.Exists(backupPath))
         {
-            _logger.Error($"Self-update preparation failed: candidate already exists at {candidatePath}");
-            return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.CandidateCollision, "Candidate file already exists");
+            _logger.Error($"Self-update preparation failed: backup already exists at {backupPath}");
+            return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.BackupCollision, "Backup file already exists");
         }
+
+        // 11. Create candidate sibling (fail-closed: no overwrite via CreateNew)
+        var candidatePath = Path.Combine(targetDir, $"{targetFileName}.update-{sessionId}.new");
 
         try
         {
-            await HashHelper.CopyFileAsync(stagedExePath, candidatePath, cancellationToken);
+            await HashHelper.CopyFileCreateNewAsync(stagedExePath, candidatePath, cancellationToken);
             _logger.Debug($"Self-update: copied staged EXE to candidate {candidatePath}");
+        }
+        catch (IOException ex) when (ex.HResult == unchecked((int)0x80070050)) // ERROR_FILE_EXISTS
+        {
+            _logger.Error($"Self-update preparation failed: candidate created between pre-check and open at {candidatePath}");
+            return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.CandidateCollision, "Candidate file was created during copy");
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -220,6 +232,7 @@ public enum SelfUpdatePreparationError
     VersionMismatch,
     TargetInvalid,
     TargetMissing,
+    BackupCollision,
     CandidateCollision,
     CandidateCopyFailed,
     SessionWriteFailed

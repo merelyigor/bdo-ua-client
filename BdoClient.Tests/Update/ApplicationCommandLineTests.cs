@@ -69,13 +69,11 @@ public class ApplicationCommandLineTests
     }
 
     [Fact]
-    public void Parse_PrefixUnrelatedArg_ReturnsApplyUpdate()
+    public void Parse_PrefixUnrelatedArg_ReturnsInvalid()
     {
         var sessionId = Guid.NewGuid().ToString("D");
-        // "x" before --apply-update but --apply-update is still last command with one arg
         var cmd = ApplicationCommandLine.Parse(new[] { "x", "--apply-update", sessionId });
-        Assert.Equal(CommandLineMode.ApplyUpdate, cmd.Mode);
-        Assert.Equal(sessionId, cmd.ApplyUpdateSessionId);
+        Assert.Equal(CommandLineMode.InvalidApplyUpdate, cmd.Mode);
     }
 
     [Fact]
@@ -98,6 +96,22 @@ public class ApplicationCommandLineTests
     public void Parse_EmptyId_ReturnsInvalid()
     {
         var cmd = ApplicationCommandLine.Parse(new[] { "--apply-update", "" });
+        Assert.Equal(CommandLineMode.InvalidApplyUpdate, cmd.Mode);
+    }
+
+    [Fact]
+    public void Parse_FlagAtIndex1_ReturnsInvalid()
+    {
+        var sessionId = Guid.NewGuid().ToString("D");
+        var cmd = ApplicationCommandLine.Parse(new[] { "x", "--apply-update", sessionId });
+        Assert.Equal(CommandLineMode.InvalidApplyUpdate, cmd.Mode);
+    }
+
+    [Fact]
+    public void Parse_FlagNotAtStart_ReturnsInvalid()
+    {
+        var sessionId = Guid.NewGuid().ToString("D");
+        var cmd = ApplicationCommandLine.Parse(new[] { "--other", "--apply-update", sessionId });
         Assert.Equal(CommandLineMode.InvalidApplyUpdate, cmd.Mode);
     }
 }

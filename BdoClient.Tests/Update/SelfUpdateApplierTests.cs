@@ -119,11 +119,12 @@ public class SelfUpdateApplierTests : IDisposable
         session.TargetPath = Path.Combine(_tempRoot, "target", "BDO-UA-Client.exe");
         var targetDir = Path.GetDirectoryName(session.TargetPath)!;
         Directory.CreateDirectory(targetDir);
-        File.WriteAllText(session.TargetPath, "target content");
+        File.WriteAllText(session.TargetPath, "helper content");
 
         var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
         File.WriteAllText(candidatePath, "helper content");
 
+        session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
         store.WriteSession(session);
         var applier = CreateApplier(store, helperPath, parentRunning: true);
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
@@ -144,7 +145,7 @@ public class SelfUpdateApplierTests : IDisposable
         session.TargetPath = Path.Combine(_tempRoot, "target", "BDO-UA-Client.exe");
         var targetDir = Path.GetDirectoryName(session.TargetPath)!;
         Directory.CreateDirectory(targetDir);
-        File.WriteAllText(session.TargetPath, "target content");
+        File.WriteAllText(session.TargetPath, "old target content");
         session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
 
         var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
@@ -157,7 +158,6 @@ public class SelfUpdateApplierTests : IDisposable
         var result = await applier.RunAsync(session.SessionId);
         Assert.Equal(SelfUpdateApplier.ExitCodeReplaceFailed, result);
 
-        // Backup must NOT be deleted
         Assert.True(File.Exists(backupPath));
         Assert.Equal("existing backup", File.ReadAllText(backupPath));
     }
@@ -176,8 +176,7 @@ public class SelfUpdateApplierTests : IDisposable
         var targetDir = Path.GetDirectoryName(session.TargetPath)!;
         Directory.CreateDirectory(targetDir);
         File.WriteAllText(session.TargetPath, "old content");
-        var originalSha = await HashHelper.ComputeFileSha256Async(session.TargetPath);
-        session.OriginalExeSha256 = originalSha;
+        session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
 
         var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
         File.WriteAllText(candidatePath, "helper content");
@@ -186,7 +185,6 @@ public class SelfUpdateApplierTests : IDisposable
         var applier = CreateApplier(store, helperPath);
         var result = await applier.RunAsync(session.SessionId);
 
-        // File.Replace succeeds but restart returns null → rollback → original content restored
         Assert.Equal(SelfUpdateApplier.ExitCodeRestartFailed, result);
         Assert.Equal("old content", File.ReadAllText(session.TargetPath));
     }
@@ -205,8 +203,7 @@ public class SelfUpdateApplierTests : IDisposable
         var targetDir = Path.GetDirectoryName(session.TargetPath)!;
         Directory.CreateDirectory(targetDir);
         File.WriteAllText(session.TargetPath, "old content");
-        var originalSha = await HashHelper.ComputeFileSha256Async(session.TargetPath);
-        session.OriginalExeSha256 = originalSha;
+        session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
 
         var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
         File.WriteAllText(candidatePath, "helper content");
@@ -216,9 +213,171 @@ public class SelfUpdateApplierTests : IDisposable
         var result = await applier.RunAsync(session.SessionId);
 
         Assert.Equal(SelfUpdateApplier.ExitCodeRestartFailed, result);
-
-        // After rollback, target should have old content
         Assert.Equal("old content", File.ReadAllText(session.TargetPath));
+    }
+
+    [Fact]
+    public async Task RunAsync_SuccessfulRestart_ReturnsSuccessAndNewContent()
+    {
+        var store = new UpdateSessionStore(_appPaths, _logger);
+        var session = MakePreparedSession(store);
+        var stagedDir = store.GetSessionDir(session.SessionId);
+        var helperPath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
+        File.WriteAllText(helperPath, "new version content");
+        session.StagedExeSha256 = await HashHelper.ComputeFileSha256Async(helperPath);
+
+        session.TargetPath = Path.Combine(_tempRoot, "target", "BDO-UA-Client.exe");
+        var targetDir = Path.GetDirectoryName(session.TargetPath)!;
+        Directory.CreateDirectory(targetDir);
+        File.WriteAllText(session.TargetPath, "old version content");
+        session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
+
+        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        File.WriteAllText(candidatePath, "new version content");
+
+        store.WriteSession(session);
+
+        ProcessStartInfo? capturedPsi = null;
+        var dummyProcess = Process.GetCurrentProcess();
+        var applier = new SelfUpdateApplier(
+            store,
+            _logger,
+            () => helperPath,
+            path => MakeVersionInfoForPath(path, helperPath),
+            _ => false,
+            psi => { capturedPsi = psi; _startedProcesses.Add(psi); return dummyProcess; });
+
+        var result = await applier.RunAsync(session.SessionId);
+
+        Assert.Equal(SelfUpdateApplier.ExitCodeSuccess, result);
+        Assert.Equal("new version content", File.ReadAllText(session.TargetPath));
+
+        var backupPath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.bak");
+        Assert.True(File.Exists(backupPath));
+        Assert.Equal("old version content", File.ReadAllText(backupPath));
+
+        var reloadedResult = store.LoadSessionForState(session.SessionId, UpdateSession.StateApplied);
+        Assert.Equal(UpdateSessionLoadStatus.Valid, reloadedResult.Status);
+        Assert.NotNull(reloadedResult.Session);
+
+        Assert.NotNull(capturedPsi);
+        Assert.Equal(session.TargetPath, capturedPsi!.FileName);
+        Assert.False(capturedPsi.UseShellExecute);
+        Assert.Equal(targetDir, capturedPsi.WorkingDirectory);
+        Assert.Empty(capturedPsi.ArgumentList);
+    }
+
+    [Fact]
+    public async Task RunAsync_PostReplaceTargetVerificationFails_RollsBack()
+    {
+        var store = new UpdateSessionStore(_appPaths, _logger);
+        var session = MakePreparedSession(store);
+        var stagedDir = store.GetSessionDir(session.SessionId);
+        var helperPath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
+        File.WriteAllText(helperPath, "new version content");
+        session.StagedExeSha256 = await HashHelper.ComputeFileSha256Async(helperPath);
+
+        session.TargetPath = Path.Combine(_tempRoot, "target", "BDO-UA-Client.exe");
+        var targetDir = Path.GetDirectoryName(session.TargetPath)!;
+        Directory.CreateDirectory(targetDir);
+        File.WriteAllText(session.TargetPath, "old version content");
+        session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
+
+        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        File.WriteAllText(candidatePath, "new version content");
+
+        store.WriteSession(session);
+
+        var postReplaceVersionOverride = false;
+        var applier = new SelfUpdateApplier(
+            store,
+            _logger,
+            () => helperPath,
+            path =>
+            {
+                if (postReplaceVersionOverride && File.Exists(path) &&
+                    string.Equals(Path.GetFullPath(path), Path.GetFullPath(session.TargetPath), StringComparison.OrdinalIgnoreCase))
+                {
+                    var fakeInfo = FileVersionInfo.GetVersionInfo(typeof(object).Assembly.Location);
+                    typeof(FileVersionInfo).GetField("_fileVersion", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(fakeInfo, "99.99.99.0");
+                    typeof(FileVersionInfo).GetField("_productVersion", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(fakeInfo, "99.99.99");
+                    return fakeInfo;
+                }
+                return MakeVersionInfoForPath(path, helperPath);
+            },
+            _ => false,
+            psi => { _startedProcesses.Add(psi); return null; });
+
+        var originalTargetSha = session.OriginalExeSha256;
+
+        File.WriteAllText(helperPath, "interference");
+        var result = await applier.RunAsync(session.SessionId);
+
+        Assert.Equal(SelfUpdateApplier.ExitCodeVerificationFailed, result);
+        Assert.True(File.Exists(session.TargetPath));
+        var restoredSha = await HashHelper.ComputeFileSha256Async(session.TargetPath);
+        Assert.Equal(originalTargetSha, restoredSha);
+    }
+
+    [Fact]
+    public async Task RunAsync_RestartThrows_RollsBackAndReturnsRestartFailed()
+    {
+        var store = new UpdateSessionStore(_appPaths, _logger);
+        var session = MakePreparedSession(store);
+        var stagedDir = store.GetSessionDir(session.SessionId);
+        var helperPath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
+        File.WriteAllText(helperPath, "helper content");
+        session.StagedExeSha256 = await HashHelper.ComputeFileSha256Async(helperPath);
+
+        session.TargetPath = Path.Combine(_tempRoot, "target", "BDO-UA-Client.exe");
+        var targetDir = Path.GetDirectoryName(session.TargetPath)!;
+        Directory.CreateDirectory(targetDir);
+        File.WriteAllText(session.TargetPath, "old content");
+        session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
+
+        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        File.WriteAllText(candidatePath, "helper content");
+
+        store.WriteSession(session);
+        var applier = CreateApplierWithThrowingRestart(store, helperPath);
+        var result = await applier.RunAsync(session.SessionId);
+
+        Assert.Equal(SelfUpdateApplier.ExitCodeRestartFailed, result);
+        Assert.Equal("old content", File.ReadAllText(session.TargetPath));
+
+        var backupPath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.bak");
+        Assert.False(File.Exists(backupPath));
+    }
+
+    [Fact]
+    public async Task RunAsync_FailedNewCollision_SkipsRollback()
+    {
+        var store = new UpdateSessionStore(_appPaths, _logger);
+        var session = MakePreparedSession(store);
+        var stagedDir = store.GetSessionDir(session.SessionId);
+        var helperPath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
+        File.WriteAllText(helperPath, "helper content");
+        session.StagedExeSha256 = await HashHelper.ComputeFileSha256Async(helperPath);
+
+        session.TargetPath = Path.Combine(_tempRoot, "target", "BDO-UA-Client.exe");
+        var targetDir = Path.GetDirectoryName(session.TargetPath)!;
+        Directory.CreateDirectory(targetDir);
+        File.WriteAllText(session.TargetPath, "old content");
+        session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
+
+        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        File.WriteAllText(candidatePath, "helper content");
+
+        var failedNewPath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.failed-new");
+        File.WriteAllText(failedNewPath, "collision content");
+
+        store.WriteSession(session);
+        var applier = CreateApplierWithNullRestart(store, helperPath);
+        var result = await applier.RunAsync(session.SessionId);
+
+        Assert.Equal(SelfUpdateApplier.ExitCodeRestartFailed, result);
+        Assert.True(File.Exists(failedNewPath));
+        Assert.Equal("collision content", File.ReadAllText(failedNewPath));
     }
 
     // --- Helpers ---
@@ -247,19 +406,25 @@ public class SelfUpdateApplierTests : IDisposable
             psi => { _startedProcesses.Add(psi); return null; });
     }
 
+    private SelfUpdateApplier CreateApplierWithThrowingRestart(UpdateSessionStore store, string currentPath)
+    {
+        _startedProcesses.Clear();
+        return new SelfUpdateApplier(
+            store,
+            _logger,
+            () => currentPath,
+            path => MakeVersionInfoForPath(path, currentPath),
+            _ => false,
+            psi => { throw new InvalidOperationException("process start denied"); });
+    }
+
     private static FileVersionInfo MakeVersionInfoForPath(string path, string helperPath)
     {
         var info = FileVersionInfo.GetVersionInfo(typeof(object).Assembly.Location);
-        var isHelper = string.Equals(
-            Path.GetFullPath(path),
-            Path.GetFullPath(helperPath),
-            StringComparison.OrdinalIgnoreCase);
 
-        // Return target version if file content matches staged exe (helper or post-replace target),
-        // otherwise return current version
         string fileVer;
         string prodVer;
-        if (isHelper || (File.Exists(path) && FileHashesMatch(path, helperPath)))
+        if (File.Exists(path) && FileHashesMatch(path, helperPath))
         {
             fileVer = "0.1.4.0";
             prodVer = "0.1.4";
@@ -310,7 +475,6 @@ public class SelfUpdateApplierTests : IDisposable
             StagedExeSha256 = new string('b', 64),
             OriginalExeSha256 = new string('c', 64)
         };
-        // Pre-create the session directory so we can write staged files
         var stagedDir = store.GetSessionDir(session.SessionId);
         Directory.CreateDirectory(stagedDir);
         return session;

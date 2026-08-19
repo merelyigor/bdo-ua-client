@@ -1076,20 +1076,24 @@ public partial class MainForm : Form
             _operationCts?.Dispose();
             _operationCts = null;
             _operationInProgress = false;
-            SetControlsDuringOperation(true);
 
-            try
+            if (!_updateHandoffInProgress)
             {
-                if (finalMessage != null)
-                    SetMessage(finalMessage);
+                SetControlsDuringOperation(true);
 
-                await _feedCoordinator.ApplyPendingIfAnyAsync();
-            }
-            finally
-            {
-                _feedCoordinator.UnblockUpdates();
-                if (!_closing)
-                    _poller.Resume();
+                try
+                {
+                    if (finalMessage != null)
+                        SetMessage(finalMessage);
+
+                    await _feedCoordinator.ApplyPendingIfAnyAsync();
+                }
+                finally
+                {
+                    _feedCoordinator.UnblockUpdates();
+                    if (!_closing)
+                        _poller.Resume();
+                }
             }
         }
     }
@@ -1113,6 +1117,23 @@ public partial class MainForm : Form
 
     private void RestorePostHandoffFailureState()
     {
+        // Cleanup candidate sibling and prepared session for this attempt
+        if (_stagedUpdateSession != null)
+        {
+            try
+            {
+                var targetDir = Path.GetDirectoryName(_stagedUpdateSession.TargetPath);
+                if (targetDir != null)
+                {
+                    var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{_stagedUpdateSession.SessionId}.new");
+                    if (File.Exists(candidatePath))
+                        File.Delete(candidatePath);
+                }
+                _updateSessionStore.CleanupSession(_stagedUpdateSession.SessionId);
+            }
+            catch { /* best-effort cleanup */ }
+        }
+
         _operationInProgress = false;
         _updateHandoffInProgress = false;
         _stagedUpdateSession = null;

@@ -113,6 +113,7 @@ public sealed class SelfUpdateApplier
         var targetFileName = Path.GetFileName(targetPath);
         var candidatePath = Path.Combine(targetDir, $"{targetFileName}.update-{sessionId}.new");
         var backupPath = Path.Combine(targetDir, $"{targetFileName}.update-{sessionId}.bak");
+        var failedNewPath = Path.Combine(targetDir, $"{targetFileName}.update-{sessionId}.failed-new");
 
         // 6. Verify candidate exists and hash matches
         if (!File.Exists(candidatePath))
@@ -138,7 +139,7 @@ public sealed class SelfUpdateApplier
             return ExitCodeParentTimeout;
         }
 
-        // 8. Final pre-replace revalidation (reload session from disk)
+        // 8. Final pre-replace revalidation (reload session from disk, canonical from here on)
         var reloadedResult = _sessionStore.LoadSessionForState(sessionId, UpdateSession.StatePrepared);
         if (reloadedResult.Status != UpdateSessionLoadStatus.Valid || reloadedResult.Session == null)
         {
@@ -147,6 +148,18 @@ public sealed class SelfUpdateApplier
         }
 
         var reloadedSession = reloadedResult.Session;
+
+        // Compare critical immutable fields between initial and reloaded session
+        if (!string.Equals(session.SessionId, reloadedSession.SessionId, StringComparison.Ordinal) ||
+            !string.Equals(session.TargetPath, reloadedSession.TargetPath, StringComparison.Ordinal) ||
+            !string.Equals(session.CurrentVersion, reloadedSession.CurrentVersion, StringComparison.Ordinal) ||
+            !string.Equals(session.TargetVersion, reloadedSession.TargetVersion, StringComparison.Ordinal) ||
+            !string.Equals(session.StagedExeSha256, reloadedSession.StagedExeSha256, StringComparison.Ordinal) ||
+            !string.Equals(session.OriginalExeSha256, reloadedSession.OriginalExeSha256, StringComparison.Ordinal))
+        {
+            _logger.Error("Self-update apply: reloaded session differs from initial — failing closed");
+            return ExitCodeVerificationFailed;
+        }
 
         // Revalidate target
         if (!File.Exists(targetPath))
@@ -209,7 +222,7 @@ public sealed class SelfUpdateApplier
         catch (Exception ex)
         {
             _logger.Error($"Self-update apply: File.Replace failed: {ex.Message}");
-            await TryRecoverAsync(targetPath, backupPath, reloadedSession, cancellationToken);
+            await TryRecoverAsync(targetPath, backupPath, reloadedSession, failedNewPath, cancellationToken);
             return ExitCodeReplaceFailed;
         }
 
@@ -220,7 +233,7 @@ public sealed class SelfUpdateApplier
             if (!File.Exists(targetPath))
             {
                 _logger.Error("Self-update apply: target missing after File.Replace");
-                await TryRecoverAsync(targetPath, backupPath, reloadedSession, cancellationToken);
+                await TryRecoverAsync(targetPath, backupPath, reloadedSession, failedNewPath, cancellationToken);
                 return ExitCodeVerificationFailed;
             }
 
@@ -228,7 +241,7 @@ public sealed class SelfUpdateApplier
             if (!string.Equals(replacedSha, reloadedSession.StagedExeSha256, StringComparison.Ordinal))
             {
                 _logger.Error($"Self-update apply: replaced target SHA mismatch ({replacedSha} != {reloadedSession.StagedExeSha256})");
-                await TryRecoverAsync(targetPath, backupPath, reloadedSession, cancellationToken);
+                await TryRecoverAsync(targetPath, backupPath, reloadedSession, failedNewPath, cancellationToken);
                 return ExitCodeVerificationFailed;
             }
 
@@ -237,7 +250,7 @@ public sealed class SelfUpdateApplier
                 string.IsNullOrWhiteSpace(replacedVersionInfo.ProductVersion))
             {
                 _logger.Error("Self-update apply: replaced target has no version metadata");
-                await TryRecoverAsync(targetPath, backupPath, reloadedSession, cancellationToken);
+                await TryRecoverAsync(targetPath, backupPath, reloadedSession, failedNewPath, cancellationToken);
                 return ExitCodeVerificationFailed;
             }
 
@@ -245,21 +258,22 @@ public sealed class SelfUpdateApplier
                 !string.Equals(replacedVersionInfo.ProductVersion, expectedProductVersion, StringComparison.Ordinal))
             {
                 _logger.Error($"Self-update apply: replaced target version mismatch (FileVersion={replacedVersionInfo.FileVersion}, ProductVersion={replacedVersionInfo.ProductVersion})");
-                await TryRecoverAsync(targetPath, backupPath, reloadedSession, cancellationToken);
+                await TryRecoverAsync(targetPath, backupPath, reloadedSession, failedNewPath, cancellationToken);
                 return ExitCodeVerificationFailed;
             }
 
             // Verify backup
             if (!File.Exists(backupPath))
             {
-                _logger.Error("Self-update apply: backup missing after File.Replace");
+                _logger.Error("Self-update apply: backup missing after File.Replace — critical recovery-integrity failure");
+                // Do NOT rollback — the new target is verified valid, backup is unrecoverable
                 return ExitCodeVerificationFailed;
             }
 
             var backupSha = await HashHelper.ComputeFileSha256Async(backupPath, cancellationToken);
             if (!string.Equals(backupSha, reloadedSession.OriginalExeSha256, StringComparison.Ordinal))
             {
-                _logger.Error($"Self-update apply: backup SHA mismatch ({backupSha} != {reloadedSession.OriginalExeSha256})");
+                _logger.Error($"Self-update apply: backup SHA mismatch after File.Replace ({backupSha} != {reloadedSession.OriginalExeSha256}) — backup unusable, preserving valid new target");
                 return ExitCodeVerificationFailed;
             }
 
@@ -282,7 +296,7 @@ public sealed class SelfUpdateApplier
         catch (Exception ex)
         {
             _logger.Error($"Self-update apply: post-replace verification exception: {ex.Message}");
-            await TryRecoverAsync(targetPath, backupPath, reloadedSession, cancellationToken);
+            await TryRecoverAsync(targetPath, backupPath, reloadedSession, failedNewPath, cancellationToken);
             return ExitCodeVerificationFailed;
         }
 
@@ -302,20 +316,20 @@ public sealed class SelfUpdateApplier
         catch (Exception ex)
         {
             _logger.Error($"Self-update: restart new failed: {ex.Message}");
-            await TryRollbackAsync(targetPath, backupPath, reloadedSession, cancellationToken);
-            return await RestartOldAsync(targetPath, backupPath, reloadedSession, cancellationToken);
+            var rollbackOk = await TryRollbackAsync(targetPath, backupPath, failedNewPath, reloadedSession, cancellationToken);
+            return ExitCodeRestartFailed;
         }
 
         if (newProcess == null)
         {
             _logger.Error("Self-update: restart new returned null");
-            await TryRollbackAsync(targetPath, backupPath, reloadedSession, cancellationToken);
-            return await RestartOldAsync(targetPath, backupPath, reloadedSession, cancellationToken);
+            var rollbackOk = await TryRollbackAsync(targetPath, backupPath, failedNewPath, reloadedSession, cancellationToken);
+            return ExitCodeRestartFailed;
         }
 
-        // 12. Mark session applied ONLY after successful restart
-        session.State = UpdateSession.StateApplied;
-        var writeResult = _sessionStore.WriteSession(session);
+        // 12. Mark session applied ONLY after successful restart — use reloaded session
+        reloadedSession.State = UpdateSession.StateApplied;
+        var writeResult = _sessionStore.WriteSession(reloadedSession);
         if (!writeResult.IsSuccess)
         {
             _logger.Warning("Self-update: failed to mark session as applied (process already started, continuing)");
@@ -325,100 +339,35 @@ public sealed class SelfUpdateApplier
         return ExitCodeSuccess;
     }
 
-    private async Task<int> RestartOldAsync(string targetPath, string backupPath, UpdateSession session, CancellationToken cancellationToken)
-    {
-        // Rollback already done by caller, now try to start the old app
-        try
-        {
-            if (!File.Exists(targetPath))
-            {
-                _logger.Error("Self-update: cannot restart old — target missing after rollback");
-                return ExitCodeRestartFailed;
-            }
-
-            // Verify rollback restored correct old version
-            var restoredSha = await HashHelper.ComputeFileSha256Async(targetPath, cancellationToken);
-            if (!string.Equals(restoredSha, session.OriginalExeSha256, StringComparison.Ordinal))
-            {
-                _logger.Error("Self-update: cannot restart old — rollback verification failed");
-                return ExitCodeRestartFailed;
-            }
-
-            var targetDir = Path.GetDirectoryName(targetPath)!;
-            var psi = new ProcessStartInfo
-            {
-                FileName = targetPath,
-                UseShellExecute = false,
-                WorkingDirectory = targetDir
-            };
-            var oldProcess = _startProcess(psi);
-            if (oldProcess == null)
-            {
-                _logger.Error("Self-update: restart old returned null");
-                return ExitCodeRestartFailed;
-            }
-
-            _logger.Info("Self-update: old application restarted after rollback");
-            return ExitCodeSuccess;
-        }
-        catch (Exception ex)
-        {
-            _logger.Error($"Self-update: restart old failed: {ex.Message}");
-            return ExitCodeRestartFailed;
-        }
-    }
-
-    private async Task TryRecoverAsync(string targetPath, string backupPath, UpdateSession session, CancellationToken cancellationToken)
-    {
-        try
-        {
-            // Inspect actual filesystem state
-            var targetExists = File.Exists(targetPath);
-            var backupExists = File.Exists(backupPath);
-
-            if (targetExists)
-            {
-                var currentSha = await HashHelper.ComputeFileSha256Async(targetPath, cancellationToken);
-                if (string.Equals(currentSha, session.OriginalExeSha256, StringComparison.Ordinal))
-                {
-                    _logger.Info("Self-update: target still has original content — no recovery needed");
-                    return;
-                }
-            }
-
-            if (backupExists)
-            {
-                await TryRollbackAsync(targetPath, backupPath, session, cancellationToken);
-            }
-            else
-            {
-                _logger.Error("Self-update: cannot recover — both target and backup missing/changed");
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.Error($"Self-update: recovery attempt failed: {ex.Message}");
-        }
-    }
-
-    private async Task TryRollbackAsync(string targetPath, string backupPath, UpdateSession session, CancellationToken cancellationToken)
+    private async Task<bool> TryRollbackAsync(string targetPath, string backupPath, string failedNewPath, UpdateSession session, CancellationToken cancellationToken)
     {
         try
         {
             if (!File.Exists(backupPath))
             {
                 _logger.Error("Self-update: rollback failed — backup not found");
-                return;
+                return false;
             }
 
-            var failedNewBackupPath = targetPath + ".failed-new";
-            if (File.Exists(failedNewBackupPath))
-                SafeDelete(failedNewBackupPath);
+            // Verify backup SHA before using it (§4)
+            var backupSha = await HashHelper.ComputeFileSha256Async(backupPath, cancellationToken);
+            if (!string.Equals(backupSha, session.OriginalExeSha256, StringComparison.Ordinal))
+            {
+                _logger.Error($"Self-update: rollback aborted — backup SHA mismatch ({backupSha} != {session.OriginalExeSha256})");
+                return false;
+            }
+
+            // Session-specific failed-new path (§5) — do NOT delete unexpected files
+            if (File.Exists(failedNewPath))
+            {
+                _logger.Error($"Self-update: rollback failed — session-specific failed-new already exists at {failedNewPath}");
+                return false;
+            }
 
             if (File.Exists(targetPath))
             {
                 // Replace failed new with backup, preserving old as .failed-new
-                File.Replace(backupPath, targetPath, failedNewBackupPath);
+                File.Replace(backupPath, targetPath, failedNewPath);
                 _logger.Debug("Self-update: rollback via File.Replace completed");
             }
             else
@@ -435,16 +384,54 @@ public sealed class SelfUpdateApplier
                 if (string.Equals(rollbackSha, session.OriginalExeSha256, StringComparison.Ordinal))
                 {
                     _logger.Info("Self-update: rollback verified — original content restored");
+                    return true;
                 }
                 else
                 {
                     _logger.Error($"Self-update: rollback verification failed ({rollbackSha} != {session.OriginalExeSha256})");
+                    return false;
                 }
             }
+
+            _logger.Error("Self-update: rollback failed — target missing after restore");
+            return false;
         }
         catch (Exception ex)
         {
             _logger.Error($"Self-update: rollback failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private async Task TryRecoverAsync(string targetPath, string backupPath, UpdateSession session, string failedNewPath, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var targetExists = File.Exists(targetPath);
+            var backupExists = File.Exists(backupPath);
+
+            if (targetExists)
+            {
+                var currentSha = await HashHelper.ComputeFileSha256Async(targetPath, cancellationToken);
+                if (string.Equals(currentSha, session.OriginalExeSha256, StringComparison.Ordinal))
+                {
+                    _logger.Info("Self-update: target still has original content — no recovery needed");
+                    return;
+                }
+            }
+
+            if (backupExists)
+            {
+                await TryRollbackAsync(targetPath, backupPath, failedNewPath, session, cancellationToken);
+            }
+            else
+            {
+                _logger.Error("Self-update: cannot recover — both target and backup missing/changed");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Self-update: recovery attempt failed: {ex.Message}");
         }
     }
 
@@ -476,11 +463,6 @@ public sealed class SelfUpdateApplier
 
         _logger.Warning($"Self-update: parent PID {parentPid} timeout after {timeout.TotalSeconds}s");
         return false;
-    }
-
-    private static void SafeDelete(string path)
-    {
-        try { if (File.Exists(path)) File.Delete(path); } catch { }
     }
 
     private static bool IsProcessRunningDefault(int pid)

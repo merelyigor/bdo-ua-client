@@ -89,7 +89,6 @@ public class SelfUpdatePreparationServiceTests : IDisposable
         session.StagedExeSha256 = await HashHelper.ComputeFileSha256Async(stagedExePath);
         _store.WriteSession(session);
 
-        // Mock returns wrong version for staged exe
         var service = CreateService(session.TargetPath, "0.1.3", "0.1.4",
             (path, tv, cv) => MakeVersionInfoWithVersion("9.9.9", "9.9.9"));
         var result = await service.PrepareAsync(session.SessionId);
@@ -109,9 +108,6 @@ public class SelfUpdatePreparationServiceTests : IDisposable
         session.StagedExeSha256 = await HashHelper.ComputeFileSha256Async(stagedExePath);
         _store.WriteSession(session);
 
-        // Target file doesn't exist, process path doesn't match — but version check passes
-        // First check is path rooted check — TargetPath is rooted, so it passes
-        // Then check is File.Exists — fails
         var service = CreateService(session.TargetPath, session.CurrentVersion, session.TargetVersion);
         var result = await service.PrepareAsync(session.SessionId);
         Assert.False(result.IsSuccess);
@@ -135,12 +131,38 @@ public class SelfUpdatePreparationServiceTests : IDisposable
 
         _store.WriteSession(session);
 
-        // Process path differs from target
         var service = CreateService("C:\\different-path\\BDO-UA-Client.exe",
             session.CurrentVersion, session.TargetVersion);
         var result = await service.PrepareAsync(session.SessionId);
         Assert.False(result.IsSuccess);
         Assert.Equal(SelfUpdatePreparationError.TargetInvalid, result.Error);
+    }
+
+    [Fact]
+    public async Task PrepareAsync_BackupCollision_ReturnsBackupCollision()
+    {
+        var session = MakeSession();
+        _store.WriteSession(session);
+
+        var stagedDir = _store.GetSessionDir(session.SessionId);
+        var stagedExePath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
+        File.WriteAllText(stagedExePath, "new version");
+        session.StagedExeSha256 = await HashHelper.ComputeFileSha256Async(stagedExePath);
+
+        var targetDir = Path.GetDirectoryName(session.TargetPath)!;
+        Directory.CreateDirectory(targetDir);
+        File.WriteAllText(session.TargetPath, "target");
+
+        var backupPath = Path.Combine(targetDir,
+            $"{Path.GetFileName(session.TargetPath)}.update-{session.SessionId}.bak");
+        File.WriteAllText(backupPath, "stale backup");
+
+        _store.WriteSession(session);
+
+        var service = CreateService(session.TargetPath, session.CurrentVersion, session.TargetVersion);
+        var result = await service.PrepareAsync(session.SessionId);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(SelfUpdatePreparationError.BackupCollision, result.Error);
     }
 
     [Fact]
@@ -158,8 +180,8 @@ public class SelfUpdatePreparationServiceTests : IDisposable
         Directory.CreateDirectory(targetDir);
         File.WriteAllText(session.TargetPath, "target");
 
-        // Pre-create candidate
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Path.Combine(targetDir,
+            $"{Path.GetFileName(session.TargetPath)}.update-{session.SessionId}.new");
         File.WriteAllText(candidatePath, "existing candidate");
 
         _store.WriteSession(session);
@@ -168,9 +190,35 @@ public class SelfUpdatePreparationServiceTests : IDisposable
         var result = await service.PrepareAsync(session.SessionId);
         Assert.False(result.IsSuccess);
         Assert.Equal(SelfUpdatePreparationError.CandidateCollision, result.Error);
-
-        // Candidate must NOT be overwritten
         Assert.Equal("existing candidate", File.ReadAllText(candidatePath));
+    }
+
+    [Fact]
+    public async Task PrepareAsync_CandidateCreateNew_AtomicFailure()
+    {
+        var session = MakeSession();
+        _store.WriteSession(session);
+
+        var stagedDir = _store.GetSessionDir(session.SessionId);
+        var stagedExePath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
+        File.WriteAllText(stagedExePath, "staged content");
+        session.StagedExeSha256 = await HashHelper.ComputeFileSha256Async(stagedExePath);
+
+        var targetDir = Path.GetDirectoryName(session.TargetPath)!;
+        Directory.CreateDirectory(targetDir);
+        File.WriteAllText(session.TargetPath, "target");
+
+        var candidatePath = Path.Combine(targetDir,
+            $"{Path.GetFileName(session.TargetPath)}.update-{session.SessionId}.new");
+        File.WriteAllText(candidatePath, "raced candidate");
+
+        _store.WriteSession(session);
+
+        var service = CreateService(session.TargetPath, session.CurrentVersion, session.TargetVersion);
+        var result = await service.PrepareAsync(session.SessionId);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(SelfUpdatePreparationError.CandidateCollision, result.Error);
+        Assert.Equal("raced candidate", File.ReadAllText(candidatePath));
     }
 
     [Fact]
@@ -261,37 +309,28 @@ public class SelfUpdatePreparationServiceTests : IDisposable
     private SelfUpdatePreparationService CreateService(
         string currentProcessPath,
         string currentVersion,
-        string targetVersion)
-    {
-        return CreateService(currentProcessPath, currentVersion, targetVersion, null);
-    }
-
-    private SelfUpdatePreparationService CreateService(
-        string currentProcessPath,
-        string currentVersion,
         string targetVersion,
-        Func<string, string, string, FileVersionInfo>? versionInfoOverride)
+        Func<string, string, string, FileVersionInfo>? versionInfoOverride = null)
     {
-        var currentParsed = AppVersion.TryParseCoreVersion(currentVersion);
-        var targetParsed = AppVersion.TryParseCoreVersion(targetVersion);
-
         FileVersionInfo VersionInfoFor(string path)
         {
             if (versionInfoOverride != null)
                 return versionInfoOverride(path, targetVersion, currentVersion);
 
-            // Staged exe gets target version, target exe gets current version
             var isTarget = string.Equals(
                 Path.GetFullPath(path),
                 Path.GetFullPath(currentProcessPath),
                 StringComparison.OrdinalIgnoreCase);
 
-            var v = isTarget ? currentParsed : targetParsed;
-            if (!v.HasValue)
+            var parsed = isTarget
+                ? AppVersion.TryParseCoreVersion(currentVersion)
+                : AppVersion.TryParseCoreVersion(targetVersion);
+
+            if (!parsed.HasValue)
                 return FileVersionInfo.GetVersionInfo(typeof(object).Assembly.Location);
 
-            var fileVer = $"{v.Value.Major}.{v.Value.Minor}.{v.Value.Build}.0";
-            var prodVer = $"{v.Value.Major}.{v.Value.Minor}.{v.Value.Build}";
+            var fileVer = $"{parsed.Value.Major}.{parsed.Value.Minor}.{parsed.Value.Build}.0";
+            var prodVer = $"{parsed.Value.Major}.{parsed.Value.Minor}.{parsed.Value.Build}";
             return MakeVersionInfoWithVersion(fileVer, prodVer);
         }
 
@@ -305,8 +344,12 @@ public class SelfUpdatePreparationServiceTests : IDisposable
     private static FileVersionInfo MakeVersionInfoWithVersion(string fileVersion, string productVersion)
     {
         var info = FileVersionInfo.GetVersionInfo(typeof(object).Assembly.Location);
-        typeof(FileVersionInfo).GetField("_fileVersion", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(info, fileVersion);
-        typeof(FileVersionInfo).GetField("_productVersion", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(info, productVersion);
+        typeof(FileVersionInfo)
+            .GetField("_fileVersion", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .SetValue(info, fileVersion);
+        typeof(FileVersionInfo)
+            .GetField("_productVersion", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .SetValue(info, productVersion);
         return info;
     }
 

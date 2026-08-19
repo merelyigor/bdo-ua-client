@@ -33,4 +33,12 @@ internal static class HashHelper
         await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
         await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    public static async Task CopyFileCreateNewAsync(string sourcePath, string destinationPath, CancellationToken cancellationToken = default)
+    {
+        await using var source = new FileStream(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await using var destination = new FileStream(destinationPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, BufferSize, FileOptions.Asynchronous);
+        await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
+        await destination.FlushAsync(cancellationToken).ConfigureAwait(false);
+    }
 }
