@@ -23,7 +23,7 @@ public class AppVersionInfoTests
         var info = AppVersionInfo.FromRawVersion("v0.1.4");
         Assert.False(info.IsPublicRelease);
         Assert.Null(info.PublicVersion);
-        Assert.Equal("vv0.1.4", info.DisplayVersion);
+        Assert.Equal("v0.1.4", info.DisplayVersion);
     }
 
     [Fact]

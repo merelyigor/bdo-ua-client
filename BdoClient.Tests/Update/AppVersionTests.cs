@@ -219,4 +219,84 @@ public class AppVersionTests
         var v2 = new AppVersion(1, 2, 3);
         Assert.Equal(v1.GetHashCode(), v2.GetHashCode());
     }
+
+    // --- Overflow safety ---
+
+    [Fact]
+    public void TryParseCoreVersion_IntMaxValue_Valid()
+    {
+        var v = AppVersion.TryParseCoreVersion($"{int.MaxValue}.{int.MaxValue}.{int.MaxValue}");
+        Assert.NotNull(v);
+        Assert.Equal(int.MaxValue, v.Value.Major);
+    }
+
+    [Fact]
+    public void TryParseCoreVersion_MajorOverflow_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseCoreVersion("2147483648.0.0"));
+    }
+
+    [Fact]
+    public void TryParseCoreVersion_MinorOverflow_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseCoreVersion("0.2147483648.0"));
+    }
+
+    [Fact]
+    public void TryParseCoreVersion_BuildOverflow_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseCoreVersion("0.0.2147483648"));
+    }
+
+    [Fact]
+    public void TryParseCoreVersion_HugeComponent_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseCoreVersion("999999999999999999999999.0.0"));
+    }
+
+    [Fact]
+    public void TryParseCoreVersion_Overflow_NoException()
+    {
+        var ex = Record.Exception(() => AppVersion.TryParseCoreVersion("999999999999999999999999.0.0"));
+        Assert.Null(ex);
+    }
+
+    [Fact]
+    public void TryParseReleaseTag_IntMaxValue_Valid()
+    {
+        var v = AppVersion.TryParseReleaseTag($"v{int.MaxValue}.{int.MaxValue}.{int.MaxValue}");
+        Assert.NotNull(v);
+        Assert.Equal(int.MaxValue, v.Value.Major);
+    }
+
+    [Fact]
+    public void TryParseReleaseTag_MajorOverflow_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseReleaseTag("v2147483648.0.0"));
+    }
+
+    [Fact]
+    public void TryParseReleaseTag_MinorOverflow_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseReleaseTag("v0.2147483648.0"));
+    }
+
+    [Fact]
+    public void TryParseReleaseTag_BuildOverflow_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseReleaseTag("v0.0.2147483648"));
+    }
+
+    [Fact]
+    public void TryParseReleaseTag_HugeComponent_Invalid()
+    {
+        Assert.Null(AppVersion.TryParseReleaseTag("v999999999999999999999999.0.0"));
+    }
+
+    [Fact]
+    public void TryParseReleaseTag_Overflow_NoException()
+    {
+        var ex = Record.Exception(() => AppVersion.TryParseReleaseTag("v999999999999999999999999.0.0"));
+        Assert.Null(ex);
+    }
 }

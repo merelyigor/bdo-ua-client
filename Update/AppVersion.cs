@@ -49,9 +49,9 @@ public readonly struct AppVersion : IComparable<AppVersion>, IEquatable<AppVersi
         var match = CoreVersionRegex.Match(text);
         if (!match.Success) return null;
 
-        var major = int.Parse(match.Groups[1].Value);
-        var minor = int.Parse(match.Groups[2].Value);
-        var build = int.Parse(match.Groups[3].Value);
+        if (!int.TryParse(match.Groups[1].Value, out var major)) return null;
+        if (!int.TryParse(match.Groups[2].Value, out var minor)) return null;
+        if (!int.TryParse(match.Groups[3].Value, out var build)) return null;
 
         return new AppVersion(major, minor, build);
     }
@@ -63,9 +63,9 @@ public readonly struct AppVersion : IComparable<AppVersion>, IEquatable<AppVersi
         var match = ReleaseTagRegex.Match(text);
         if (!match.Success) return null;
 
-        var major = int.Parse(match.Groups[1].Value);
-        var minor = int.Parse(match.Groups[2].Value);
-        var build = int.Parse(match.Groups[3].Value);
+        if (!int.TryParse(match.Groups[1].Value, out var major)) return null;
+        if (!int.TryParse(match.Groups[2].Value, out var minor)) return null;
+        if (!int.TryParse(match.Groups[3].Value, out var build)) return null;
 
         return new AppVersion(major, minor, build);
     }

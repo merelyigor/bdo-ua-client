@@ -38,7 +38,8 @@ public sealed class AppVersionInfo
             return new AppVersionInfo(raw, display, true, publicVersion);
         }
 
-        var displayFallback = $"v{raw}";
+        var clean = raw.StartsWith("v", StringComparison.Ordinal) ? raw : raw;
+        var displayFallback = raw.StartsWith("v", StringComparison.Ordinal) ? raw : $"v{raw}";
         return new AppVersionInfo(raw, displayFallback, false, null);
     }
 }

@@ -98,7 +98,8 @@ jobs:
           -p:Version=$version `
           -p:AssemblyVersion=$assemblyVersion `
           -p:FileVersion=$assemblyVersion `
-          -p:InformationalVersion=$version
+          -p:InformationalVersion=$version `
+          -p:IncludeSourceRevisionInInformationalVersion=false
 
     - name: Test Release
       run: dotnet test BdoUaClient.sln -c Release --no-build
@@ -122,6 +123,7 @@ jobs:
           -p:AssemblyVersion=$assemblyVersion `
           -p:FileVersion=$assemblyVersion `
           -p:InformationalVersion=$version `
+          -p:IncludeSourceRevisionInInformationalVersion=false `
           -o artifacts/publish/win-x64
 
     - name: Verify EXE exists
@@ -141,19 +143,22 @@ jobs:
         $exe = "artifacts/publish/win-x64/BDO-UA-Client.exe"
         $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exe)
         $version = "${{ steps.resolve.outputs.RELEASE_VERSION }}"
+        $expectedFileVersion = "$version.0"
 
-        Write-Output "FileVersion:    $($info.FileVersion)"
-        Write-Output "ProductVersion: $($info.ProductVersion)"
+        Write-Output "Expected FileVersion:    $expectedFileVersion"
+        Write-Output "Actual FileVersion:      $($info.FileVersion)"
+        Write-Output "Expected ProductVersion: $version"
+        Write-Output "Actual ProductVersion:   $($info.ProductVersion)"
 
-        if ($info.FileVersion -notlike "$version*") {
-          Write-Error "FileVersion '$($info.FileVersion)' does not start with '$version'"
+        if ($info.FileVersion -ne $expectedFileVersion) {
+          Write-Error "FileVersion '$($info.FileVersion)' does not exactly equal '$expectedFileVersion'"
           exit 1
         }
-        if ($info.ProductVersion -notlike "$version*") {
-          Write-Error "ProductVersion '$($info.ProductVersion)' does not start with '$version'"
+        if ($info.ProductVersion -ne $version) {
+          Write-Error "ProductVersion '$($info.ProductVersion)' does not exactly equal '$version'"
           exit 1
         }
-        Write-Output "EXE version metadata verified"
+        Write-Output "EXE version metadata verified (exact match)"
 
     - name: Create versioned ZIP
       shell: pwsh
@@ -249,6 +254,7 @@ jobs:
         name: BDO-UA-Client-v${{ steps.resolve.outputs.RELEASE_VERSION }}-win-x64
         path: |
           artifacts/publish/win-x64/BDO-UA-Client.exe
+          artifacts/BDO-UA-Client-v${{ steps.resolve.outputs.RELEASE_VERSION }}-win-x64.zip
           artifacts/SHA256SUMS.txt
           artifacts/release-manifest.json
           artifacts/RELEASE_NOTES-v${{ steps.resolve.outputs.RELEASE_VERSION }}.md
@@ -285,6 +291,7 @@ jobs:
 
         Downloaded artifact (GitHub wraps it in a ZIP) contains:
         - ``BDO-UA-Client.exe`` — the application
+        - ``$assetName`` — exact production ZIP whose SHA-256 is in manifest
         - ``SHA256SUMS.txt``
         - ``release-manifest.json``
         - ``RELEASE_NOTES-v$version.md``
@@ -292,15 +299,14 @@ jobs:
         ### Next steps
 
         1. Download artifact ``BDO-UA-Client-v$version-win-x64``
-        2. Create ``$assetName`` from ``BDO-UA-Client.exe`` (zip it for GitHub Release upload)
-        3. Test locally
-        4. Verify SHA-256 if desired
-        5. Draft GitHub Release → select existing tag ``$tag``
-        6. Use generated ``RELEASE_NOTES-v$version.md`` as release body (auto-generated from commits, edit if needed)
-        7. Upload ``$assetName`` to GitHub Release
-        8. Upload ``SHA256SUMS.txt`` to GitHub Release
-        9. Upload ``release-manifest.json`` to GitHub Release
-        10. Click **Publish release**
+        2. Test locally
+        3. Verify SHA-256 if desired
+        4. Draft GitHub Release → select existing tag ``$tag``
+        5. Use generated ``RELEASE_NOTES-v$version.md`` as release body (auto-generated from commits, edit if needed)
+        6. Upload the EXACT ``$assetName`` from the artifact to GitHub Release (do NOT recreate the ZIP)
+        7. Upload ``SHA256SUMS.txt`` to GitHub Release
+        8. Upload ``release-manifest.json`` to GitHub Release
+        9. Click **Publish release**
 
         > GitHub Release is NOT created automatically.
         "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8
