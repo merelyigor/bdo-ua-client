@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  release:
+  test-build:
     runs-on: windows-latest
 
     steps:
@@ -24,22 +24,51 @@ jobs:
       run: dotnet restore BdoUaClient.sln
 
     - name: Build Release
-      run: dotnet build BdoUaClient.sln -c Release --no-restore
+      shell: pwsh
+      run: |
+        $sha = "${{ github.sha }}"
+        $shortSha = $sha.Substring(0, 7)
+        $infoVersion = "0.0.0-dev.$shortSha"
+
+        dotnet build BdoUaClient.sln `
+          -c Release `
+          --no-restore `
+          -p:Version=0.0.0 `
+          -p:AssemblyVersion=0.0.0.0 `
+          -p:FileVersion=0.0.0.0 `
+          -p:InformationalVersion=$infoVersion
 
     - name: Test Release
       run: dotnet test BdoUaClient.sln -c Release --no-build
 
     - name: Publish single-file win-x64
-      run: >
-        dotnet publish BdoClient.csproj
-        -c Release
-        -r win-x64
-        --self-contained true
-        -p:PublishSingleFile=true
-        -p:IncludeNativeLibrariesForSelfExtract=true
-        -p:PublishTrimmed=false
-        -p:AssemblyName=BDO-UA-Client
-        -o artifacts/publish/win-x64
+      shell: pwsh
+      run: |
+        $sha = "${{ github.sha }}"
+        $shortSha = $sha.Substring(0, 7)
+        $infoVersion = "0.0.0-dev.$shortSha"
+
+        dotnet publish BdoClient.csproj `
+          -c Release `
+          -r win-x64 `
+          --self-contained true `
+          -p:PublishSingleFile=true `
+          -p:IncludeNativeLibrariesForSelfExtract=true `
+          -p:PublishTrimmed=false `
+          -p:AssemblyName=BDO-UA-Client `
+          -p:Version=0.0.0 `
+          -p:AssemblyVersion=0.0.0.0 `
+          -p:FileVersion=0.0.0.0 `
+          -p:InformationalVersion=$infoVersion `
+          -o artifacts/publish/win-x64
+
+    - name: Verify EXE version
+      shell: pwsh
+      run: |
+        $exe = "artifacts/publish/win-x64/BDO-UA-Client.exe"
+        $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($exe)
+        Write-Output "FileVersion:    $($info.FileVersion)"
+        Write-Output "ProductVersion: $($info.ProductVersion)"
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4

@@ -119,6 +119,7 @@ Trimming може видалити типи, які використовують
 ### B. Test Build (`test-build.yml`)
 - **Trigger:** push до main, PR до main, `workflow_dispatch`
 - Автоматичний білд при кожному коміті/PR
+- Версія: `0.0.0-dev.{short_sha}` (наприклад `0.0.0-dev.4264c1f`)
 - Artifact: `BDO-UA-Client-test-build` (тільки EXE)
 - Artifact доступний всім (Actions → Test Build → завантажити)
 - НЕ створює GitHub Release

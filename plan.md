@@ -27,15 +27,21 @@
 - **v12.4.5.3** — close live feed finalization races (_operationFinalizing gate, no fire-and-forget, exception-safe finalization, network diagnostics, FeedApplicationCoordinator)
 - **v12.4.5.4** — unify feed application coordinator (MainForm uses coordinator, semantic equality, stale-pending fix, Task-based API, whole-pipeline callback)
 - **v12.4.5.5** — preserve newer pending feed on failure (failed candidate does not overwrite newer pending, exactly-once acceptance test)
-- **Latest SHA:** (see git log)
+- **v12.4.6** — fix compiler warnings + release notes archive (`docs/releases/`, `AGENTS.md` §40, removed obsolete `_operationFinalizing`)
+- **v12.4.7** — auto-generate release notes from git log (`scripts/Generate-ReleaseNotes.ps1`)
+- **v12.4.8** — rename Release Build to Test Build (`.github/workflows/test-build.yml`, artifact: `BDO-UA-Client-test-build`)
+- **v12.4.9** — Test Build auto-triggers on push/PR (not just `workflow_dispatch`)
+- **v12.4.10** — Ukrainian release notes auto-generation (Ukrainian description mapping in `Generate-ReleaseNotes.ps1`)
+- **v12.4.11** — add connection warmup at startup
+- **Published GitHub Releases:** v0.1.2, v0.1.3 (both stable, both with assets)
 - **.NET tests:** 404
 - **Resolver scenarios:** 13
-- **Normal CI:** PENDING
-- **Release Candidate:** v0.1.0 functional success (intermittent ~21s bdo-ua.com.ua latency observed, root cause not established)
+- **Normal CI:** active (push/PR trigger)
+- **Test Build:** active (push/PR/workflow_dispatch trigger)
 
 ## Поточна фаза
 
-**Stage 12 — Real Windows E2E stabilization**
+**Stage 13 — Application self-update + utility footer**
 
 ### v12.3 / v12.3.1 — fix mode selection and game detection UX
 
@@ -192,9 +198,9 @@ Target (post v1.0.0 stabilization):
 - Automatic push/PR verification
 - Development safety check
 
-### B. Release Build
-- Existing manual `workflow_dispatch`
-- Generic unversioned E2E/testing artifact
+### B. Test Build
+- Automatic on push/PR to main + manual `workflow_dispatch`
+- Generic unversioned testing artifact (`BDO-UA-Client-test-build`)
 - NOT a public GitHub Release
 
 ### C. Release Candidate
