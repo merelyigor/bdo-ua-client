@@ -3,9 +3,9 @@
 Plan ID: `client-self-update`
 Status: **ACTIVE**
 Focus: **PRIMARY**
-Current phase: v13.3.2 implemented — pending acceptance
-Next action: v13.4 — harden updater lifecycle and UX
-ONLY after v13.3.2 acceptance
+Current phase: v13.4 implemented — pending acceptance
+Next action: v13.5 — real published-release E2E verification
+ONLY after v13.4 acceptance
 
 ---
 

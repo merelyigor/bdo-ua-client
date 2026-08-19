@@ -10,6 +10,7 @@ public sealed class SelfUpdatePreparationService
     private readonly ILogger _logger;
     private readonly Func<string> _getCurrentProcessPath;
     private readonly Func<string, FileVersionInfo> _getFileVersionInfo;
+    private readonly Func<string, string, CancellationToken, Task> _copyFileCreateNew;
 
     public SelfUpdatePreparationService(UpdateSessionStore sessionStore, ILogger logger)
         : this(sessionStore, logger,
@@ -22,12 +23,14 @@ public sealed class SelfUpdatePreparationService
         UpdateSessionStore sessionStore,
         ILogger logger,
         Func<string> getCurrentProcessPath,
-        Func<string, FileVersionInfo> getFileVersionInfo)
+        Func<string, FileVersionInfo> getFileVersionInfo,
+        Func<string, string, CancellationToken, Task>? copyFileCreateNew = null)
     {
         _sessionStore = sessionStore ?? throw new ArgumentNullException(nameof(sessionStore));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _getCurrentProcessPath = getCurrentProcessPath ?? throw new ArgumentNullException(nameof(getCurrentProcessPath));
         _getFileVersionInfo = getFileVersionInfo ?? throw new ArgumentNullException(nameof(getFileVersionInfo));
+        _copyFileCreateNew = copyFileCreateNew ?? HashHelper.CopyFileCreateNewAsync;
     }
 
     public async Task<SelfUpdatePreparationResult> PrepareAsync(string sessionId, CancellationToken cancellationToken = default)
@@ -158,7 +161,7 @@ public sealed class SelfUpdatePreparationService
 
         try
         {
-            await HashHelper.CopyFileCreateNewAsync(stagedExePath, candidatePath, cancellationToken);
+            await _copyFileCreateNew(stagedExePath, candidatePath, cancellationToken);
             _logger.Debug($"Self-update: copied staged EXE to candidate {candidatePath}");
         }
         catch (IOException ex) when (ex.HResult == unchecked((int)0x80070050)) // ERROR_FILE_EXISTS
@@ -168,10 +171,17 @@ public sealed class SelfUpdatePreparationService
         }
         catch (OperationCanceledException)
         {
+            SafeDelete(candidatePath);
             throw;
         }
         catch (Exception ex)
         {
+            SafeDelete(candidatePath);
+            if (IsWriteDenied(ex))
+            {
+                _logger.Error($"Self-update preparation failed: target directory not writable: {ex.Message}");
+                return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.WriteDenied, "Target directory not writable");
+            }
             _logger.Error($"Self-update preparation failed: cannot create candidate sibling: {ex.Message}");
             return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.CandidateCopyFailed, $"Cannot create candidate in target directory: {ex.Message}");
         }
@@ -222,6 +232,12 @@ public sealed class SelfUpdatePreparationService
     {
         try { if (File.Exists(path)) File.Delete(path); } catch { }
     }
+
+    private static bool IsWriteDenied(Exception ex)
+    {
+        return ex is UnauthorizedAccessException ||
+               (ex is IOException ioEx && ioEx.HResult == unchecked((int)0x80070005));
+    }
 }
 
 public enum SelfUpdatePreparationError
@@ -235,7 +251,8 @@ public enum SelfUpdatePreparationError
     BackupCollision,
     CandidateCollision,
     CandidateCopyFailed,
-    SessionWriteFailed
+    SessionWriteFailed,
+    WriteDenied
 }
 
 public sealed class SelfUpdatePreparationResult

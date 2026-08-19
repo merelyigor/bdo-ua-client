@@ -125,6 +125,37 @@ public sealed class UpdateSessionStore
         return LoadSessionForState(sessionId, UpdateSession.StateStaged);
     }
 
+    public UpdateSessionLoadResult LoadSessionAnyState(string sessionId)
+    {
+        try
+        {
+            var normalizedId = NormalizeSessionId(sessionId);
+            var sessionDir = GetSessionDir(normalizedId);
+            var filePath = Path.Combine(sessionDir, SessionFileName);
+
+            if (!File.Exists(filePath))
+                return UpdateSessionLoadResult.Missing;
+
+            var json = File.ReadAllText(filePath, System.Text.Encoding.UTF8);
+            var session = JsonSerializer.Deserialize<UpdateSession>(json, JsonOptions);
+
+            if (session == null)
+                return UpdateSessionLoadResult.Invalid;
+
+            return ValidateSessionAnyState(session, normalizedId);
+        }
+        catch (JsonException ex)
+        {
+            _logger.Warning($"Session JSON parse failed for {sessionId}: {ex.Message}");
+            return UpdateSessionLoadResult.Invalid;
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"Session read failed for {sessionId}: {ex.Message}");
+            return UpdateSessionLoadResult.Invalid;
+        }
+    }
+
     public UpdateSessionLoadResult LoadSessionForState(string sessionId, string expectedState)
     {
         if (!SupportedStates.Contains(expectedState))
@@ -213,6 +244,64 @@ public sealed class UpdateSessionStore
 
         // State-specific: original_exe_sha256
         if (expectedState == UpdateSession.StatePrepared || expectedState == UpdateSession.StateApplied)
+        {
+            if (!IsValidSha256Hex(session.OriginalExeSha256))
+                return UpdateSessionLoadResult.Invalid;
+        }
+
+        return UpdateSessionLoadResult.Valid(session);
+    }
+
+    private static UpdateSessionLoadResult ValidateSessionAnyState(UpdateSession session, string expectedId)
+    {
+        if (session.SchemaVersion != 1)
+            return UpdateSessionLoadResult.Invalid;
+
+        if (!IsValidSessionId(session.SessionId))
+            return UpdateSessionLoadResult.Invalid;
+
+        var normalizedStoredId = NormalizeSessionId(session.SessionId);
+        if (!string.Equals(normalizedStoredId, expectedId, StringComparison.Ordinal))
+            return UpdateSessionLoadResult.Invalid;
+
+        if (!SupportedStates.Contains(session.State))
+            return UpdateSessionLoadResult.Invalid;
+
+        if (session.CreatedAt == default)
+            return UpdateSessionLoadResult.Invalid;
+
+        var currentVersion = AppVersion.TryParseCoreVersion(session.CurrentVersion);
+        if (!currentVersion.HasValue)
+            return UpdateSessionLoadResult.Invalid;
+
+        var targetVersion = AppVersion.TryParseCoreVersion(session.TargetVersion);
+        if (!targetVersion.HasValue)
+            return UpdateSessionLoadResult.Invalid;
+
+        if (targetVersion.Value <= currentVersion.Value)
+            return UpdateSessionLoadResult.Invalid;
+
+        var expectedTag = $"v{targetVersion.Value}";
+        if (!string.Equals(session.TargetTag, expectedTag, StringComparison.Ordinal))
+            return UpdateSessionLoadResult.Invalid;
+
+        if (string.IsNullOrWhiteSpace(session.TargetPath) || !Path.IsPathRooted(session.TargetPath))
+            return UpdateSessionLoadResult.Invalid;
+
+        if (session.ParentPid <= 0)
+            return UpdateSessionLoadResult.Invalid;
+
+        var expectedAssetName = $"BDO-UA-Client-v{targetVersion.Value}-win-x64.zip";
+        if (!string.Equals(session.PackageAssetName, expectedAssetName, StringComparison.Ordinal))
+            return UpdateSessionLoadResult.Invalid;
+
+        if (!IsValidSha256Hex(session.PackageSha256))
+            return UpdateSessionLoadResult.Invalid;
+
+        if (!IsValidSha256Hex(session.StagedExeSha256))
+            return UpdateSessionLoadResult.Invalid;
+
+        if (session.State == UpdateSession.StatePrepared || session.State == UpdateSession.StateApplied)
         {
             if (!IsValidSha256Hex(session.OriginalExeSha256))
                 return UpdateSessionLoadResult.Invalid;

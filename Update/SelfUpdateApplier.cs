@@ -227,6 +227,7 @@ public sealed class SelfUpdateApplier
         }
 
         // 10. Post-replace verification
+        bool backupVerified = false;
         try
         {
             // Verify target
@@ -262,36 +263,48 @@ public sealed class SelfUpdateApplier
                 return ExitCodeVerificationFailed;
             }
 
-            // Verify backup
+            // Verify backup (§4 — degraded recovery if backup unavailable but target is good)
+            backupVerified = false;
             if (!File.Exists(backupPath))
             {
-                _logger.Error("Self-update apply: backup missing after File.Replace — critical recovery-integrity failure");
-                // Do NOT rollback — the new target is verified valid, backup is unrecoverable
-                return ExitCodeVerificationFailed;
+                _logger.Error("Self-update apply: backup missing after File.Replace — backup recovery unavailable, continuing with verified new target");
             }
-
-            var backupSha = await HashHelper.ComputeFileSha256Async(backupPath, cancellationToken);
-            if (!string.Equals(backupSha, reloadedSession.OriginalExeSha256, StringComparison.Ordinal))
+            else
             {
-                _logger.Error($"Self-update apply: backup SHA mismatch after File.Replace ({backupSha} != {reloadedSession.OriginalExeSha256}) — backup unusable, preserving valid new target");
-                return ExitCodeVerificationFailed;
-            }
-
-            var backupVersionInfo = _getFileVersionInfo(backupPath);
-            if (currentVersion.HasValue &&
-                !string.IsNullOrWhiteSpace(backupVersionInfo.FileVersion) &&
-                !string.IsNullOrWhiteSpace(backupVersionInfo.ProductVersion))
-            {
-                var expectedBackupFileVersion = $"{currentVersion.Value.Major}.{currentVersion.Value.Minor}.{currentVersion.Value.Build}.0";
-                var expectedBackupProductVersion = $"{currentVersion.Value.Major}.{currentVersion.Value.Minor}.{currentVersion.Value.Build}";
-
-                if (!string.Equals(backupVersionInfo.FileVersion, expectedBackupFileVersion, StringComparison.Ordinal) ||
-                    !string.Equals(backupVersionInfo.ProductVersion, expectedBackupProductVersion, StringComparison.Ordinal))
+                var backupSha = await HashHelper.ComputeFileSha256Async(backupPath, cancellationToken);
+                if (!string.Equals(backupSha, reloadedSession.OriginalExeSha256, StringComparison.Ordinal))
                 {
-                    _logger.Error($"Self-update apply: backup version mismatch (FileVersion={backupVersionInfo.FileVersion}, ProductVersion={backupVersionInfo.ProductVersion})");
-                    return ExitCodeVerificationFailed;
+                    _logger.Error($"Self-update apply: backup SHA mismatch after File.Replace ({backupSha} != {reloadedSession.OriginalExeSha256}) — backup unusable, continuing with verified new target");
+                }
+                else
+                {
+                    var backupVersionInfo = _getFileVersionInfo(backupPath);
+                    if (currentVersion.HasValue &&
+                        !string.IsNullOrWhiteSpace(backupVersionInfo.FileVersion) &&
+                        !string.IsNullOrWhiteSpace(backupVersionInfo.ProductVersion))
+                    {
+                        var expectedBackupFileVersion = $"{currentVersion.Value.Major}.{currentVersion.Value.Minor}.{currentVersion.Value.Build}.0";
+                        var expectedBackupProductVersion = $"{currentVersion.Value.Major}.{currentVersion.Value.Minor}.{currentVersion.Value.Build}";
+
+                        if (!string.Equals(backupVersionInfo.FileVersion, expectedBackupFileVersion, StringComparison.Ordinal) ||
+                            !string.Equals(backupVersionInfo.ProductVersion, expectedBackupProductVersion, StringComparison.Ordinal))
+                        {
+                            _logger.Error($"Self-update apply: backup version mismatch (FileVersion={backupVersionInfo.FileVersion}, ProductVersion={backupVersionInfo.ProductVersion}) — backup unusable, continuing with verified new target");
+                        }
+                        else
+                        {
+                            backupVerified = true;
+                        }
+                    }
+                    else
+                    {
+                        backupVerified = true;
+                    }
                 }
             }
+
+            if (!backupVerified)
+                _logger.Warning("Self-update apply: proceeding in degraded recovery mode — rollback to old version will not be possible if restart fails");
         }
         catch (Exception ex)
         {
@@ -316,14 +329,46 @@ public sealed class SelfUpdateApplier
         catch (Exception ex)
         {
             _logger.Error($"Self-update: restart new failed: {ex.Message}");
+            if (!backupVerified)
+            {
+                _logger.Error("Self-update: cannot rollback — backup unavailable (degraded mode)");
+                return ExitCodeRestartFailed;
+            }
             var rollbackOk = await TryRollbackAsync(targetPath, backupPath, failedNewPath, reloadedSession, cancellationToken);
+            if (rollbackOk)
+            {
+                _logger.Info("Self-update: rollback succeeded, attempting to restart restored old application");
+                var oldRestarted = await TryRestartOldAsync(targetPath, targetDir, reloadedSession, cancellationToken);
+                if (oldRestarted)
+                {
+                    _logger.Info("Self-update: restored old application restarted successfully (recovered from failed update)");
+                    return ExitCodeRestartFailedRecovered;
+                }
+                _logger.Error("Self-update: critical — rollback succeeded but old restart failed");
+            }
             return ExitCodeRestartFailed;
         }
 
         if (newProcess == null)
         {
             _logger.Error("Self-update: restart new returned null");
+            if (!backupVerified)
+            {
+                _logger.Error("Self-update: cannot rollback — backup unavailable (degraded mode)");
+                return ExitCodeRestartFailed;
+            }
             var rollbackOk = await TryRollbackAsync(targetPath, backupPath, failedNewPath, reloadedSession, cancellationToken);
+            if (rollbackOk)
+            {
+                _logger.Info("Self-update: rollback succeeded, attempting to restart restored old application");
+                var oldRestarted = await TryRestartOldAsync(targetPath, targetDir, reloadedSession, cancellationToken);
+                if (oldRestarted)
+                {
+                    _logger.Info("Self-update: restored old application restarted successfully (recovered from failed update)");
+                    return ExitCodeRestartFailedRecovered;
+                }
+                _logger.Error("Self-update: critical — rollback succeeded but old restart failed");
+            }
             return ExitCodeRestartFailed;
         }
 
@@ -399,6 +444,46 @@ public sealed class SelfUpdateApplier
         catch (Exception ex)
         {
             _logger.Error($"Self-update: rollback failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private async Task<bool> TryRestartOldAsync(string targetPath, string targetDir, UpdateSession session, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (!File.Exists(targetPath))
+            {
+                _logger.Error("Self-update: cannot restart old — target missing");
+                return false;
+            }
+
+            var restoredSha = await HashHelper.ComputeFileSha256Async(targetPath, cancellationToken);
+            if (!string.Equals(restoredSha, session.OriginalExeSha256, StringComparison.Ordinal))
+            {
+                _logger.Error($"Self-update: cannot restart old — restored SHA mismatch ({restoredSha} != {session.OriginalExeSha256})");
+                return false;
+            }
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = targetPath,
+                UseShellExecute = false,
+                WorkingDirectory = targetDir
+            };
+            var oldProcess = _startProcess(psi);
+            if (oldProcess == null)
+            {
+                _logger.Error("Self-update: restart old returned null");
+                return false;
+            }
+
+            _logger.Info("Self-update: restored old application restarted");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Self-update: restart old failed: {ex.Message}");
             return false;
         }
     }
@@ -484,4 +569,5 @@ public sealed class SelfUpdateApplier
     public const int ExitCodeVerificationFailed = 3;
     public const int ExitCodeReplaceFailed = 4;
     public const int ExitCodeRestartFailed = 5;
+    public const int ExitCodeRestartFailedRecovered = 6;
 }

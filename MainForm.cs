@@ -29,6 +29,7 @@ public partial class MainForm : Form
     private readonly UpdatePackageService _updatePackageService;
     private readonly UpdateSessionStore _updateSessionStore;
     private readonly SelfUpdatePreparationService _selfUpdatePreparation;
+    private readonly UpdateLifecycleService _updateLifecycle;
 
     private string? _gameRoot;
     private ReleasesResponse? _apiResponse;
@@ -86,6 +87,7 @@ public partial class MainForm : Form
         var manifestValidator = new UpdateManifestValidator(logger);
         _updatePackageService = new UpdatePackageService(gitHubClient, manifestValidator, _updateSessionStore, appPaths, logger);
         _selfUpdatePreparation = new SelfUpdatePreparationService(_updateSessionStore, logger);
+        _updateLifecycle = new UpdateLifecycleService(_updateSessionStore, appPaths, logger);
 
         _poller = new ReleaseFeedPoller(_apiClient, _logger);
         _feedCoordinator = new FeedApplicationCoordinator(ApplyFeedPipelineAsync, _poller, _logger);
@@ -209,8 +211,24 @@ public partial class MainForm : Form
             {
                 _poller.Start(_apiResponse);
                 StartBackgroundUpdateCheck();
+                RunStartupLifecycleMaintenance();
             }
         }
+    }
+
+    private void RunStartupLifecycleMaintenance()
+    {
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                _updateLifecycle.RunStartupMaintenance();
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning($"Startup lifecycle maintenance failed: {ex.Message}");
+            }
+        });
     }
 
     // --- Dynamic modes ---
@@ -931,7 +949,7 @@ public partial class MainForm : Form
         catch (Exception ex)
         {
             _logger.Error($"UpdateButton_Click unexpected: {ex.Message}");
-            SetMessage($"Помилка: {ex.Message}");
+            SetMessage("Не вдалося виконати оновлення. Відкрийте папку журналів для деталей.");
         }
     }
 
@@ -985,7 +1003,8 @@ public partial class MainForm : Form
                 if (!prepResult.IsSuccess)
                 {
                     _logger.Error($"Self-update preparation failed: {prepResult.Error} — {prepResult.ErrorMessage}");
-                    finalMessage = $"Не вдалося підготувати оновлення: {prepResult.ErrorMessage}";
+                    finalMessage = MapPreparationError(prepResult.Error!.Value);
+                    _updateSessionStore.CleanupSession(result.Session!.SessionId);
                     _stagedUpdateSession = null;
                     return;
                 }
@@ -999,6 +1018,7 @@ public partial class MainForm : Form
                 {
                     _logger.Error($"Self-update handoff: staged helper not found at {stagedHelperPath}");
                     finalMessage = "Не вдалося знайти підготовлений файл оновлення.";
+                    _updateSessionStore.CleanupSession(result.Session!.SessionId);
                     _stagedUpdateSession = null;
                     return;
                 }
@@ -1026,8 +1046,7 @@ public partial class MainForm : Form
                 catch (Exception ex)
                 {
                     _logger.Error($"Self-update handoff: failed to launch helper: {ex.Message}");
-                    finalMessage = $"Не вдалося запустити оновлення: {ex.Message}";
-                    // Retry recovery: restore UI state
+                    finalMessage = "Не вдалося запустити процес оновлення.";
                     RestorePostHandoffFailureState();
                     return;
                 }
@@ -1035,7 +1054,7 @@ public partial class MainForm : Form
                 if (helperProcess == null)
                 {
                     _logger.Error("Self-update handoff: Process.Start returned null");
-                    finalMessage = "Не вдалося запустити оновлення.";
+                    finalMessage = "Не вдалося запустити процес оновлення.";
                     RestorePostHandoffFailureState();
                     return;
                 }
@@ -1061,14 +1080,16 @@ public partial class MainForm : Form
         catch (OperationCanceledException)
         {
             _logger.Info("Update staging cancelled by user.");
+            CleanupAbandonedStagingSession();
             SetOperationState(OperationState.Cancelled);
             finalMessage = "Оновлення скасовано.";
         }
         catch (Exception ex)
         {
             _logger.Error($"Update staging error: {ex.Message}");
+            CleanupAbandonedStagingSession();
             SetOperationState(OperationState.Failed);
-            finalMessage = $"Помилка оновлення: {ex.Message}";
+            finalMessage = "Не вдалося виконати оновлення. Відкрийте папку журналів для деталей.";
         }
         finally
         {
@@ -1115,9 +1136,37 @@ public partial class MainForm : Form
         _ => "Невідома помилка оновлення."
     };
 
+    private static string MapPreparationError(SelfUpdatePreparationError error) => error switch
+    {
+        SelfUpdatePreparationError.WriteDenied =>
+            "Не вдалося підготувати автоматичне оновлення, оскільки папка програми недоступна для запису.\nОновіть програму вручну або перемістіть її до папки, доступної для запису.",
+        SelfUpdatePreparationError.CandidateCollision =>
+            "Не вдалося підготувати оновлення: файл оновлення вже існує.\nСпробуйте ще раз або перезапустіть програму.",
+        SelfUpdatePreparationError.BackupCollision =>
+            "Не вдалося підготувати оновлення: резервна копія вже існує.\nСпробуйте ще раз або перезапустіть програму.",
+        SelfUpdatePreparationError.CandidateCopyFailed =>
+            "Не вдалося підготувати оновлення: помилка запису файлу.",
+        SelfUpdatePreparationError.SessionWriteFailed =>
+            "Не вдалося зберегти стан підготовки оновлення.",
+        SelfUpdatePreparationError.HashMismatch =>
+            "Оновлення не пройшло перевірку цілісності. Поточна версія не змінена.",
+        SelfUpdatePreparationError.VersionMismatch =>
+            "Оновлення не пройшло перевірку версії. Поточна версія не змінена.",
+        SelfUpdatePreparationError.StagedExeMissing =>
+            "Не вдалося знайти підготовлений файл оновлення.",
+        SelfUpdatePreparationError.TargetMissing =>
+            "Поточний виконуваний файл не знайдено. Оновлення неможливе.",
+        SelfUpdatePreparationError.TargetInvalid =>
+            "Шлях до програми недійсний. Оновлення неможливе.",
+        SelfUpdatePreparationError.SessionInvalid =>
+            "Стан оновлення недійсний. Спробуйте ще раз.",
+        _ => "Не вдалося підготувати оновлення."
+    };
+
     private void RestorePostHandoffFailureState()
     {
-        // Cleanup candidate sibling and prepared session for this attempt
+        _logger.Info("Self-update: restoring state after pre-handoff failure");
+
         if (_stagedUpdateSession != null)
         {
             try
@@ -1127,11 +1176,18 @@ public partial class MainForm : Form
                 {
                     var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{_stagedUpdateSession.SessionId}.new");
                     if (File.Exists(candidatePath))
+                    {
                         File.Delete(candidatePath);
+                        _logger.Debug($"Self-update: cleaned up candidate {candidatePath}");
+                    }
                 }
                 _updateSessionStore.CleanupSession(_stagedUpdateSession.SessionId);
+                _logger.Debug($"Self-update: cleaned up session {_stagedUpdateSession.SessionId}");
             }
-            catch { /* best-effort cleanup */ }
+            catch (Exception ex)
+            {
+                _logger.Warning($"Self-update: pre-handoff cleanup failed (best-effort): {ex.Message}");
+            }
         }
 
         _operationInProgress = false;
@@ -1143,6 +1199,15 @@ public partial class MainForm : Form
         if (!_closing)
             _poller.Resume();
         RefreshUpdateButtonPresentation();
+    }
+
+    private void CleanupAbandonedStagingSession()
+    {
+        if (_stagedUpdateSession == null)
+            return;
+
+        _updateSessionStore.CleanupSession(_stagedUpdateSession.SessionId);
+        _stagedUpdateSession = null;
     }
 
     // --- Logs button ---

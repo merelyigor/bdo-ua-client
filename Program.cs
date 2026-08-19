@@ -43,7 +43,41 @@ static class Program
 
         var exitCode = applier.RunAsync(sessionId).GetAwaiter().GetResult();
         log.Info($"Self-update helper exited with code {exitCode}");
+
+        ShowHelperResultMessage(exitCode);
+
         Environment.Exit(exitCode);
+    }
+
+    private static void ShowHelperResultMessage(int exitCode)
+    {
+        if (exitCode == SelfUpdateApplier.ExitCodeSuccess)
+            return;
+
+        var message = exitCode switch
+        {
+            SelfUpdateApplier.ExitCodeRestartFailedRecovered =>
+                "Не вдалося застосувати оновлення.\nПопередню версію відновлено та запущено.",
+            SelfUpdateApplier.ExitCodeParentTimeout =>
+                "Не вдалося застосувати оновлення: попередній процес не завершився вчасно.\nПоточна версія не змінена.",
+            SelfUpdateApplier.ExitCodeVerificationFailed =>
+                "Не вдалося застосувати оновлення: перевірка цілісності не пройдена.\nПоточна версія не змінена.",
+            SelfUpdateApplier.ExitCodeReplaceFailed =>
+                "Не вдалося застосувати оновлення: помилка заміни файлу.\nПоточна версія не змінена.",
+            SelfUpdateApplier.ExitCodeRestartFailed =>
+                "Не вдалося застосувати оновлення та автоматично відновити запуск програми.\nВідкрийте папку журналів для деталей.",
+            _ =>
+                "Не вдалося застосувати оновлення.\nВідкрийте папку журналів для деталей."
+        };
+
+        try
+        {
+            MessageBox.Show(message, "Оновлення", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+        catch
+        {
+            Console.Error.WriteLine(message);
+        }
     }
 
     private static void RunNormalMode()

@@ -304,13 +304,56 @@ public class SelfUpdatePreparationServiceTests : IDisposable
         Assert.Equal(targetDir, Path.GetDirectoryName(result.CandidatePath));
     }
 
+    // --- §28 Preparation cancellation tests ---
+
+    [Fact]
+    public async Task PrepareAsync_CancellationAfterCreateNew_CleansUpCandidate()
+    {
+        var session = MakeSession();
+        _store.WriteSession(session);
+
+        var stagedDir = _store.GetSessionDir(session.SessionId);
+        var stagedExePath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
+        File.WriteAllText(stagedExePath, "staged content");
+        session.StagedExeSha256 = await HashHelper.ComputeFileSha256Async(stagedExePath);
+
+        var targetDir = Path.GetDirectoryName(session.TargetPath)!;
+        Directory.CreateDirectory(targetDir);
+        File.WriteAllText(session.TargetPath, "target");
+
+        var candidatePath = Path.Combine(targetDir,
+            $"{Path.GetFileName(session.TargetPath)}.update-{session.SessionId}.new");
+
+        _store.WriteSession(session);
+
+        using var cts = new CancellationTokenSource();
+        var service = CreateService(
+            session.TargetPath,
+            session.CurrentVersion,
+            session.TargetVersion,
+            copyFileCreateNew: (source, destination, token) =>
+            {
+                using var destinationStream = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                destinationStream.WriteByte(0x01);
+                cts.Cancel();
+                throw new OperationCanceledException(token);
+            });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.PrepareAsync(session.SessionId, cts.Token));
+
+        Assert.False(File.Exists(candidatePath));
+        Assert.True(File.Exists(session.TargetPath));
+        Assert.Equal("target", File.ReadAllText(session.TargetPath));
+    }
+
     // --- Helpers ---
 
     private SelfUpdatePreparationService CreateService(
         string currentProcessPath,
         string currentVersion,
         string targetVersion,
-        Func<string, string, string, FileVersionInfo>? versionInfoOverride = null)
+        Func<string, string, string, FileVersionInfo>? versionInfoOverride = null,
+        Func<string, string, CancellationToken, Task>? copyFileCreateNew = null)
     {
         FileVersionInfo VersionInfoFor(string path)
         {
@@ -338,7 +381,8 @@ public class SelfUpdatePreparationServiceTests : IDisposable
             _store,
             _logger,
             () => currentProcessPath,
-            VersionInfoFor);
+            VersionInfoFor,
+            copyFileCreateNew);
     }
 
     private static FileVersionInfo MakeVersionInfoWithVersion(string fileVersion, string productVersion)
