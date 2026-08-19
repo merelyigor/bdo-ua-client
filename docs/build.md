@@ -85,7 +85,7 @@ Trimming може видалити типи, які використовують
 
 ### .github/workflows/test-build.yml
 
-**Trigger:** `workflow_dispatch` (ручний запуск).
+**Trigger:** push до main, PR до main, `workflow_dispatch`.
 
 **Етапи:**
 1. Checkout

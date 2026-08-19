@@ -46,6 +46,7 @@
 | [§38](#38--головний-принцип) | 💎 Головний принцип | Головне правило |
 | [§39](#39--плани) | 📋 Плани | Історичні плани |
 | [§40](#40--архів-реліз-нотаток) | 📦 Архів реліз-нотаток | Збереження текстів релізів |
+| [§41](#41--оновлення-клієнта) | 🔄 Оновлення клієнта | Client self-update |
 
 ---
 
@@ -694,3 +695,31 @@ BDO-UA-Client/
 §40.3 Поле `{{SHA256}}` заповнюється після завершення Release Candidate workflow (береться з artifact).
 
 §40.4 Архів реліз-нотаток зберігається в репозиторії як історична довідка. Кожен реліз — окремий файл.
+
+---
+
+## §41 🔄 Оновлення клієнта
+
+§41.1 Джерело оновлень — публічні GitHub Releases репозиторію `merelyigor/bdo-ua-client`. Не використовувати bdo-ua.com.ua, custom backend, або GitHub token.
+
+§41.2 Перевірка оновлень — автоматична у background при startup. Не блокує UI, game detection, або API loading. Максимум один запит за session.
+
+§41.3 Встановлення оновлення вимагає explicit натискання кнопки "Оновити до vX.Y.Z". Ніякого silent/forced update.
+
+§41.4 Порівняння версій — тільки numeric (0.1.9 < 0.1.10). Ніколи lexicographic string comparison.
+
+§41.5 Channel policy: якщо current release prerelease=true → дозволити newer prerelease + stable; якщо prerelease=false → тільки newer stable.
+
+§41.6 Перед зміною current EXE: manifest + SHA-256 + ZIP validation + EXE version verification. Current EXE untouched до моменту, поки verified candidate не готовий.
+
+§41.7 Staged new EXE сам виконує internal updater mode (`--apply-update <session-id>`). Не додавати permanent Updater.exe, PowerShell/BAT updater, Windows Service.
+
+§41.8 Backup перед replace. Rollback при будь-якій помилці replacement/verification/restart. НІКОЛИ: "old deleted, new not installed".
+
+§41.9 Application update та localization operations (Install, Restore Original) взаємовиключні.
+
+§41.10 TLS verification ніколи не вимикати. Не використовувати GitHub token. Не використовувати HTTP.
+
+§41.11 Stage 13 first implementation: NO automatic UAC elevation.
+
+§41.12 Detailed implementation roadmap живе тільки у canonical `/plan.md` (розділ Stage 13).
