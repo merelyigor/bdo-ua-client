@@ -98,17 +98,16 @@ Trimming може видалити типи, які використовують
 
 Призначення: тестовий білд для перевірок. Не створює тег, не генерує реліз-нотатки.
 
-## Actions artifact vs public package
+## Actions artifact vs public release asset
 
-**GitHub Actions artifact** (CI transport container): **`BDO-UA-Client-vX.Y.Z-release-assets.zip`**
-- Містить: versioned user ZIP + SHA256SUMS.txt + release-manifest.json + RELEASE_NOTES
+**GitHub Actions artifact** (CI transport wrapper created by GitHub): **`BDO-UA-Client-vX.Y.Z-win-x64`**
+- Після розпакування містить flat-файли: `BDO-UA-Client.exe`, `SHA256SUMS.txt`, `release-manifest.json`, `RELEASE_NOTES`
 - Це внутрішній артефакт workflow, НЕ для кінцевого користувача
 
-**Public user package** (what users download from GitHub Release): **`BDO-UA-Client-vX.Y.Z-win-x64.zip`**
-- Містить рівно один файл: `BDO-UA-Client.exe`
-- Це єдиний файл, який завантажує користувач
+**Public release asset** (what users download from GitHub Release): **`BDO-UA-Client.exe`**
+- Це прямий application asset без project-created archive
 
-Не плутати: Actions artifact ZIP ≠ public user ZIP.
+GitHub може створити власний transport wrapper для Actions artifact. Проєкт не створює application archives.
 
 ## Workflows
 
@@ -127,10 +126,11 @@ Trimming може видалити типи, які використовують
 ### C. Release Candidate (`release-candidate.yml`)
 - **Trigger:** `workflow_dispatch` (ручний запуск власником)
 - Введення версії (наприклад, `0.1.0`)
-- Збірка + тести + publish + versioned ZIP + SHA-256 + tag
-- Actions artifact з ZIP, SHA256SUMS.txt, release-manifest.json, RELEASE_NOTES
+- Збірка + тести + publish + direct EXE SHA-256 + tag
+- Flat Actions artifact з EXE, SHA256SUMS.txt, release-manifest.json, RELEASE_NOTES
 - НЕ створює GitHub Release автоматично
 
 ### D. GitHub Release
 - Створюється та публікується **вручну власником** репозиторію
-- Після успішного Release Candidate: завантажити artifact → створити release → обрати тег → завантажити ZIP → Publish
+- Після успішного Release Candidate: завантажити artifact → створити release → обрати тег → завантажити exact `BDO-UA-Client.exe`, manifest і SHA256SUMS → Publish
+- Не ZIP/recompress `BDO-UA-Client.exe`.

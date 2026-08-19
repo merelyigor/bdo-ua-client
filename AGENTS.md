@@ -714,7 +714,7 @@ BDO-UA-Client/
 
 §41.5 Channel policy: якщо current release prerelease=true → дозволити newer prerelease + stable; якщо prerelease=false → тільки newer stable.
 
-§41.6 Перед зміною current EXE: manifest + SHA-256 + ZIP validation + EXE version verification. Current EXE untouched до моменту, поки verified candidate не готовий.
+§41.6 Перед зміною current EXE: manifest + SHA-256 direct EXE validation + EXE version verification. Current EXE untouched до моменту, поки verified candidate не готовий.
 
 §41.7 Staged new EXE сам виконує internal updater mode (`--apply-update <session-id>`). Не додавати permanent Updater.exe, PowerShell/BAT updater, Windows Service.
 
@@ -723,6 +723,8 @@ BDO-UA-Client/
 §41.9 Application update та localization operations (Install, Restore Original) взаємовиключні.
 
 §41.10 TLS verification ніколи не вимикати. Не використовувати GitHub token. Не використовувати HTTP.
+
+§41.10.1 Production application releases use the direct `BDO-UA-Client.exe` asset. Project-created application archives (`.zip`, `.7z`, `.rar`, `.tar`, `.tar.gz`) are forbidden. GitHub Actions' own artifact transport wrapper is the only allowed archive; its extracted contents must be flat. The updater downloads and verifies the direct EXE. Introducing archive packaging requires a separate explicit owner architecture decision.
 
 §41.11 Stage 13 first implementation: NO automatic UAC elevation.
 

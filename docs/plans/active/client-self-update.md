@@ -3,9 +3,13 @@
 Plan ID: `client-self-update`
 Status: **ACTIVE**
 Focus: **PRIMARY**
-Current phase: v13.4.1 implemented — pending acceptance
+Current phase: v13.4.2 implemented — pending acceptance
 Next action: v13.5 — real published-release E2E verification
-ONLY after v13.4.1 acceptance
+ONLY after v13.4.2 acceptance
+
+Release history decision: `v0.1.5` is an obsolete RC tag only, has no GitHub
+Release, and must never be published or used as updater input. The first
+direct-EXE updater baseline is `v0.1.6`; the planned E2E target is `v0.1.7`.
 
 ---
 
@@ -248,7 +252,7 @@ Strict public tag: `^vMAJOR.MINOR.PATCH$`. Порівняння ТІЛЬКИ num
 
 Updater-enabled release повинен містити:
 - `release-manifest.json`
-- production ZIP (який manifest визначає через `asset_name`)
+- direct `BDO-UA-Client.exe` (який manifest визначає через `asset_name`)
 
 Canonical checksum source: `release-manifest.json.sha256` (asset у release).
 
@@ -256,7 +260,7 @@ Download URL брати з exact `browser_download_url` asset object від GitH
 
 ### Manifest contract
 
-Schema 1 canonical. Validate: `schema_version == 1`, `version == X.Y.Z`, `tag == vX.Y.Z`, `platform == "win-x64"`, `asset_name` non-empty, `sha256` valid hex. Не змінювати schema для EXE hash (EXE hash локально обчислюється після extraction).
+Schema 1 canonical. Validate: `schema_version == 1`, `version == X.Y.Z`, `tag == vX.Y.Z`, `platform == "win-x64"`, `asset_name == "BDO-UA-Client.exe"`, `sha256` valid hex. `sha256` is the hash of the exact direct EXE asset.
 
 ### Optional GitHub asset digest
 
@@ -268,17 +272,15 @@ Schema 1 canonical. Validate: `schema_version == 1`, `version == X.Y.Z`, `tag ==
 - CancellationToken; bounded timeout; bounded safe retries for idempotent GET
 - Streaming download; no unbounded memory buffering
 - Manifest: small bounded size
-- ZIP: max size ~200 MB (запас для self-contained binary)
+- Direct EXE: max size 200 MB (запас для self-contained binary)
 - Content-Length cross-check when available
 - Temp cleanup after failure/cancel
 
-### ZIP validation
+### Direct EXE validation
 
-Приймається тільки якщо: valid archive, рівно 1 file entry, root-level, exact name `BDO-UA-Client.exe`, no directories, no path traversal, no absolute path, no `../`, non-zero, sane bounded uncompressed size. Будь-яка аномалія → fail closed.
-
-### Extracted EXE validation
-
-Після extraction: файл існує, non-zero, FileVersion/ProductVersion відповідає target X.Y.Z, локально обчислити candidate EXE SHA-256. Не запускати candidate до завершення validation.
+Приймається тільки exact uploaded asset `BDO-UA-Client.exe`, HTTPS, non-zero,
+within the direct EXE size limit, with SHA-256 and FileVersion/ProductVersion
+matching target X.Y.Z. Не запускати candidate до завершення validation.
 
 ### Staging / session
 
@@ -352,7 +354,7 @@ Application update НЕ працює одночасно з: localization Install
 
 - Startup check failure → log only; normal app continues
 - Download failure → visible message; retry later; app remains usable
-- Manifest/SHA/ZIP validation failure → integrity error; current EXE untouched
+- Manifest/SHA/EXE validation failure → integrity error; current EXE untouched
 - Apply failure → rollback; clear error log; preserve old version
 - Не показувати raw stack traces
 
@@ -370,7 +372,7 @@ Stage 13 НЕ робить: silent forced update, GitHub token, custom backend, 
 AppVersionInfo              — current numeric/display/full version
 GitHubUpdateClient          — GitHub REST releases + manifest/asset fetch
 UpdateSelectionPolicy       — current release/channel; numeric selection
-UpdatePackageService        — download; SHA; ZIP; EXE validation; staging
+UpdatePackageService        — direct EXE download; SHA; EXE validation; staging
 UpdateSession / Store       — atomic session state
 SelfUpdateApplier           — parent wait; verify; replace; rollback; restart
 MainForm                    — presentation/orchestration only
@@ -445,16 +447,15 @@ Program                     — detect internal updater mode vs normal UI
 **Goal:** New version can be downloaded, verified, staged — but current EXE is NOT replaced.
 
 **Scope:**
-- `UpdatePackageService` — download manifest → validate → download ZIP → SHA-256 → validate ZIP → extract → validate EXE → stage
+- `UpdatePackageService` — download manifest → validate → download direct EXE → SHA-256 → validate EXE → stage
 - Manifest download from release asset (`release-manifest.json`); bounded size; parse JSON
 - Manifest validation: `schema_version == 1`, `version` matches selected release, `tag` matches, `platform == "win-x64"`, `asset_name` non-empty, `sha256` valid hex
-- ZIP asset selection: find asset by `asset_name` from manifest in GitHub release assets; use `browser_download_url`
-- Streamed ZIP download with progress; CancellationToken; timeout; bounded retries
+- Direct EXE asset selection: exact `BDO-UA-Client.exe` from manifest in GitHub release assets; use `browser_download_url`
+- Streamed direct EXE download with progress; CancellationToken; timeout; bounded retries
 - Size validation: Content-Length cross-check when available; max ~200 MB
-- SHA-256 verification of downloaded ZIP against manifest `sha256`
+- SHA-256 verification of downloaded EXE against manifest `sha256`
 - Optional: cross-check against GitHub asset `digest` field (if present; `sha256:...` format)
-- ZIP validation: exactly 1 entry, root-level `BDO-UA-Client.exe`, no directories/traversal, non-zero
-- Extraction to temp staging dir
+- Direct EXE validation: exact fixed filename, non-zero, bounded size
 - EXE version validation: FileVersion/ProductVersion matches target X.Y.Z
 - Local EXE SHA-256 computation; stored in session
 - `UpdateSession` + `UpdateSessionStore`: GUID session, atomic JSON write in `AppPaths.UpdatesDir`
@@ -471,22 +472,21 @@ Program                     — detect internal updater mode vs normal UI
 **Security rules:**
 - HTTPS only; no TLS bypass
 - Streaming download; bounded memory
-- Path traversal check on ZIP entries
 - Don't trust manifest URLs for download (use GitHub API asset URL)
 - Don't run extracted EXE before full validation
 
 **Automated tests:**
-- Manifest: valid, wrong schema, version mismatch, tag mismatch, platform mismatch, invalid SHA, missing manifest, missing ZIP, wrong asset_name
+- Manifest: valid, wrong schema, version mismatch, tag mismatch, platform mismatch, invalid SHA, missing manifest, missing EXE, wrong asset_name
 - Download: correct SHA, wrong SHA, size mismatch, timeout, cancellation, cleanup
-- ZIP: exactly one correct root EXE, extra entry, directory, traversal, absolute/invalid name, empty EXE
+- Direct EXE: exact name, duplicate asset, wrong state, HTTP URL, empty/oversized asset
 - EXE: target version match/mismatch
 - Session: valid GUID, malformed JSON, wrong session id, missing staged file
 
 **Acceptance:**
 - [ ] Click update button → download starts with progress
-- [ ] Manifest validated before ZIP download
+- [ ] Manifest validated before direct EXE download
 - [ ] SHA-256 verified after download
-- [ ] ZIP structure validated
+- [ ] Direct EXE structure/name validated
 - [ ] EXE version validated
 - [ ] Session created in UpdatesDir
 - [ ] Cancel cleans up staging
@@ -631,7 +631,7 @@ Program                     — detect internal updater mode vs normal UI
 - User enters version (e.g. `0.1.0`)
 - Builds exact current main
 - Tests
-- Produces versioned release package (`BDO-UA-Client-vX.Y.Z-win-x64.zip`)
+- Produces flat release artifact with direct `BDO-UA-Client.exe`
 - Creates version tag on exact verified SHA
 - Uploads release-candidate artifact
 - Does NOT create/publish GitHub Release
@@ -640,7 +640,7 @@ Program                     — detect internal updater mode vs normal UI
 - Manual GitHub UI action by repository owner
 - Select existing tag
 - Paste/edit release notes
-- Upload the exact ZIP produced by Release Candidate workflow
+- Upload the exact `BDO-UA-Client.exe` produced by Release Candidate workflow; do not archive or recompress it
 - Click Publish release
 
 ---

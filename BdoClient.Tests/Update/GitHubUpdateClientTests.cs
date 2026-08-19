@@ -114,7 +114,7 @@ public class GitHubUpdateClientTests
     [Fact]
     public async Task FetchManifestAsync_ValidManifest_ReturnsSuccess()
     {
-        var manifestJson = """{"schema_version":1,"version":"0.1.4","tag":"v0.1.4","commit_sha":"74875dfcc6762ec0edb75c40e225150f94fa45e5","asset_name":"BDO-UA-Client-v0.1.4-win-x64.zip","sha256":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","platform":"win-x64","workflow_run_id":"12345"}""";
+        var manifestJson = """{"schema_version":1,"version":"0.1.4","tag":"v0.1.4","commit_sha":"74875dfcc6762ec0edb75c40e225150f94fa45e5","asset_name":"BDO-UA-Client.exe","sha256":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","platform":"win-x64","workflow_run_id":"12345"}""";
         var handler = new QueuedHandler(manifestJson);
         var client = CreateClientWithHandler(handler);
         var asset = ManifestAsset(manifestJson.Length);
@@ -126,7 +126,7 @@ public class GitHubUpdateClientTests
     [Fact]
     public async Task FetchManifestAsync_WorkflowRunIdString_Deserializes()
     {
-        var manifestJson = """{"schema_version":1,"version":"0.1.4","tag":"v0.1.4","commit_sha":"74875dfcc6762ec0edb75c40e225150f94fa45e5","asset_name":"BDO-UA-Client-v0.1.4-win-x64.zip","sha256":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","platform":"win-x64","workflow_run_id":"32211040254"}""";
+        var manifestJson = """{"schema_version":1,"version":"0.1.4","tag":"v0.1.4","commit_sha":"74875dfcc6762ec0edb75c40e225150f94fa45e5","asset_name":"BDO-UA-Client.exe","sha256":"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2","platform":"win-x64","workflow_run_id":"32211040254"}""";
         var handler = new QueuedHandler(manifestJson);
         var client = CreateClientWithHandler(handler);
         var asset = ManifestAsset(manifestJson.Length);
@@ -258,7 +258,7 @@ public class GitHubUpdateClientTests
         Assert.Contains("403", result.ErrorMessage!);
     }
 
-    // --- ZIP download tests ---
+    // --- Direct EXE download tests ---
 
     [Fact]
     public async Task DownloadAssetAsync_Success_ReturnsByteCount()
@@ -269,7 +269,7 @@ public class GitHubUpdateClientTests
         var dest = Path.Combine(Path.GetTempPath(), $"bdo-test-{Guid.NewGuid():N}.bin");
         try
         {
-            var result = await client.DownloadAssetAsync("https://github.com/test/file.zip", dest, content.Length, null);
+            var result = await client.DownloadAssetAsync("https://github.com/test/BDO-UA-Client.exe", dest, content.Length, null);
             Assert.True(result.IsSuccess);
             Assert.Equal(content.Length, result.Value!.BytesDownloaded);
             Assert.Equal(64, result.Value.Sha256.Length);
@@ -286,7 +286,7 @@ public class GitHubUpdateClientTests
         var dest = Path.Combine(Path.GetTempPath(), $"bdo-test-{Guid.NewGuid():N}.bin");
         try
         {
-            var result = await client.DownloadAssetAsync("https://github.com/test/file.zip", dest, content.Length, null);
+            var result = await client.DownloadAssetAsync("https://github.com/test/BDO-UA-Client.exe", dest, content.Length, null);
             Assert.True(result.IsSuccess);
             var expectedSha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content)).ToLowerInvariant();
             Assert.Equal(expectedSha, result.Value!.Sha256);
@@ -306,7 +306,7 @@ public class GitHubUpdateClientTests
         var dest = Path.Combine(Path.GetTempPath(), $"bdo-test-{Guid.NewGuid():N}.bin");
         try
         {
-            var result = await client.DownloadAssetAsync("https://github.com/test/file.zip", dest, content.Length, null);
+            var result = await client.DownloadAssetAsync("https://github.com/test/BDO-UA-Client.exe", dest, content.Length, null);
             Assert.True(result.IsSuccess);
         }
         finally { if (File.Exists(dest)) File.Delete(dest); }
@@ -323,7 +323,7 @@ public class GitHubUpdateClientTests
         var dest = Path.Combine(Path.GetTempPath(), $"bdo-test-{Guid.NewGuid():N}.bin");
         try
         {
-            var result = await client.DownloadAssetAsync("https://github.com/test/file.zip", dest, content.Length, null);
+            var result = await client.DownloadAssetAsync("https://github.com/test/BDO-UA-Client.exe", dest, content.Length, null);
             Assert.True(result.IsSuccess);
         }
         finally { if (File.Exists(dest)) File.Delete(dest); }
@@ -340,7 +340,7 @@ public class GitHubUpdateClientTests
         var dest = Path.Combine(Path.GetTempPath(), $"bdo-test-{Guid.NewGuid():N}.bin");
         try
         {
-            var result = await client.DownloadAssetAsync("https://github.com/test/file.zip", dest, content.Length, null);
+            var result = await client.DownloadAssetAsync("https://github.com/test/BDO-UA-Client.exe", dest, content.Length, null);
             Assert.True(result.IsSuccess);
         }
         finally { if (File.Exists(dest)) File.Delete(dest); }
@@ -355,7 +355,7 @@ public class GitHubUpdateClientTests
         var dest2 = Path.Combine(Path.GetTempPath(), $"bdo-test-{Guid.NewGuid():N}.bin");
         try
         {
-            var result = await client.DownloadAssetAsync("https://github.com/test/file.zip", dest, 100, null);
+            var result = await client.DownloadAssetAsync("https://github.com/test/BDO-UA-Client.exe", dest, 100, null);
             Assert.False(result.IsSuccess);
         }
         finally { if (File.Exists(dest)) File.Delete(dest); }
@@ -370,7 +370,7 @@ public class GitHubUpdateClientTests
         var dest = Path.Combine(Path.GetTempPath(), $"bdo-test-{Guid.NewGuid():N}.bin");
         try
         {
-            var result = await client.DownloadAssetAsync("https://github.com/test/file.zip", dest, 100, null);
+            var result = await client.DownloadAssetAsync("https://github.com/test/BDO-UA-Client.exe", dest, 100, null);
             Assert.False(result.IsSuccess);
             Assert.Contains("404", result.ErrorMessage!);
         }
@@ -386,7 +386,7 @@ public class GitHubUpdateClientTests
         var dest = Path.Combine(Path.GetTempPath(), $"bdo-test-{Guid.NewGuid():N}.bin");
         try
         {
-            var result = await client.DownloadAssetAsync("https://github.com/test/file.zip", dest, 100, null);
+            var result = await client.DownloadAssetAsync("https://github.com/test/BDO-UA-Client.exe", dest, 100, null);
             Assert.False(result.IsSuccess);
             Assert.Contains("403", result.ErrorMessage!);
         }
@@ -404,7 +404,7 @@ public class GitHubUpdateClientTests
         try
         {
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-                client.DownloadAssetAsync("https://github.com/test/file.zip", dest, 100, null, cts.Token));
+                client.DownloadAssetAsync("https://github.com/test/BDO-UA-Client.exe", dest, 100, null, cts.Token));
         }
         finally { if (File.Exists(dest)) File.Delete(dest); }
     }
@@ -419,7 +419,7 @@ public class GitHubUpdateClientTests
         var dest = Path.Combine(Path.GetTempPath(), $"bdo-test-{Guid.NewGuid():N}.bin");
         try
         {
-            var result = await client.DownloadAssetAsync("https://github.com/test/file.zip", dest, 100, null);
+            var result = await client.DownloadAssetAsync("https://github.com/test/BDO-UA-Client.exe", dest, 100, null);
             Assert.False(result.IsSuccess);
             Assert.Contains("attempts", result.ErrorMessage!);
         }
@@ -439,7 +439,7 @@ public class GitHubUpdateClientTests
         var dest = Path.Combine(Path.GetTempPath(), $"bdo-test-{Guid.NewGuid():N}.bin");
         try
         {
-            var result = await client.DownloadAssetAsync("https://github.com/test/file.zip", dest, 999, null);
+            var result = await client.DownloadAssetAsync("https://github.com/test/BDO-UA-Client.exe", dest, 999, null);
             Assert.False(result.IsSuccess);
             Assert.Contains("Content-Length", result.ErrorMessage!);
         }
@@ -459,7 +459,7 @@ public class GitHubUpdateClientTests
         var dest = Path.Combine(Path.GetTempPath(), $"bdo-test-{Guid.NewGuid():N}.bin");
         try
         {
-            var result = await client.DownloadAssetAsync("https://github.com/test/file.zip", dest, content.Length + 1, null);
+            var result = await client.DownloadAssetAsync("https://github.com/test/BDO-UA-Client.exe", dest, content.Length + 1, null);
             Assert.False(result.IsSuccess);
             Assert.Contains("Content-Length", result.ErrorMessage!);
         }

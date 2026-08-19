@@ -29,8 +29,8 @@ Production GitHub Releases завжди публікуються вручну в
 ### 3. Завантаження artifact
 
 - Завантажте artifact `BDO-UA-Client-vX.Y.Z-release-assets` з workflow run
-- Всередині: `BDO-UA-Client-vX.Y.Z-win-x64.zip` (public user package), SHA256SUMS.txt, release-manifest.json, RELEASE_NOTES
-- Локально протестуйте ZIP/EXE
+- Всередині flat-файли: `BDO-UA-Client.exe`, SHA256SUMS.txt, release-manifest.json, RELEASE_NOTES
+- Локально протестуйте EXE
 - Перевірте SHA-256 за бажанням
 
 ### 4. Підготовка реліз-нотаток
@@ -44,9 +44,10 @@ Production GitHub Releases завжди публікуються вручну в
 - Оберіть існуючий тег `vX.Y.Z`
 - Вставте відредаговані реліз-нотатки у тіло релізу
 - Завантажте з artifact:
-  - **`BDO-UA-Client-vX.Y.Z-win-x64.zip`** (обов'язково)
+  - **`BDO-UA-Client.exe`** (обов'язково, exact artifact file)
   - **`SHA256SUMS.txt`** (обов'язково)
   - **`release-manifest.json`** (обов'язково)
+- Не ZIP/recompress `BDO-UA-Client.exe`.
 - Для першого публічного прев'ю: позначте як **Pre-release**
 - Натисніть **Publish release**
 

@@ -213,7 +213,7 @@ public class UpdateSelectionPolicyTests
         var releases = new List<GitHubRelease>
         {
             MakeRelease("v0.1.0", assets: Manifest),
-            MakeRelease("v0.1.2", assets: ("BDO-UA-Client-v0.1.2.zip", "https://example.com/zip", "uploaded")),
+            MakeRelease("v0.1.2", assets: ("BDO-UA-Client.exe", "https://example.com/BDO-UA-Client.exe", "uploaded")),
             MakeRelease("v0.1.1", assets: Manifest)
         };
         Assert.Null(policy.FindUpdate(info, releases));

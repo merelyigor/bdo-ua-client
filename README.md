@@ -37,13 +37,7 @@
 
 Офіційні збірки BDO UA Client публікуються на сторінці **[GitHub Releases](https://github.com/merelyigor/bdo-ua-client/releases)**.
 
-Завантажте архів:
-
-```
-BDO-UA-Client-vX.Y.Z-win-x64.zip
-```
-
-Розпакуйте — всередині один файл:
+Завантажте прямий виконуваний файл:
 
 ```
 BDO-UA-Client.exe
@@ -67,9 +61,8 @@ BDO UA Client наразі не підписаний комерційним се
 
 ### Як запустити
 
-1. Завантажте **BDO-UA-Client-vX.Y.Z-win-x64.zip** тільки з офіційної сторінки [GitHub Releases](https://github.com/merelyigor/bdo-ua-client/releases) репозиторію `merelyigor/bdo-ua-client`.
-2. Розпакуйте архів.
-3. Запустіть **BDO-UA-Client.exe**.
+1. Завантажте **BDO-UA-Client.exe** тільки з офіційної сторінки [GitHub Releases](https://github.com/merelyigor/bdo-ua-client/releases) репозиторію `merelyigor/bdo-ua-client`.
+2. Запустіть **BDO-UA-Client.exe**.
 4. Якщо з'явилось вікно SmartScreen, натисніть **"Докладніше"**.
 
 ![Windows SmartScreen — Докладніше](docs/img/smartscreen-more-info.png)

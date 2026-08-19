@@ -13,7 +13,7 @@ public class UpdateManifestValidatorTests
         Version = "0.1.4",
         Tag = "v0.1.4",
         CommitSha = "74875dfcc6762ec0edb75c40e225150f94fa45e5",
-        AssetName = "BDO-UA-Client-v0.1.4-win-x64.zip",
+        AssetName = "BDO-UA-Client.exe",
         Sha256 = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
         Platform = "win-x64",
         WorkflowRunId = "32211040254"
@@ -95,7 +95,7 @@ public class UpdateManifestValidatorTests
     public void NonCanonicalAssetName_Fails()
     {
         var manifest = ValidManifest();
-        manifest.AssetName = "BDO-UA-Client.zip";
+        manifest.AssetName = "BDO-UA-Client-v0.1.4-win-x64.zip";
         Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
     }
 

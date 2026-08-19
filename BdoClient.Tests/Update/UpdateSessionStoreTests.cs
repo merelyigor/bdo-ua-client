@@ -667,7 +667,7 @@ public class UpdateSessionStoreTests : IDisposable
         TargetTag = "v0.1.4",
         TargetPath = @"C:\test\BDO-UA-Client.exe",
         ParentPid = 12345,
-        PackageAssetName = "BDO-UA-Client-v0.1.4-win-x64.zip",
+        PackageAssetName = "BDO-UA-Client.exe",
         PackageSha256 = new string('a', 64),
         StagedExeSha256 = new string('b', 64)
     };

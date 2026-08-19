@@ -232,7 +232,7 @@ public sealed class UpdateSessionStore
         if (session.ParentPid <= 0)
             return UpdateSessionLoadResult.Invalid;
 
-        var expectedAssetName = $"BDO-UA-Client-v{targetVersion.Value}-win-x64.zip";
+        const string expectedAssetName = "BDO-UA-Client.exe";
         if (!string.Equals(session.PackageAssetName, expectedAssetName, StringComparison.Ordinal))
             return UpdateSessionLoadResult.Invalid;
 
@@ -291,7 +291,7 @@ public sealed class UpdateSessionStore
         if (session.ParentPid <= 0)
             return UpdateSessionLoadResult.Invalid;
 
-        var expectedAssetName = $"BDO-UA-Client-v{targetVersion.Value}-win-x64.zip";
+        const string expectedAssetName = "BDO-UA-Client.exe";
         if (!string.Equals(session.PackageAssetName, expectedAssetName, StringComparison.Ordinal))
             return UpdateSessionLoadResult.Invalid;
 

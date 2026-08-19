@@ -54,7 +54,7 @@ public sealed class UpdateManifestValidator
             return UpdateManifestValidationResult.Failure("Missing asset_name");
         }
 
-        var expectedAssetName = $"BDO-UA-Client-v{candidate.Version}-win-x64.zip";
+        const string expectedAssetName = "BDO-UA-Client.exe";
         if (!string.Equals(manifest.AssetName, expectedAssetName, StringComparison.Ordinal))
         {
             _logger.Warning($"Manifest: asset_name '{manifest.AssetName}' != expected '{expectedAssetName}'");

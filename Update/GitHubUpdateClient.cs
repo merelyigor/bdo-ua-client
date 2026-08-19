@@ -16,7 +16,6 @@ public sealed class GitHubUpdateClient
     private const int DiscoveryTimeoutSeconds = 15;
     private const int ManifestTimeoutSeconds = 15;
     public const int ManifestMaxBytes = 65536;
-    public const long ZipMaxBytes = 250_000_000;
     public const long ExeMaxBytes = 200_000_000;
     public const int DownloadTimeoutSeconds = 300;
     public const int MaxRetries = 3;
@@ -320,7 +319,7 @@ public sealed class GitHubUpdateClient
         if (expectedSize > 0 && contentLength.HasValue && contentLength.Value != expectedSize)
             throw new InvalidOperationException($"Content-Length {contentLength.Value} != expected {expectedSize}");
 
-        long maxBytes = expectedSize > 0 ? expectedSize : ZipMaxBytes;
+        long maxBytes = expectedSize > 0 ? expectedSize : ExeMaxBytes;
 
         var sw = Stopwatch.StartNew();
         long totalBytes = 0;
