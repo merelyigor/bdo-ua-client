@@ -50,7 +50,7 @@ public sealed class SelfUpdateReplacementRetryTests : IDisposable
 
         Assert.Throws<IOException>(() => applier.ReplaceWithRetryForTests(paths.candidate, paths.target, paths.backup));
 
-        Assert.InRange(clock.Milliseconds, 30000, 30500);
+        Assert.InRange(clock.Milliseconds, 60000, 60500);
         Assert.True(attempts > 1);
         Assert.Equal("old", File.ReadAllText(paths.target));
         Assert.False(File.Exists(paths.backup));
@@ -78,6 +78,31 @@ public sealed class SelfUpdateReplacementRetryTests : IDisposable
         applier.ReplaceWithRetryForTests(paths.candidate, paths.target, paths.backup);
 
         Assert.True(clock.Milliseconds >= 6000);
+        Assert.True(attempts > 1);
+        Assert.Equal("new", File.ReadAllText(paths.target));
+    }
+
+    [Fact]
+    public void TransientSharingViolation_PastThirtySecondsThenSucceeds()
+    {
+        var attempts = 0;
+        var clock = new FakeClock();
+        var applier = Create((source, target, backup) =>
+        {
+            if (clock.Milliseconds < 31000)
+            {
+                attempts++;
+                throw new IOException("sharing", unchecked((int)0x80070020));
+            }
+
+            File.Copy(source, target, true);
+            File.Copy(target, backup, true);
+        }, clock);
+        var paths = CreateFiles();
+
+        applier.ReplaceWithRetryForTests(paths.candidate, paths.target, paths.backup);
+
+        Assert.True(clock.Milliseconds >= 31000);
         Assert.True(attempts > 1);
         Assert.Equal("new", File.ReadAllText(paths.target));
     }

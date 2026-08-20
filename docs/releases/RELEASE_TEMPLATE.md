@@ -22,7 +22,7 @@ Commit: {{COMMIT_SHA}}
 
 `{{ASSET_NAME}}`
 
-SHA-256:
+Internal EXE SHA-256:
 
 `{{SHA256}}`
 

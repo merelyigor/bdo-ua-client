@@ -7,8 +7,8 @@
     [string]$Sha,
     [Parameter(Mandatory=$true)]
     [string]$AssetName,
-    [Parameter(Mandatory=$true)]
-    [string]$Sha256
+    [Parameter(Mandatory=$false)]
+    [string]$ExeSha256
 )
 
 $ErrorActionPreference = "Stop"
@@ -202,14 +202,14 @@ $body
 
 ``$AssetName``
 
-SHA-256:
+Internal EXE SHA-256:
 
-``$Sha256``
+``$ExeSha256``
 
 ## How to install
 
 1. Download ``$AssetName`` from this page
-2. Extract ``BDO-UA-Client.exe`` from the ZIP
+2. Extract the archive
 3. Run ``BDO-UA-Client.exe``
 4. If Windows SmartScreen shows warning - click "More info" -> "Run" (details: [README](https://github.com/merelyigor/bdo-ua-client#windows-smartscreen))
 

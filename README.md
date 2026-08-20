@@ -43,6 +43,8 @@
 BDO-UA-Client-vX.Y.Z-win-x64.zip
 ```
 
+Public release містить один GitHub-generated application ZIP. Усередині нього рівно чотири flat-файли: `BDO-UA-Client.exe`, `release-manifest.json`, `SHA256SUMS.txt` і release notes. Project-created nested ZIP не використовується.
+
 Для роботи не потрібно встановлювати .NET Runtime — застосунок самодостатній (self-contained).
 
 ### Системні вимоги

@@ -8,7 +8,7 @@ public sealed class SelfUpdateApplier
 {
     private const int ParentWaitTimeoutSeconds = 30;
     private const int ParentPollIntervalMs = 250;
-    private const int ReplaceRetryWindowMs = 30000;
+    private const int ReplaceRetryWindowMs = 60000;
     private const int ReplaceRetryInitialDelayMs = 100;
     private const int ReplaceRetryLaterDelayMs = 250;
     private const int ReplaceRetryMaxDelayMs = 500;

@@ -33,6 +33,9 @@ static class Program
 
     private static void RunHelperMode(string sessionId)
     {
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+
         var paths = new AppPaths();
         paths.EnsureDirectories();
         ILogger log = new FileLogger(paths.LogsDir);
@@ -41,7 +44,20 @@ static class Program
         var sessionStore = new UpdateSessionStore(paths, log);
         var applier = new SelfUpdateApplier(sessionStore, log);
 
-        var exitCode = applier.RunAsync(sessionId).GetAwaiter().GetResult();
+        using var progressForm = new UpdateApplyingForm(async () =>
+        {
+            try
+            {
+                return await applier.RunAsync(sessionId);
+            }
+            catch (Exception ex)
+            {
+                log.Error($"Self-update helper unexpected failure: {ex.Message}");
+                return SelfUpdateApplier.ExitCodeReplaceFailed;
+            }
+        });
+        Application.Run(progressForm);
+        var exitCode = progressForm.ExitCode;
         log.Info($"Self-update helper exited with code {exitCode}");
 
         ShowHelperResultMessage(exitCode);
