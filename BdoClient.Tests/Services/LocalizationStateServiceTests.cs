@@ -34,6 +34,10 @@ public class LocalizationStateServiceTests : IDisposable
         return path;
     }
 
+    private string GameRoot => Path.Combine(_tempDir, "game");
+
+    private void WriteAdsFiles(string content) => File.WriteAllText(Path.Combine(GameRoot, "ads_files"), content);
+
     private async Task SaveApiMetadataAsync(string publicId, string sha256, int version = 1, int gamePatch = 100)
     {
         var metadata = new InstallationMetadata
@@ -199,6 +203,67 @@ public class LocalizationStateServiceTests : IDisposable
 
         Assert.Equal(LocalizationState.Corrupted, result.State);
         Assert.Null(result.Error);
+    }
+
+    [Fact]
+    public async Task GamePatchTransition_HashMismatch_IsNotCorrupted()
+    {
+        var installedContent = Encoding.UTF8.GetBytes("installed patch 397");
+        await SaveApiMetadataAsync("01ABCDEF1234567890ABCDEF", HashHelper.ComputeSha256(installedContent), gamePatch: 397);
+        var gamePath = CreateGameFile(Encoding.UTF8.GetBytes("game replaced file"));
+        WriteAdsFiles("languagedata_en.loc\t398\n");
+
+        var result = await CreateService().ResolveAsync(CreateCurrent(), gamePath, gameRoot: GameRoot);
+
+        Assert.NotEqual(LocalizationState.Corrupted, result.State);
+        Assert.Equal(LocalizationPatchTransition.GameFileReplacedAfterPatch, result.PatchTransition);
+        Assert.Contains("397", result.Error);
+        Assert.Contains("398", result.Error);
+    }
+
+    [Fact]
+    public async Task GamePatchTransition_HashMatch_IsOutdatedPatchState()
+    {
+        var content = Encoding.UTF8.GetBytes("installed patch 397");
+        await SaveApiMetadataAsync("01ABCDEF1234567890ABCDEF", HashHelper.ComputeSha256(content), gamePatch: 397);
+        var gamePath = CreateGameFile(content);
+        WriteAdsFiles("languagedata_en.loc    398\n");
+
+        var result = await CreateService().ResolveAsync(CreateCurrent(), gamePath, gameRoot: GameRoot);
+
+        Assert.Equal(LocalizationState.UpdateAvailable, result.State);
+        Assert.Equal(LocalizationPatchTransition.ExistingLocalizationOutdated, result.PatchTransition);
+        Assert.Contains("397", result.Error);
+        Assert.Contains("398", result.Error);
+    }
+
+    [Fact]
+    public async Task MatchingGamePatch_HashMismatch_RemainsCorrupted()
+    {
+        var content = Encoding.UTF8.GetBytes("installed patch 398");
+        await SaveApiMetadataAsync("01ABCDEF1234567890ABCDEF", HashHelper.ComputeSha256(Encoding.UTF8.GetBytes("different")), gamePatch: 398);
+        var gamePath = CreateGameFile(content);
+        WriteAdsFiles("languagedata_en.loc 398\n");
+
+        var result = await CreateService().ResolveAsync(CreateCurrent(), gamePath, gameRoot: GameRoot);
+
+        Assert.Equal(LocalizationState.Corrupted, result.State);
+        Assert.Equal(LocalizationPatchTransition.None, result.PatchTransition);
+    }
+
+    [Fact]
+    public async Task GamePatchTransition_CurrentNull_IsWaitingWithContext()
+    {
+        var content = Encoding.UTF8.GetBytes("installed patch 397");
+        await SaveApiMetadataAsync("01ABCDEF1234567890ABCDEF", HashHelper.ComputeSha256(content), gamePatch: 397);
+        var gamePath = CreateGameFile(content);
+        WriteAdsFiles("languagedata_en.loc 398\n");
+
+        var result = await CreateService().ResolveAsync(null, gamePath, gameRoot: GameRoot);
+
+        Assert.Equal(LocalizationState.WaitingForRelease, result.State);
+        Assert.Contains("патча 398", result.Error);
+        Assert.DoesNotContain("Current release is not available", result.Error);
     }
 
     // --- WaitingForRelease ---
@@ -393,7 +458,7 @@ public class LocalizationStateServiceTests : IDisposable
 
         Assert.Equal(LocalizationState.WaitingForRelease, result.State);
         Assert.NotNull(result.Error);
-        Assert.Contains("public_id", result.Error);
+        Assert.Contains("Актуальний українізатор", result.Error);
     }
 
     // --- Invalid current metadata: empty PublicId ---
@@ -424,7 +489,7 @@ public class LocalizationStateServiceTests : IDisposable
 
         Assert.Equal(LocalizationState.WaitingForRelease, result.State);
         Assert.NotNull(result.Error);
-        Assert.Contains("public_id", result.Error);
+        Assert.Contains("Актуальний українізатор", result.Error);
     }
 
     // --- Invalid current metadata: whitespace PublicId ---
@@ -455,7 +520,7 @@ public class LocalizationStateServiceTests : IDisposable
 
         Assert.Equal(LocalizationState.WaitingForRelease, result.State);
         Assert.NotNull(result.Error);
-        Assert.Contains("public_id", result.Error);
+        Assert.Contains("Актуальний українізатор", result.Error);
     }
 
     private class NullLogger : ILogger

@@ -242,9 +242,14 @@ public partial class MainForm : Form
 
         if (installable.Count == 0)
         {
+            var localPatch = AdsFilesPatchReader.TryReadPatch(_gameRoot);
+            var officialPatch = _apiResponse?.Data?.OfficialPatch;
+            var patch = localPatch ?? (officialPatch > 0 ? officialPatch : null);
             var label = new Label
             {
-                Text = "Наразі немає доступних режимів.",
+                Text = patch.HasValue
+                    ? $"Для патча {patch.Value} поки немає доступних режимів локалізації."
+                    : "Наразі немає доступних режимів.",
                 AutoSize = true,
                 ForeColor = SystemColors.GrayText,
                 Margin = new Padding(0)
@@ -589,7 +594,7 @@ public partial class MainForm : Form
             }
 
             var gameLocPath = Path.Combine(_gameRoot, "ads", "languagedata_en.loc");
-            var factualState = await _stateService.ResolveAsync(installedModeCurrent, gameLocPath);
+            var factualState = await _stateService.ResolveAsync(installedModeCurrent, gameLocPath, gameRoot: _gameRoot);
 
             var policy = InstallActionPolicy.Evaluate(
                 factualState.State, installedModeSlug, installedPublicId,
@@ -1447,9 +1452,9 @@ public partial class MainForm : Form
         }
 
         var gameLocPath = Path.Combine(_gameRoot, "ads", "languagedata_en.loc");
-        var stateResult = await _stateService.ResolveAsync(installedModeCurrent, gameLocPath);
+        var stateResult = await _stateService.ResolveAsync(installedModeCurrent, gameLocPath, gameRoot: _gameRoot);
         _lastResolvedState = stateResult.State;
-        ApplyLocalizationStatePresentation(stateResult.State);
+        ApplyLocalizationStatePresentation(stateResult);
 
         // Installed info display
         if (installedLoad.Status == FileLoadStatus.Valid && installedLoad.Value?.Source == "api")
@@ -1558,17 +1563,6 @@ public partial class MainForm : Form
         }
     }
 
-    private static string GetStateDisplayText(LocalizationState state) => state switch
-    {
-        LocalizationState.NotInstalled => "Локалізацію не встановлено",
-        LocalizationState.UpToDate => "✓ Встановлена локалізація актуальна",
-        LocalizationState.UpdateAvailable => "Доступна новіша версія встановленої локалізації",
-        LocalizationState.WaitingForRelease => "Очікується актуальний реліз",
-        LocalizationState.InstalledVersionUnknown => "Не вдалося визначити встановлену версію",
-        LocalizationState.Corrupted => "Файл локалізації пошкоджено",
-        _ => "Не визначено"
-    };
-
     // --- Presentation helpers ---
 
     public void SetGamePathText(string text) => gamePathLabel.Text = text;
@@ -1579,10 +1573,12 @@ public partial class MainForm : Form
         localizationStateLabel.ForeColor = SystemColors.ControlText;
     }
 
-    private void ApplyLocalizationStatePresentation(LocalizationState state)
+    private void ApplyLocalizationStatePresentation(LocalizationStateResult result)
     {
-        localizationStateLabel.Text = GetStateDisplayText(state);
-        localizationStateLabel.ForeColor = state switch
+        localizationStateLabel.Text = LocalizationStatePresentation.GetDisplayText(result);
+        localizationStateLabel.ForeColor = result.PatchTransition != LocalizationPatchTransition.None
+            ? Color.DarkGoldenrod
+            : result.State switch
         {
             LocalizationState.UpToDate => SuccessGreen,
             LocalizationState.Corrupted => Color.DarkRed,

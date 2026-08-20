@@ -3,9 +3,9 @@
 Plan ID: `client-self-update`
 Status: **ACTIVE**
 Focus: **PRIMARY**
-Current phase: v13.5.1 implemented — pending acceptance
-Next action: v13.5.2 — real published-release E2E verification with ZIP transport
-ONLY after v13.5.1 acceptance
+Current phase: v14.0 — make localization state patch-aware
+Next action: v14.1 — follow-up after v14.0 acceptance
+ONLY after v14.0 acceptance
 
 Release history decision: `v0.1.5` is an obsolete RC tag only, has no GitHub
 Release, and must never be published or used as updater input. The first
@@ -585,17 +585,20 @@ Program                     — detect internal updater mode vs normal UI
 
 ### v13.5.1 — harden self-update and add ZIP transport
 
-**Status:** IMPLEMENTED — pending acceptance.
+**Status:** COMPLETED — accepted after real Windows E2E.
 
 - `File.Replace` retries only Win32 sharing/lock violations (32/33) for a bounded five-second window.
 - Schema 1 keeps direct EXE identity/hash and adds optional `package_name`/`package_sha256`.
 - New clients prefer the canonical flat ZIP when both optional fields validate; legacy manifests use direct EXE fallback.
 - ZIP validation requires exactly one root-level `BDO-UA-Client.exe`, verifies package and extracted EXE hashes, size, version, and cleans failed sessions.
 - Release Candidate artifacts contain the direct EXE, canonical ZIP, checksums, manifest, and release notes as flat files.
+- Real E2E `v0.1.8` → `v0.1.9` passed with ZIP download size `68139904` bytes, successful `File.Replace`, restart at `0.1.9`, backup cleanup, and update-session cleanup.
 
 ---
 
 ### v13.5 — real published-release E2E
+
+**Status:** COMPLETED.
 
 **Goal:** Verify self-update with actual published GitHub Releases.
 
@@ -621,7 +624,18 @@ Program                     — detect internal updater mode vs normal UI
 - No unwanted .tmp/.new/.bak leftovers after confirmed success
 - Old application remains recoverable on simulated/apply failures via automated tests
 
-**If defect found:** targeted v13.5.2 fix.
+**If defect found:** targeted follow-up fix.
+
+---
+
+### v14.0 — make localization state patch-aware
+
+**Status:** IMPLEMENTED — pending acceptance.
+
+- Added safe `ads_files` reader for the local `languagedata_en.loc` game patch.
+- Higher local game patch no longer classifies a localization hash mismatch as corruption.
+- Added factual outdated-localization and game-replaced-file presentation.
+- Current release absence now uses contextual Ukrainian messaging and keeps Install disabled.
 
 ---
 

@@ -36,7 +36,7 @@ public class LocalizationCompatibilityServiceTests
 
         Assert.False(result.IsAllowed);
         Assert.NotNull(result.Reason);
-        Assert.Contains("not available", result.Reason);
+        Assert.Contains("Актуальний українізатор", result.Reason);
     }
 
     // --- current.PublicId=null ---
@@ -50,7 +50,7 @@ public class LocalizationCompatibilityServiceTests
 
         Assert.False(result.IsAllowed);
         Assert.NotNull(result.Reason);
-        Assert.Contains("public_id", result.Reason);
+        Assert.Contains("Актуальний українізатор", result.Reason);
     }
 
     // --- current.PublicId="" ---
@@ -90,7 +90,7 @@ public class LocalizationCompatibilityServiceTests
 
         Assert.False(result.IsAllowed);
         Assert.NotNull(result.Reason);
-        Assert.Contains("compatible", result.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("не сумісний", result.Reason);
     }
 
     // --- compatible=true + valid PublicId ---
