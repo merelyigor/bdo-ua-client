@@ -8,8 +8,11 @@ public sealed class SelfUpdateApplier
 {
     private const int ParentWaitTimeoutSeconds = 30;
     private const int ParentPollIntervalMs = 250;
-    private const int ReplaceRetryWindowMs = 5000;
-    private const int ReplaceRetryDelayMs = 100;
+    private const int ReplaceRetryWindowMs = 30000;
+    private const int ReplaceRetryInitialDelayMs = 100;
+    private const int ReplaceRetryLaterDelayMs = 250;
+    private const int ReplaceRetryMaxDelayMs = 500;
+    private const int ReplaceRetryLogIntervalMs = 1000;
 
     private readonly UpdateSessionStore _sessionStore;
     private readonly ILogger _logger;
@@ -18,6 +21,8 @@ public sealed class SelfUpdateApplier
     private readonly Func<int, bool> _isProcessRunning;
     private readonly Func<ProcessStartInfo, Process?> _startProcess;
     private readonly Action<string, string, string> _replaceFile;
+    private readonly Func<long> _getTimestampMilliseconds;
+    private readonly Action<int> _sleep;
 
     public SelfUpdateApplier(
         UpdateSessionStore sessionStore,
@@ -27,7 +32,9 @@ public sealed class SelfUpdateApplier
             path => FileVersionInfo.GetVersionInfo(path),
             pid => IsProcessRunningDefault(pid),
             psi => Process.Start(psi),
-            (source, destination, backup) => File.Replace(source, destination, backup))
+            (source, destination, backup) => File.Replace(source, destination, backup),
+            () => Environment.TickCount64,
+            Thread.Sleep)
     {
     }
 
@@ -38,7 +45,9 @@ public sealed class SelfUpdateApplier
         Func<string, FileVersionInfo> getFileVersionInfo,
         Func<int, bool> isProcessRunning,
         Func<ProcessStartInfo, Process?> startProcess,
-        Action<string, string, string>? replaceFile = null)
+        Action<string, string, string>? replaceFile = null,
+        Func<long>? getTimestampMilliseconds = null,
+        Action<int>? sleep = null)
     {
         _sessionStore = sessionStore ?? throw new ArgumentNullException(nameof(sessionStore));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -47,6 +56,8 @@ public sealed class SelfUpdateApplier
         _isProcessRunning = isProcessRunning ?? throw new ArgumentNullException(nameof(isProcessRunning));
         _startProcess = startProcess ?? throw new ArgumentNullException(nameof(startProcess));
         _replaceFile = replaceFile ?? ((source, destination, backup) => File.Replace(source, destination, backup));
+        _getTimestampMilliseconds = getTimestampMilliseconds ?? (() => Environment.TickCount64);
+        _sleep = sleep ?? Thread.Sleep;
     }
 
     public async Task<int> RunAsync(string sessionId, CancellationToken cancellationToken = default)
@@ -392,8 +403,10 @@ public sealed class SelfUpdateApplier
 
     private void ReplaceWithRetry(string candidatePath, string targetPath, string backupPath, CancellationToken cancellationToken)
     {
-        var stopwatch = Stopwatch.StartNew();
+        var startedAt = _getTimestampMilliseconds();
         var attempt = 0;
+        var nextLogAt = ReplaceRetryLogIntervalMs;
+        var waitedForLock = false;
 
         while (true)
         {
@@ -401,20 +414,34 @@ public sealed class SelfUpdateApplier
             try
             {
                 _replaceFile(candidatePath, targetPath, backupPath);
+                if (waitedForLock)
+                    _logger.Info($"Self-update: File.Replace succeeded after transient lock wait of {GetElapsedMilliseconds(startedAt) / 1000.0:F1}s");
                 return;
-            }
-            catch (IOException ex) when (IsTransientReplaceError(ex) && stopwatch.ElapsedMilliseconds < ReplaceRetryWindowMs)
-            {
-                attempt++;
-                var remaining = ReplaceRetryWindowMs - (int)stopwatch.ElapsedMilliseconds;
-                var delay = Math.Min(ReplaceRetryDelayMs, Math.Max(1, remaining));
-                _logger.Warning($"Self-update: transient File.Replace lock (attempt={attempt}, hresult=0x{ex.HResult:X8}); retrying in {delay}ms");
-                Thread.Sleep(delay);
             }
             catch (IOException ex) when (IsTransientReplaceError(ex))
             {
-                _logger.Error($"Self-update: File.Replace transient lock exhausted after {stopwatch.ElapsedMilliseconds}ms: {ex.Message}");
-                throw;
+                attempt++;
+                waitedForLock = true;
+                var elapsed = GetElapsedMilliseconds(startedAt);
+                if (elapsed >= ReplaceRetryWindowMs)
+                {
+                    _logger.Error($"Self-update: File.Replace transient lock exhausted after {elapsed}ms: {ex.Message}");
+                    throw;
+                }
+
+                if (elapsed >= nextLogAt)
+                {
+                    _logger.Warning($"Self-update: target still locked after {elapsed / 1000.0:F1}s");
+                    nextLogAt += ReplaceRetryLogIntervalMs;
+                }
+                else if (attempt == 1)
+                {
+                    _logger.Warning($"Self-update: target temporarily locked; waiting for release (hresult=0x{ex.HResult:X8})");
+                }
+
+                var remaining = ReplaceRetryWindowMs - (int)Math.Min(ReplaceRetryWindowMs, elapsed);
+                var delay = Math.Min(GetRetryDelayMilliseconds(attempt), remaining);
+                _sleep(Math.Max(1, delay));
             }
         }
     }
@@ -426,6 +453,18 @@ public sealed class SelfUpdateApplier
     {
         var win32Error = exception.HResult & 0xFFFF;
         return win32Error is 32 or 33;
+    }
+
+    private long GetElapsedMilliseconds(long startedAt)
+        => Math.Max(0, _getTimestampMilliseconds() - startedAt);
+
+    private static int GetRetryDelayMilliseconds(int attempt)
+    {
+        if (attempt <= 3)
+            return ReplaceRetryInitialDelayMs;
+
+        return Math.Min(ReplaceRetryMaxDelayMs,
+            ReplaceRetryLaterDelayMs + (attempt - 4) * ReplaceRetryLaterDelayMs);
     }
 
     private async Task<bool> TryRollbackAsync(string targetPath, string backupPath, string failedNewPath, UpdateSession session, CancellationToken cancellationToken)
