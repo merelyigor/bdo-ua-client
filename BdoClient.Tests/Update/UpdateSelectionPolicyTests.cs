@@ -220,6 +220,57 @@ public class UpdateSelectionPolicyTests
     }
 
     [Fact]
+    public void CanonicalBundleWithoutExternalManifest_IsSelected()
+    {
+        var info = AppVersionInfo.FromRawVersion("0.1.3");
+        var policy = new UpdateSelectionPolicy(Logger);
+        var releases = new List<GitHubRelease>
+        {
+            MakeRelease("v0.1.3", assets: Manifest),
+            new GitHubRelease
+            {
+                TagName = "v0.1.4",
+                PublishedAt = DefaultPublishedAt,
+                Assets = new List<GitHubReleaseAsset>
+                {
+                    new()
+                    {
+                        Name = "BDO-UA-Client-v0.1.4-win-x64.zip",
+                        BrowserDownloadUrl = "https://example.com/bundle.zip",
+                        Size = 100,
+                        State = "uploaded"
+                    }
+                }
+            }
+        };
+
+        var candidate = policy.FindUpdate(info, releases);
+
+        Assert.NotNull(candidate);
+        Assert.Equal("v0.1.4", candidate!.TagName);
+    }
+
+    [Fact]
+    public void BundleWithDirectExeWithoutManifest_FailsClosed()
+    {
+        var info = AppVersionInfo.FromRawVersion("0.1.3");
+        var policy = new UpdateSelectionPolicy(Logger);
+        var release = MakeRelease("v0.1.4", assets: new[]
+        {
+            ("BDO-UA-Client-v0.1.4-win-x64.zip", "https://example.com/bundle.zip", "uploaded"),
+            ("BDO-UA-Client.exe", "https://example.com/app.exe", "uploaded")
+        });
+        release.Assets!.First(a => a.Name!.EndsWith(".zip", StringComparison.Ordinal)).Size = 100;
+        var releases = new List<GitHubRelease>
+        {
+            MakeRelease("v0.1.3", assets: Manifest),
+            release
+        };
+
+        Assert.Null(policy.FindUpdate(info, releases));
+    }
+
+    [Fact]
     public void ManifestNotUploaded_FailClosed()
     {
         var info = AppVersionInfo.FromRawVersion("0.1.0");

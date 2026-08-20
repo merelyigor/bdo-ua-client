@@ -17,8 +17,18 @@ public sealed class UpdateManifestValidator
     }
 
     public UpdateManifestValidationResult Validate(UpdateManifest manifest, UpdateCandidate candidate)
+        => ValidateInternal(manifest, candidate, expectedSchemaVersion: 1, rejectPackageFields: false);
+
+    public UpdateManifestValidationResult ValidateBundle(UpdateManifest manifest, UpdateCandidate candidate)
+        => ValidateInternal(manifest, candidate, expectedSchemaVersion: 2, rejectPackageFields: true);
+
+    private UpdateManifestValidationResult ValidateInternal(
+        UpdateManifest manifest,
+        UpdateCandidate candidate,
+        int expectedSchemaVersion,
+        bool rejectPackageFields)
     {
-        if (manifest.SchemaVersion != 1)
+        if (manifest.SchemaVersion != expectedSchemaVersion)
         {
             _logger.Warning($"Manifest: invalid schema_version={manifest.SchemaVersion}");
             return UpdateManifestValidationResult.Failure($"Invalid schema_version: {manifest.SchemaVersion}");
@@ -72,7 +82,10 @@ public sealed class UpdateManifestValidator
         if (hasPackageName != hasPackageSha)
             return UpdateManifestValidationResult.Failure("package_name and package_sha256 must be provided together");
 
-        if (hasPackageName)
+        if (rejectPackageFields && (hasPackageName || hasPackageSha))
+            return UpdateManifestValidationResult.Failure("schema 2 bundle manifest must not contain package fields");
+
+        if (hasPackageName && !rejectPackageFields)
         {
             var expectedPackageName = $"BDO-UA-Client-v{candidate.Version}-win-x64.zip";
             if (!string.Equals(manifest.PackageName, expectedPackageName, StringComparison.Ordinal))

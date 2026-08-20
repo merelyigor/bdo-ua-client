@@ -200,6 +200,50 @@ public sealed class UpdatePackageServiceTests : IDisposable
         Assert.Empty(Directory.GetDirectories(_appPaths.UpdatesDir));
     }
 
+    [Fact]
+    public async Task StageUpdate_BundleMissingDigest_FailsBeforeDownload()
+    {
+        var bundle = new byte[] { 1, 2, 3 };
+        var handler = new QueuedHandler(bundle);
+        var assets = new[] { BundleAsset(bundle.Length) };
+
+        var result = await CreateService(handler).StageUpdateAsync(
+            CandidateWithoutManifest(assets), PublicVersionInfo(), null);
+
+        Assert.Equal(UpdatePackageError.HashMismatch, result.Error);
+        Assert.Equal(0, handler.RequestCount);
+        Assert.Empty(Directory.GetDirectories(_appPaths.UpdatesDir));
+    }
+
+    [Fact]
+    public async Task StageUpdate_BundleMalformedDigest_FailsBeforeDownload()
+    {
+        var bundle = new byte[] { 1, 2, 3 };
+        var handler = new QueuedHandler(bundle);
+        var assets = new[] { BundleAsset(bundle.Length, "sha256:not-a-sha") };
+
+        var result = await CreateService(handler).StageUpdateAsync(
+            CandidateWithoutManifest(assets), PublicVersionInfo(), null);
+
+        Assert.Equal(UpdatePackageError.HashMismatch, result.Error);
+        Assert.Equal(0, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task StageUpdate_BundleDigestMismatch_FailsAfterDownloadAndCleansSession()
+    {
+        var bundle = new byte[] { 1, 2, 3 };
+        var handler = new QueuedHandler(bundle);
+        var assets = new[] { BundleAsset(bundle.Length, "sha256:" + new string('a', 64)) };
+
+        var result = await CreateService(handler).StageUpdateAsync(
+            CandidateWithoutManifest(assets), PublicVersionInfo(), null);
+
+        Assert.Equal(UpdatePackageError.HashMismatch, result.Error);
+        Assert.Equal(1, handler.RequestCount);
+        Assert.Empty(Directory.GetDirectories(_appPaths.UpdatesDir));
+    }
+
     private UpdatePackageService CreateService(HttpMessageHandler handler)
     {
         var client = new GitHubUpdateClient(new HttpClient(handler), _logger);
@@ -210,6 +254,15 @@ public sealed class UpdatePackageServiceTests : IDisposable
     private static AppVersionInfo PublicVersionInfo() => AppVersionInfo.FromRawVersion("0.1.3");
 
     private static UpdateCandidate Candidate(GitHubReleaseAsset[] assets) => new(
+        new AppVersion(0, 1, 4), "v0.1.4", new GitHubRelease
+        {
+            TagName = "v0.1.4",
+            Draft = false,
+            PublishedAt = DateTimeOffset.UtcNow,
+            Assets = assets.ToList()
+        });
+
+    private static UpdateCandidate CandidateWithoutManifest(GitHubReleaseAsset[] assets) => new(
         new AppVersion(0, 1, 4), "v0.1.4", new GitHubRelease
         {
             TagName = "v0.1.4",
@@ -230,6 +283,15 @@ public sealed class UpdatePackageServiceTests : IDisposable
     {
         Name = "BDO-UA-Client.exe",
         BrowserDownloadUrl = url,
+        Size = size,
+        State = "uploaded",
+        Digest = digest
+    };
+
+    private static GitHubReleaseAsset BundleAsset(long size, string? digest = null) => new()
+    {
+        Name = "BDO-UA-Client-v0.1.4-win-x64.zip",
+        BrowserDownloadUrl = "https://example.test/bundle.zip",
         Size = size,
         State = "uploaded",
         Digest = digest

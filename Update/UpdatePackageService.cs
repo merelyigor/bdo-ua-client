@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Text;
+using System.Text.Json;
 using BdoClient.Logging;
 using BdoClient.Services;
 using BdoClient.Storage;
@@ -71,62 +73,90 @@ public sealed class UpdatePackageService
             Directory.CreateDirectory(sessionDir);
 
             progress?.Report(new UpdateStageProgress("Отримання метаданих оновлення...", 0));
-            var manifestAsset = FindExactlyOneAsset(candidate, ManifestFileName);
-            if (manifestAsset == null)
-                return UpdatePackageResult.Failure(UpdatePackageError.AssetMissing, "Manifest asset not found or ambiguous");
-
-            var manifestResult = await _gitHubClient.FetchManifestAsync(manifestAsset, cancellationToken);
-            if (!manifestResult.IsSuccess)
-                return UpdatePackageResult.Failure(UpdatePackageError.ManifestDownloadFailed, manifestResult.ErrorMessage!);
-
-            var manifest = manifestResult.Value!;
-            var validationResult = _manifestValidator.Validate(manifest, candidate);
-            if (!validationResult.IsValid)
-                return UpdatePackageResult.Failure(UpdatePackageError.ManifestInvalid, validationResult.ErrorMessage!);
-
-            var expectedSha = validationResult.NormalizedSha256!;
             var exePath = Path.Combine(sessionDir, ExeFileName);
             var downloadProgress = new Progress<double>(pct =>
                 progress?.Report(new UpdateStageProgress($"Завантаження оновлення {candidate.TagName}...", pct)));
 
             string packageAssetName = ExeFileName;
             string packageSha;
-            if (!string.IsNullOrWhiteSpace(manifest.PackageName) && !string.IsNullOrWhiteSpace(manifest.PackageSha256))
+            string expectedSha;
+            var manifestAssetCount = candidate.Release.Assets?.Count(a =>
+                string.Equals(a.Name, ManifestFileName, StringComparison.Ordinal)) ?? 0;
+            if (manifestAssetCount == 0)
             {
-                var packageAsset = FindExactlyOneAsset(candidate, manifest.PackageName);
+                var bundleName = $"BDO-UA-Client-v{candidate.Version}-win-x64.zip";
+                var packageAsset = FindExactlyOneAsset(candidate, bundleName);
                 if (packageAsset == null)
-                    return UpdatePackageResult.Failure(UpdatePackageError.AssetMissing, "ZIP package not found or ambiguous");
+                    return UpdatePackageResult.Failure(UpdatePackageError.AssetMissing, "Canonical bundle not found or ambiguous");
                 if (packageAsset.Size <= 0 || packageAsset.Size > ZipMaxBytes)
                     return UpdatePackageResult.Failure(UpdatePackageError.SizeMismatch, $"Invalid ZIP size: {packageAsset.Size}");
-                if (!ValidateGitHubDigest(packageAsset, manifest.PackageSha256))
-                    return UpdatePackageResult.Failure(UpdatePackageError.HashMismatch, "ZIP GitHub digest mismatch or unsupported format");
+                if (!ValidateGitHubDigest(packageAsset, expectedSha: null, requireDigest: true))
+                    return UpdatePackageResult.Failure(UpdatePackageError.HashMismatch, "ZIP GitHub digest missing, malformed, or unsupported");
 
-                var packagePath = Path.Combine(sessionDir, manifest.PackageName);
+                var packagePath = Path.Combine(sessionDir, bundleName);
                 var packageResult = await _gitHubClient.DownloadAssetAsync(
                     packageAsset.BrowserDownloadUrl!, packagePath, packageAsset.Size, downloadProgress, cancellationToken);
                 if (!packageResult.IsSuccess)
                     return UpdatePackageResult.Failure(UpdatePackageError.DownloadFailed, packageResult.ErrorMessage!);
                 packageSha = packageResult.Value!.Sha256;
-                if (!string.Equals(packageSha, manifest.PackageSha256, StringComparison.OrdinalIgnoreCase))
+                if (!ValidateGitHubDigest(packageAsset, packageSha, requireDigest: true))
                     return UpdatePackageResult.Failure(UpdatePackageError.HashMismatch, "ZIP SHA-256 mismatch");
-                var extractionResult = await ExtractValidatedExeAsync(packagePath, exePath, expectedSha, candidate.Version, cancellationToken);
+                var extractionResult = await ExtractValidatedBundleAsync(packagePath, exePath, candidate, cancellationToken, _manifestValidator);
                 if (!extractionResult.IsValid)
                     return UpdatePackageResult.Failure(UpdatePackageError.PackageInvalid, extractionResult.Error!);
+                expectedSha = extractionResult.ExeSha256!;
             }
             else
             {
-                var exeAsset = FindExactlyOneAsset(candidate, manifest.AssetName!);
-                if (exeAsset == null)
-                    return UpdatePackageResult.Failure(UpdatePackageError.AssetMissing, "EXE asset not found or ambiguous");
-                if (exeAsset.Size <= 0 || exeAsset.Size > GitHubUpdateClient.ExeMaxBytes)
-                    return UpdatePackageResult.Failure(UpdatePackageError.SizeMismatch, $"Invalid EXE size: {exeAsset.Size}");
-                if (!ValidateGitHubDigest(exeAsset, expectedSha))
-                    return UpdatePackageResult.Failure(UpdatePackageError.HashMismatch, "GitHub digest mismatch or unsupported format");
-                var downloadResult = await _gitHubClient.DownloadAssetAsync(
-                    exeAsset.BrowserDownloadUrl!, exePath, exeAsset.Size, downloadProgress, cancellationToken);
-                if (!downloadResult.IsSuccess)
-                    return UpdatePackageResult.Failure(UpdatePackageError.DownloadFailed, downloadResult.ErrorMessage!);
-                packageSha = downloadResult.Value!.Sha256;
+                var manifestAsset = FindExactlyOneAsset(candidate, ManifestFileName);
+                if (manifestAsset == null)
+                    return UpdatePackageResult.Failure(UpdatePackageError.AssetMissing, "Manifest asset not found or ambiguous");
+                var manifestResult = await _gitHubClient.FetchManifestAsync(manifestAsset, cancellationToken);
+                if (!manifestResult.IsSuccess)
+                    return UpdatePackageResult.Failure(UpdatePackageError.ManifestDownloadFailed, manifestResult.ErrorMessage!);
+                var manifest = manifestResult.Value!;
+                var validationResult = _manifestValidator.Validate(manifest, candidate);
+                if (!validationResult.IsValid)
+                    return UpdatePackageResult.Failure(UpdatePackageError.ManifestInvalid, validationResult.ErrorMessage!);
+                expectedSha = validationResult.NormalizedSha256!;
+
+                if (!string.IsNullOrWhiteSpace(manifest.PackageName) && !string.IsNullOrWhiteSpace(manifest.PackageSha256))
+                {
+                    var packageAsset = FindExactlyOneAsset(candidate, manifest.PackageName);
+                    if (packageAsset == null)
+                        return UpdatePackageResult.Failure(UpdatePackageError.AssetMissing, "ZIP package not found or ambiguous");
+                    if (packageAsset.Size <= 0 || packageAsset.Size > ZipMaxBytes)
+                        return UpdatePackageResult.Failure(UpdatePackageError.SizeMismatch, $"Invalid ZIP size: {packageAsset.Size}");
+                    if (!ValidateGitHubDigest(packageAsset, manifest.PackageSha256, requireDigest: false))
+                        return UpdatePackageResult.Failure(UpdatePackageError.HashMismatch, "ZIP GitHub digest mismatch or unsupported format");
+
+                    var packagePath = Path.Combine(sessionDir, manifest.PackageName);
+                    var packageResult = await _gitHubClient.DownloadAssetAsync(
+                        packageAsset.BrowserDownloadUrl!, packagePath, packageAsset.Size, downloadProgress, cancellationToken);
+                    if (!packageResult.IsSuccess)
+                        return UpdatePackageResult.Failure(UpdatePackageError.DownloadFailed, packageResult.ErrorMessage!);
+                    packageSha = packageResult.Value!.Sha256;
+                    if (!string.Equals(packageSha, manifest.PackageSha256, StringComparison.OrdinalIgnoreCase))
+                        return UpdatePackageResult.Failure(UpdatePackageError.HashMismatch, "ZIP SHA-256 mismatch");
+                    var extractionResult = await ExtractValidatedExeAsync(packagePath, exePath, expectedSha, candidate.Version, cancellationToken);
+                    if (!extractionResult.IsValid)
+                        return UpdatePackageResult.Failure(UpdatePackageError.PackageInvalid, extractionResult.Error!);
+                }
+                else
+                {
+                    var exeAsset = FindExactlyOneAsset(candidate, manifest.AssetName!);
+                    if (exeAsset == null)
+                        return UpdatePackageResult.Failure(UpdatePackageError.AssetMissing, "EXE asset not found or ambiguous");
+                    if (exeAsset.Size <= 0 || exeAsset.Size > GitHubUpdateClient.ExeMaxBytes)
+                        return UpdatePackageResult.Failure(UpdatePackageError.SizeMismatch, $"Invalid EXE size: {exeAsset.Size}");
+                    if (!ValidateGitHubDigest(exeAsset, expectedSha, requireDigest: false))
+                        return UpdatePackageResult.Failure(UpdatePackageError.HashMismatch, "GitHub digest mismatch or unsupported format");
+                    var downloadResult = await _gitHubClient.DownloadAssetAsync(
+                        exeAsset.BrowserDownloadUrl!, exePath, exeAsset.Size, downloadProgress, cancellationToken);
+                    if (!downloadResult.IsSuccess)
+                        return UpdatePackageResult.Failure(UpdatePackageError.DownloadFailed, downloadResult.ErrorMessage!);
+                    packageSha = downloadResult.Value!.Sha256;
+                }
             }
 
             progress?.Report(new UpdateStageProgress("Перевірка цілісності...", 100));
@@ -241,10 +271,106 @@ public sealed class UpdatePackageService
         }
     }
 
-    private bool ValidateGitHubDigest(GitHubReleaseAsset asset, string expectedSha)
+    internal static async Task<(bool IsValid, string? Error, string? ExeSha256)> ExtractValidatedBundleAsync(
+        string packagePath,
+        string exePath,
+        UpdateCandidate candidate,
+        CancellationToken cancellationToken = default,
+        UpdateManifestValidator? manifestValidator = null,
+        Func<string?, string?, bool>? versionValidator = null)
+    {
+        try
+        {
+            using var archive = ZipFile.OpenRead(packagePath);
+            var expectedNames = new HashSet<string>(StringComparer.Ordinal)
+            {
+                PackageEntryName,
+                ManifestFileName,
+                "SHA256SUMS.txt",
+                $"RELEASE_NOTES-v{candidate.Version}.md"
+            };
+            if (archive.Entries.Count != expectedNames.Count ||
+                archive.Entries.Any(entry => !expectedNames.Contains(entry.FullName)) ||
+                archive.Entries.Select(entry => entry.FullName).Distinct(StringComparer.Ordinal).Count() != expectedNames.Count)
+                return (false, "Bundle must contain exactly the four expected root-level entries", null);
+
+            var manifestEntry = archive.GetEntry(ManifestFileName)!;
+            var sumsEntry = archive.GetEntry("SHA256SUMS.txt")!;
+            var manifestJson = await ReadZipEntryTextAsync(manifestEntry, 65536, cancellationToken);
+            var sumsText = await ReadZipEntryTextAsync(sumsEntry, 65536, cancellationToken);
+            var manifest = JsonSerializer.Deserialize<UpdateManifest>(manifestJson, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+            if (manifest == null)
+                return (false, "Bundle manifest is empty", null);
+            manifestValidator ??= new UpdateManifestValidator(new SilentLogger());
+            var validation = manifestValidator.ValidateBundle(manifest, candidate);
+            if (!validation.IsValid)
+                return (false, validation.ErrorMessage, null);
+
+            var sumsLine = sumsText.Replace("\r\n", "\n", StringComparison.Ordinal);
+            if (sumsLine.EndsWith('\n'))
+                sumsLine = sumsLine[..^1];
+            if (sumsLine.Contains('\n'))
+                return (false, "SHA256SUMS.txt must contain exactly one line", null);
+            var expectedSumsLine = $"{validation.NormalizedSha256}  {PackageEntryName}";
+            if (!string.Equals(sumsLine, expectedSumsLine, StringComparison.OrdinalIgnoreCase))
+                return (false, "SHA256SUMS.txt does not match the bundle manifest", null);
+
+            var entry = archive.GetEntry(PackageEntryName)!;
+            if (entry.Length <= 0 || entry.Length > GitHubUpdateClient.ExeMaxBytes)
+                return (false, "Bundle EXE entry size is invalid", null);
+            using var input = entry.Open();
+            await using (var output = new FileStream(exePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                await input.CopyToAsync(output, cancellationToken);
+                await output.FlushAsync(cancellationToken);
+            }
+            var stagedSha = await HashHelper.ComputeFileSha256Async(exePath, cancellationToken);
+            if (!string.Equals(stagedSha, validation.NormalizedSha256, StringComparison.OrdinalIgnoreCase))
+                return (false, "Extracted EXE SHA-256 mismatch", null);
+            var info = FileVersionInfo.GetVersionInfo(exePath);
+            string? versionError = null;
+            var versionValid = versionValidator == null
+                ? ExecutableVersionValidator.Validate(info.FileVersion, info.ProductVersion, candidate.Version, out versionError)
+                : versionValidator(info.FileVersion, info.ProductVersion);
+            if (!versionValid)
+                return (false, versionValidator == null ? versionError : "Executable version metadata mismatch", null);
+            return (true, null, validation.NormalizedSha256);
+        }
+        catch (InvalidDataException ex)
+        {
+            return (false, $"Malformed ZIP: {ex.Message}", null);
+        }
+        catch (IOException ex)
+        {
+            return (false, $"ZIP extraction failed: {ex.Message}", null);
+        }
+        catch (JsonException ex)
+        {
+            return (false, $"Malformed bundle manifest: {ex.Message}", null);
+        }
+        catch (DecoderFallbackException ex)
+        {
+            return (false, $"Invalid bundle text encoding: {ex.Message}", null);
+        }
+    }
+
+    private static async Task<string> ReadZipEntryTextAsync(ZipArchiveEntry entry, int maxBytes, CancellationToken cancellationToken)
+    {
+        await using var input = entry.Open();
+        using var buffer = new MemoryStream();
+        await input.CopyToAsync(buffer, cancellationToken);
+        if (buffer.Length > maxBytes)
+            throw new InvalidDataException("ZIP metadata entry exceeds maximum size");
+        return new UTF8Encoding(false, true).GetString(buffer.ToArray());
+    }
+
+    private bool ValidateGitHubDigest(GitHubReleaseAsset asset, string? expectedSha, bool requireDigest)
     {
         if (string.IsNullOrEmpty(asset.Digest))
-            return true;
+            return !requireDigest;
 
         if (!asset.Digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
         {
@@ -259,7 +385,7 @@ public sealed class UpdatePackageService
             return false;
         }
 
-        return string.Equals(digest, expectedSha, StringComparison.OrdinalIgnoreCase);
+        return expectedSha == null || string.Equals(digest, expectedSha, StringComparison.OrdinalIgnoreCase);
     }
 
     internal static GitHubReleaseAsset? FindExactlyOneAsset(UpdateCandidate candidate, string assetName)
@@ -293,6 +419,14 @@ public sealed class UpdatePackageService
         {
             // Best-effort cleanup
         }
+    }
+
+    private sealed class SilentLogger : ILogger
+    {
+        public void Debug(string message) { }
+        public void Info(string message) { }
+        public void Warning(string message) { }
+        public void Error(string message) { }
     }
 }
 

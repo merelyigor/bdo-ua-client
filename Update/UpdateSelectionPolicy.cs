@@ -80,14 +80,36 @@ public sealed class UpdateSelectionPolicy
             return null;
         }
 
-        var hasManifest = best.Release.Assets?.Any(a =>
-            string.Equals(a.Name, ManifestAssetName, StringComparison.Ordinal) &&
-            string.Equals(a.State, "uploaded", StringComparison.OrdinalIgnoreCase)) == true;
-
-        if (!hasManifest)
+        var manifestAssetCount = best.Release.Assets?.Count(a =>
+            string.Equals(a.Name, ManifestAssetName, StringComparison.Ordinal)) ?? 0;
+        if (manifestAssetCount > 1)
         {
-            _logger.Warning($"Update: candidate {best.TagName} lacks uploaded {ManifestAssetName}; fail closed");
+            _logger.Warning($"Update: candidate {best.TagName} has ambiguous {ManifestAssetName}; fail closed");
             return null;
+        }
+
+        if (manifestAssetCount == 1)
+        {
+            var manifestAsset = best.Release.Assets!.Single(a =>
+                string.Equals(a.Name, ManifestAssetName, StringComparison.Ordinal));
+            if (!string.Equals(manifestAsset.State, "uploaded", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.Warning($"Update: candidate {best.TagName} has non-uploaded {ManifestAssetName}; fail closed");
+                return null;
+            }
+        }
+        else
+        {
+            var bundleName = $"BDO-UA-Client-v{best.Version}-win-x64.zip";
+            var bundleAssetCount = best.Release.Assets?.Count(a =>
+                string.Equals(a.Name, bundleName, StringComparison.Ordinal)) ?? 0;
+            var hasDirectExe = best.Release.Assets?.Any(a =>
+                string.Equals(a.Name, "BDO-UA-Client.exe", StringComparison.Ordinal)) == true;
+            if (bundleAssetCount != 1 || hasDirectExe || UpdatePackageService.FindExactlyOneAsset(best, bundleName) == null)
+            {
+                _logger.Warning($"Update: candidate {best.TagName} lacks one valid canonical bundle asset; fail closed");
+                return null;
+            }
         }
 
         _logger.Debug($"Update: candidate selected: {best.TagName} (prerelease={best.Release.Prerelease})");
