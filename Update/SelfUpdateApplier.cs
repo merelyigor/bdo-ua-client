@@ -127,10 +127,10 @@ public sealed class SelfUpdateApplier
         // 5. Derive paths
         var targetPath = Path.GetFullPath(session.TargetPath);
         var targetDir = Path.GetDirectoryName(targetPath)!;
-        var targetFileName = Path.GetFileName(targetPath);
-        var candidatePath = Path.Combine(targetDir, $"{targetFileName}.update-{sessionId}.new");
-        var backupPath = Path.Combine(targetDir, $"{targetFileName}.update-{sessionId}.bak");
-        var failedNewPath = Path.Combine(targetDir, $"{targetFileName}.update-{sessionId}.failed-new");
+        var workspace = ReplacementWorkspace.Derive(_sessionStore.AppPaths, sessionId, targetPath);
+        var candidatePath = workspace.CandidatePath;
+        var backupPath = workspace.BackupPath;
+        var failedNewPath = workspace.FailedNewPath;
 
         // 6. Verify candidate exists and hash matches
         if (!File.Exists(candidatePath))
@@ -388,6 +388,8 @@ public sealed class SelfUpdateApplier
             }
             return ExitCodeRestartFailed;
         }
+
+        await ForegroundWindowHelper.TryBringToForegroundAsync(newProcess, _logger, cancellationToken);
 
         // 12. Mark session applied ONLY after successful restart — use reloaded session
         reloadedSession.State = UpdateSession.StateApplied;

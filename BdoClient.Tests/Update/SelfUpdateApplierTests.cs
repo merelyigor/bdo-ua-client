@@ -96,7 +96,7 @@ public class SelfUpdateApplierTests : IDisposable
         Directory.CreateDirectory(targetDir);
         File.WriteAllText(session.TargetPath, "target content");
 
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "wrong candidate");
 
         store.WriteSession(session);
@@ -121,7 +121,7 @@ public class SelfUpdateApplierTests : IDisposable
         Directory.CreateDirectory(targetDir);
         File.WriteAllText(session.TargetPath, "helper content");
 
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "helper content");
 
         session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
@@ -148,9 +148,9 @@ public class SelfUpdateApplierTests : IDisposable
         File.WriteAllText(session.TargetPath, "old target content");
         session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
 
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "helper content");
-        var backupPath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.bak");
+        var backupPath = Workspace(session).BackupPath;
         File.WriteAllText(backupPath, "existing backup");
 
         store.WriteSession(session);
@@ -178,7 +178,7 @@ public class SelfUpdateApplierTests : IDisposable
         File.WriteAllText(session.TargetPath, "old content");
         session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
 
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "helper content");
 
         store.WriteSession(session);
@@ -205,7 +205,7 @@ public class SelfUpdateApplierTests : IDisposable
         File.WriteAllText(session.TargetPath, "old content");
         session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
 
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "helper content");
 
         store.WriteSession(session);
@@ -232,7 +232,7 @@ public class SelfUpdateApplierTests : IDisposable
         File.WriteAllText(session.TargetPath, "old version content");
         session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
 
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "new version content");
 
         store.WriteSession(session);
@@ -252,7 +252,7 @@ public class SelfUpdateApplierTests : IDisposable
         Assert.Equal(SelfUpdateApplier.ExitCodeSuccess, result);
         Assert.Equal("new version content", File.ReadAllText(session.TargetPath));
 
-        var backupPath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.bak");
+        var backupPath = Workspace(session).BackupPath;
         Assert.True(File.Exists(backupPath));
         Assert.Equal("old version content", File.ReadAllText(backupPath));
 
@@ -283,7 +283,7 @@ public class SelfUpdateApplierTests : IDisposable
         File.WriteAllText(session.TargetPath, "old version content");
         session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
 
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "new version content");
 
         store.WriteSession(session);
@@ -335,7 +335,7 @@ public class SelfUpdateApplierTests : IDisposable
         File.WriteAllText(session.TargetPath, "old content");
         session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
 
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "helper content");
 
         store.WriteSession(session);
@@ -345,7 +345,7 @@ public class SelfUpdateApplierTests : IDisposable
         Assert.Equal(SelfUpdateApplier.ExitCodeRestartFailed, result);
         Assert.Equal("old content", File.ReadAllText(session.TargetPath));
 
-        var backupPath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.bak");
+        var backupPath = Workspace(session).BackupPath;
         Assert.False(File.Exists(backupPath));
     }
 
@@ -365,10 +365,10 @@ public class SelfUpdateApplierTests : IDisposable
         File.WriteAllText(session.TargetPath, "old content");
         session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
 
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "helper content");
 
-        var failedNewPath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.failed-new");
+        var failedNewPath = Workspace(session).FailedNewPath;
         File.WriteAllText(failedNewPath, "collision content");
 
         store.WriteSession(session);
@@ -398,7 +398,7 @@ public class SelfUpdateApplierTests : IDisposable
         File.WriteAllText(session.TargetPath, "old content");
         session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
 
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "new content");
 
         store.WriteSession(session);
@@ -449,7 +449,7 @@ public class SelfUpdateApplierTests : IDisposable
         File.WriteAllText(session.TargetPath, "old content");
         session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
 
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "new content");
 
         store.WriteSession(session);
@@ -497,7 +497,7 @@ public class SelfUpdateApplierTests : IDisposable
         File.WriteAllText(session.TargetPath, "old content");
         session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
 
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "new content");
 
         store.WriteSession(session);
@@ -532,7 +532,7 @@ public class SelfUpdateApplierTests : IDisposable
         File.WriteAllText(session.TargetPath, "old content");
         session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
 
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "new content");
 
         store.WriteSession(session);
@@ -574,7 +574,7 @@ public class SelfUpdateApplierTests : IDisposable
         File.WriteAllText(session.TargetPath, "old content");
         session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
 
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "new content");
 
         store.WriteSession(session);
@@ -610,7 +610,7 @@ public class SelfUpdateApplierTests : IDisposable
         File.WriteAllText(session.TargetPath, "old content");
         session.OriginalExeSha256 = await HashHelper.ComputeFileSha256Async(session.TargetPath);
 
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "new content");
 
         store.WriteSession(session);
@@ -631,6 +631,13 @@ public class SelfUpdateApplierTests : IDisposable
     }
 
     // --- Helpers ---
+
+    private ReplacementWorkspace Workspace(UpdateSession session)
+    {
+        var workspace = ReplacementWorkspace.Derive(_appPaths, session.SessionId, session.TargetPath);
+        workspace.EnsureDirectory();
+        return workspace;
+    }
 
     private SelfUpdateApplier CreateApplier(UpdateSessionStore store, string currentPath, bool parentRunning = false)
     {

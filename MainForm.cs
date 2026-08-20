@@ -1207,7 +1207,7 @@ public partial class MainForm : Form
 
     private bool TryCleanupPreparedAttempt(UpdateSession session)
     {
-        return PreparedAttemptCleanup.TryDeleteCandidate(session, _logger);
+        return PreparedAttemptCleanup.TryDeleteCandidate(session, _appPaths, _logger);
     }
 
     private void CleanupAbandonedStagingSession()

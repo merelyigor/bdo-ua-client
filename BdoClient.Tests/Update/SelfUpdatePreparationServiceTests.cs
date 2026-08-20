@@ -153,8 +153,8 @@ public class SelfUpdatePreparationServiceTests : IDisposable
         Directory.CreateDirectory(targetDir);
         File.WriteAllText(session.TargetPath, "target");
 
-        var backupPath = Path.Combine(targetDir,
-            $"{Path.GetFileName(session.TargetPath)}.update-{session.SessionId}.bak");
+        var backupPath = Workspace(session).BackupPath;
+        Directory.CreateDirectory(Path.GetDirectoryName(backupPath)!);
         File.WriteAllText(backupPath, "stale backup");
 
         _store.WriteSession(session);
@@ -180,8 +180,8 @@ public class SelfUpdatePreparationServiceTests : IDisposable
         Directory.CreateDirectory(targetDir);
         File.WriteAllText(session.TargetPath, "target");
 
-        var candidatePath = Path.Combine(targetDir,
-            $"{Path.GetFileName(session.TargetPath)}.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
+        Directory.CreateDirectory(Path.GetDirectoryName(candidatePath)!);
         File.WriteAllText(candidatePath, "existing candidate");
 
         _store.WriteSession(session);
@@ -208,8 +208,8 @@ public class SelfUpdatePreparationServiceTests : IDisposable
         Directory.CreateDirectory(targetDir);
         File.WriteAllText(session.TargetPath, "target");
 
-        var candidatePath = Path.Combine(targetDir,
-            $"{Path.GetFileName(session.TargetPath)}.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
+        Directory.CreateDirectory(Path.GetDirectoryName(candidatePath)!);
         File.WriteAllText(candidatePath, "raced candidate");
 
         _store.WriteSession(session);
@@ -281,7 +281,7 @@ public class SelfUpdatePreparationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task PrepareAsync_CandidateInTargetDir()
+    public async Task PrepareAsync_CandidateInAppDataWorkspace()
     {
         var session = MakeSession();
         _store.WriteSession(session);
@@ -301,7 +301,7 @@ public class SelfUpdatePreparationServiceTests : IDisposable
         var result = await service.PrepareAsync(session.SessionId);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(targetDir, Path.GetDirectoryName(result.CandidatePath));
+        Assert.Equal(Path.GetDirectoryName(Workspace(session).CandidatePath), Path.GetDirectoryName(result.CandidatePath));
     }
 
     // --- §28 Preparation cancellation tests ---
@@ -321,8 +321,8 @@ public class SelfUpdatePreparationServiceTests : IDisposable
         Directory.CreateDirectory(targetDir);
         File.WriteAllText(session.TargetPath, "target");
 
-        var candidatePath = Path.Combine(targetDir,
-            $"{Path.GetFileName(session.TargetPath)}.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
+        Directory.CreateDirectory(Path.GetDirectoryName(candidatePath)!);
 
         _store.WriteSession(session);
 
@@ -396,6 +396,9 @@ public class SelfUpdatePreparationServiceTests : IDisposable
             .SetValue(info, productVersion);
         return info;
     }
+
+    private ReplacementWorkspace Workspace(UpdateSession session)
+        => ReplacementWorkspace.Derive(_appPaths, session.SessionId, session.TargetPath);
 
     private static UpdateSession MakeSession() => new()
     {

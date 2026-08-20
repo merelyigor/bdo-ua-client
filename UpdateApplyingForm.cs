@@ -17,6 +17,7 @@ internal sealed class UpdateApplyingForm : Form
         ClientSize = new Size(460, 150);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
+        TopMost = true;
         MaximizeBox = false;
         MinimizeBox = false;
         ControlBox = false;

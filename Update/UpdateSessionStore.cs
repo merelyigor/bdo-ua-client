@@ -94,6 +94,8 @@ public sealed class UpdateSessionStore
         return normalizedDir;
     }
 
+    public AppPaths AppPaths => _appPaths;
+
     public UpdatePackageResult WriteSession(UpdateSession session)
     {
         try

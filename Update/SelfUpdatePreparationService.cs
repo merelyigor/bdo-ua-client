@@ -146,9 +146,9 @@ public sealed class SelfUpdatePreparationService
         _logger.Debug($"Self-update: original EXE SHA-256 = {originalExeSha}");
 
         // 10. Check backup collision before handoff
-        var targetDir = Path.GetDirectoryName(session.TargetPath)!;
-        var targetFileName = Path.GetFileName(session.TargetPath);
-        var backupPath = Path.Combine(targetDir, $"{targetFileName}.update-{sessionId}.bak");
+        var workspace = ReplacementWorkspace.Derive(_sessionStore.AppPaths, sessionId, session.TargetPath);
+        workspace.EnsureDirectory();
+        var backupPath = workspace.BackupPath;
 
         if (File.Exists(backupPath))
         {
@@ -156,8 +156,8 @@ public sealed class SelfUpdatePreparationService
             return SelfUpdatePreparationResult.Failure(SelfUpdatePreparationError.BackupCollision, "Backup file already exists");
         }
 
-        // 11. Create candidate sibling (fail-closed: no overwrite via CreateNew)
-        var candidatePath = Path.Combine(targetDir, $"{targetFileName}.update-{sessionId}.new");
+        // 11. Create candidate in the replacement workspace (fail-closed: no overwrite via CreateNew)
+        var candidatePath = workspace.CandidatePath;
 
         try
         {

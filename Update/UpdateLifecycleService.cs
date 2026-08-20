@@ -153,7 +153,7 @@ public sealed class UpdateLifecycleService
 
         _logger.Info($"Update lifecycle: applied session {session.SessionId} confirmed — cleaning up recovery files");
         if (CleanupRecoveryFiles(session))
-            CleanupSessionDir(session.SessionId);
+            CleanupSessionDir(session);
         else
             _logger.Warning($"Update lifecycle: applied session {session.SessionId} retained because recovery cleanup was not fully verified");
     }
@@ -178,7 +178,7 @@ public sealed class UpdateLifecycleService
             {
                 _logger.Info($"Update lifecycle: prepared session {session.SessionId} — old app restarted after failed update, cleaning up");
                 if (CleanupVerifiedSiblings(session))
-                    CleanupSessionDir(session.SessionId);
+                    CleanupSessionDir(session);
                 else
                     _logger.Warning($"Update lifecycle: prepared session {session.SessionId} retained because sibling cleanup was not fully verified");
                 return;
@@ -199,12 +199,8 @@ public sealed class UpdateLifecycleService
 
     private bool CleanupRecoveryFiles(UpdateSession session)
     {
-        var targetDir = Path.GetDirectoryName(Path.GetFullPath(session.TargetPath));
-        if (targetDir == null)
-            return false;
-
-        var targetFileName = Path.GetFileName(session.TargetPath);
-        var backupPath = Path.Combine(targetDir, $"{targetFileName}.update-{session.SessionId}.bak");
+        var workspace = ReplacementWorkspace.Derive(_appPaths, session.SessionId, session.TargetPath);
+        var backupPath = workspace.BackupPath;
 
         if (!File.Exists(backupPath))
         {
@@ -230,28 +226,25 @@ public sealed class UpdateLifecycleService
             return false;
         }
 
-        var failedNewPath = Path.Combine(targetDir, $"{targetFileName}.update-{session.SessionId}.failed-new");
-        if (!DeleteIfVerified(failedNewPath, session.StagedExeSha256, "failed-new"))
+        if (!DeleteIfVerified(workspace.FailedNewPath, session.StagedExeSha256, "failed-new"))
             return false;
 
-        var candidatePath = Path.Combine(targetDir, $"{targetFileName}.update-{session.SessionId}.new");
-        return DeleteIfVerified(candidatePath, session.StagedExeSha256, "candidate");
+        if (!DeleteIfVerified(workspace.CandidatePath, session.StagedExeSha256, "candidate"))
+            return false;
+
+        return workspace.TryDeleteOwnedFallbackWorkspace();
     }
 
     private bool CleanupVerifiedSiblings(UpdateSession session)
     {
-        var targetDir = Path.GetDirectoryName(Path.GetFullPath(session.TargetPath));
-        if (targetDir == null)
+        var workspace = ReplacementWorkspace.Derive(_appPaths, session.SessionId, session.TargetPath);
+        if (!DeleteIfVerified(workspace.CandidatePath, session.StagedExeSha256, "candidate"))
             return false;
 
-        var targetFileName = Path.GetFileName(session.TargetPath);
-
-        var candidatePath = Path.Combine(targetDir, $"{targetFileName}.update-{session.SessionId}.new");
-        if (!DeleteIfVerified(candidatePath, session.StagedExeSha256, "candidate"))
+        if (!DeleteIfVerified(workspace.FailedNewPath, session.StagedExeSha256, "failed-new"))
             return false;
 
-        var failedNewPath = Path.Combine(targetDir, $"{targetFileName}.update-{session.SessionId}.failed-new");
-        return DeleteIfVerified(failedNewPath, session.StagedExeSha256, "failed-new");
+        return workspace.TryDeleteOwnedFallbackWorkspace();
     }
 
     private bool DeleteIfVerified(string path, string expectedSha, string fileType)
@@ -335,7 +328,7 @@ public sealed class UpdateLifecycleService
         switch (session.State)
         {
             case UpdateSession.StateStaged:
-                CleanupSessionDir(sessionId);
+                CleanupSessionDir(session);
                 break;
 
             case UpdateSession.StatePrepared:
@@ -375,7 +368,7 @@ public sealed class UpdateLifecycleService
         {
             _logger.Info($"Update lifecycle: abandoned prepared session {session.SessionId} — target is original, cleaning up verified siblings");
             if (MatchesVersion(currentVersionInfo, session.CurrentVersion) && CleanupVerifiedSiblings(session))
-                CleanupSessionDir(session.SessionId);
+                CleanupSessionDir(session);
             else
                 _logger.Warning($"Update lifecycle: abandoned prepared session {session.SessionId} retained because target/version/sibling verification failed");
         }
@@ -413,7 +406,7 @@ public sealed class UpdateLifecycleService
         {
             _logger.Info($"Update lifecycle: abandoned applied session {session.SessionId} — target is new, finalizing");
             if (CleanupRecoveryFiles(session))
-                CleanupSessionDir(session.SessionId);
+                CleanupSessionDir(session);
             else
                 _logger.Warning($"Update lifecycle: abandoned applied session {session.SessionId} retained because recovery cleanup was not fully verified");
         }
@@ -451,16 +444,19 @@ public sealed class UpdateLifecycleService
         }
     }
 
-    private void CleanupSessionDir(string sessionId)
+    private void CleanupSessionDir(UpdateSession session)
     {
         try
         {
-            _sessionStore.CleanupSession(sessionId);
-            _logger.Debug($"Update lifecycle: cleaned up session directory {sessionId}");
+            _sessionStore.CleanupSession(session.SessionId);
+            var workspace = ReplacementWorkspace.Derive(_appPaths, session.SessionId, session.TargetPath);
+            if (!workspace.TryDeleteOwnedFallbackWorkspace())
+                _logger.Warning($"Update lifecycle: fallback workspace retained for session {session.SessionId}");
+            _logger.Debug($"Update lifecycle: cleaned up session directory {session.SessionId}");
         }
         catch (Exception ex)
         {
-            _logger.Warning($"Update lifecycle: failed to cleanup session directory {sessionId}: {ex.Message}");
+            _logger.Warning($"Update lifecycle: failed to cleanup session directory {session.SessionId}: {ex.Message}");
         }
     }
 }

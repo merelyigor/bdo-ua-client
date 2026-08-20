@@ -37,7 +37,7 @@ public class UpdateLifecycleServiceTests : IDisposable
         var targetSha = HashHelper.ComputeFileSha256(targetPath);
 
         var session = CreateAppliedSession(targetPath, targetSha);
-        var backupPath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.bak");
+        var backupPath = Workspace(session).BackupPath;
         File.WriteAllText(backupPath, "old content");
         session.OriginalExeSha256 = HashHelper.ComputeFileSha256(backupPath);
         _store.WriteSession(session);
@@ -60,7 +60,7 @@ public class UpdateLifecycleServiceTests : IDisposable
 
         var session = CreateAppliedSession(targetPath, targetSha);
         session.OriginalExeSha256 = "0000000000000000000000000000000000000000000000000000000000000000";
-        var backupPath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.bak");
+        var backupPath = Workspace(session).BackupPath;
         File.WriteAllText(backupPath, "old content");
         _store.WriteSession(session);
 
@@ -81,7 +81,7 @@ public class UpdateLifecycleServiceTests : IDisposable
 
         var session = CreateAppliedSession(targetPath, "0000000000000000000000000000000000000000000000000000000000000000");
         session.OriginalExeSha256 = new string('c', 64);
-        var backupPath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.bak");
+        var backupPath = Workspace(session).BackupPath;
         File.WriteAllText(backupPath, "old content");
         _store.WriteSession(session);
 
@@ -102,7 +102,7 @@ public class UpdateLifecycleServiceTests : IDisposable
 
         var session = CreatePreparedSession(targetPath);
         session.OriginalExeSha256 = originalSha;
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "new content");
         session.StagedExeSha256 = HashHelper.ComputeFileSha256(candidatePath);
         _store.WriteSession(session);
@@ -126,7 +126,7 @@ public class UpdateLifecycleServiceTests : IDisposable
         var session = CreatePreparedSession(targetPath);
         session.OriginalExeSha256 = new string('c', 64);
         session.StagedExeSha256 = newSha;
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "new content");
         _store.WriteSession(session);
 
@@ -148,7 +148,7 @@ public class UpdateLifecycleServiceTests : IDisposable
         var session = CreatePreparedSession(targetPath);
         session.OriginalExeSha256 = originalSha;
         session.StagedExeSha256 = new string('b', 64);
-        var candidatePath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "different content");
         _store.WriteSession(session);
 
@@ -173,9 +173,7 @@ public class UpdateLifecycleServiceTests : IDisposable
         var session = CreatePreparedSession(foreignPath);
         session.CreatedAt = DateTimeOffset.UtcNow - TimeSpan.FromDays(8);
         session.OriginalExeSha256 = HashHelper.ComputeFileSha256(foreignPath);
-        var candidatePath = Path.Combine(
-            Path.GetDirectoryName(foreignPath)!,
-            $"BDO-UA-Client.exe.update-{session.SessionId}.new");
+        var candidatePath = Workspace(session).CandidatePath;
         File.WriteAllText(candidatePath, "new content");
         session.StagedExeSha256 = HashHelper.ComputeFileSha256(candidatePath);
         _store.WriteSession(session);
@@ -200,9 +198,7 @@ public class UpdateLifecycleServiceTests : IDisposable
 
         var session = CreateAppliedSession(foreignPath, HashHelper.ComputeFileSha256(foreignPath));
         session.CreatedAt = DateTimeOffset.UtcNow - TimeSpan.FromDays(8);
-        var backupPath = Path.Combine(
-            Path.GetDirectoryName(foreignPath)!,
-            $"BDO-UA-Client.exe.update-{session.SessionId}.bak");
+        var backupPath = Workspace(session).BackupPath;
         File.WriteAllText(backupPath, "old content");
         session.OriginalExeSha256 = HashHelper.ComputeFileSha256(backupPath);
         _store.WriteSession(session);
@@ -349,7 +345,7 @@ public class UpdateLifecycleServiceTests : IDisposable
 
         var session = CreateAppliedSession(targetPath, targetSha);
         session.OriginalExeSha256 = new string('c', 64);
-        var failedNewPath = Path.Combine(targetDir, $"BDO-UA-Client.exe.update-{session.SessionId}.failed-new");
+        var failedNewPath = Workspace(session).FailedNewPath;
         File.WriteAllText(failedNewPath, "unrelated content");
         _store.WriteSession(session);
 
@@ -361,6 +357,13 @@ public class UpdateLifecycleServiceTests : IDisposable
     }
 
     // --- Helpers ---
+
+    private ReplacementWorkspace Workspace(UpdateSession session)
+    {
+        var workspace = ReplacementWorkspace.Derive(_appPaths, session.SessionId, session.TargetPath);
+        workspace.EnsureDirectory();
+        return workspace;
+    }
 
     private UpdateLifecycleService CreateService(string currentProcessPath, DateTimeOffset? utcNow = null)
     {

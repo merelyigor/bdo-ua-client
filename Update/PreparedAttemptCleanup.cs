@@ -1,20 +1,15 @@
 using BdoClient.Logging;
 using BdoClient.Services;
+using BdoClient.Storage;
 
 namespace BdoClient.Update;
 
 internal static class PreparedAttemptCleanup
 {
-    public static bool TryDeleteCandidate(UpdateSession session, ILogger logger)
+    public static bool TryDeleteCandidate(UpdateSession session, AppPaths appPaths, ILogger logger)
     {
-        var targetPath = Path.GetFullPath(session.TargetPath);
-        var targetDir = Path.GetDirectoryName(targetPath);
-        if (targetDir == null)
-            return false;
-
-        var candidatePath = Path.Combine(
-            targetDir,
-            $"{Path.GetFileName(targetPath)}.update-{session.SessionId}.new");
+        var workspace = ReplacementWorkspace.Derive(appPaths, session.SessionId, session.TargetPath);
+        var candidatePath = workspace.CandidatePath;
 
         if (!File.Exists(candidatePath) && !Directory.Exists(candidatePath))
             return true;
@@ -36,7 +31,7 @@ internal static class PreparedAttemptCleanup
 
             File.Delete(candidatePath);
             logger.Debug($"Self-update: deleted verified candidate {candidatePath}");
-            return true;
+            return workspace.TryDeleteOwnedFallbackWorkspace();
         }
         catch (Exception ex)
         {
