@@ -101,11 +101,11 @@ Trimming може видалити типи, які використовують
 ## Actions artifact vs public release asset
 
 **GitHub Actions artifact** (CI transport wrapper created by GitHub): **`BDO-UA-Client-vX.Y.Z-win-x64`**
-- Після розпакування містить flat-файли: `BDO-UA-Client.exe`, `SHA256SUMS.txt`, `release-manifest.json`, `RELEASE_NOTES`
+- Після розпакування містить flat-файли: canonical ZIP, `SHA256SUMS.txt`, `release-manifest.json`, `RELEASE_NOTES-vX.Y.Z.md`
 - Це внутрішній артефакт workflow, НЕ для кінцевого користувача
 
-**Public release asset** (what users download from GitHub Release): **`BDO-UA-Client.exe`**
-- Це прямий application asset; додатково створюється один canonical updater ZIP з одним EXE
+**Public release assets**: canonical ZIP, `SHA256SUMS.txt`, `release-manifest.json`
+- Standalone `BDO-UA-Client.exe` не публікується; EXE є build intermediate і лежить лише всередині ZIP
 
 GitHub може створити власний transport wrapper для Actions artifact. Проєктний updater ZIP є єдиним дозволеним application transport archive і містить лише `BDO-UA-Client.exe`.
 
@@ -126,11 +126,11 @@ GitHub може створити власний transport wrapper для Actions
 ### C. Release Candidate (`release-candidate.yml`)
 - **Trigger:** `workflow_dispatch` (ручний запуск власником)
 - Введення версії (наприклад, `0.1.0`)
-- Збірка + тести + publish + direct EXE SHA-256 + tag
-- Flat Actions artifact з EXE, SHA256SUMS.txt, release-manifest.json, RELEASE_NOTES
+- Збірка + тести + publish + EXE/ZIP verification + tag
+- Flat Actions artifact із ZIP, SHA256SUMS.txt, release-manifest.json, RELEASE_NOTES
 - НЕ створює GitHub Release автоматично
 
 ### D. GitHub Release
 - Створюється та публікується **вручну власником** репозиторію
-- Після успішного Release Candidate: завантажити artifact → створити release → обрати тег → завантажити exact `BDO-UA-Client.exe`, manifest і SHA256SUMS → Publish
-- Не ZIP/recompress `BDO-UA-Client.exe` вручну; використовуйте canonical updater ZIP із workflow.
+- Після успішного Release Candidate: завантажити artifact → створити release → обрати тег → завантажити exact ZIP, manifest і SHA256SUMS → Publish
+- Release notes використовуються як тіло GitHub Release.

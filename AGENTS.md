@@ -363,7 +363,7 @@ API надає release metadata через `GET /releases`. Клієнт вик�
 - `UpdateAvailable` — `installed.public_id != current.public_id`
 - `WaitingForRelease` — встановлено, hash збігається, але `current` відсутній; якщо `current != null` але `PublicId` null/empty/whitespace — теж `WaitingForRelease`, але result містить diagnostic Error
 - `InstalledVersionUnknown` — installation.json існує, але `InstallationStateStore.Load()` повертає Invalid
-- `Corrupted` — API metadata valid, але фактичний файл missing/unreadable/hash mismatch
+- `Corrupted` — API metadata valid, але фактичний файл missing/unreadable, inconsistent або hash mismatch без достовірного пояснення; hash mismatch при фактичному `ads_files` patch, новішому за `InstallationMetadata.GamePatch`, є нормальною transition-подією і не є `Corrupted`
 
 §18.5 **OperationState (тимчасовий стан операції):**
 - `Idle` / `DetectingGame` / `LoadingApi` / `Downloading` / `Verifying`
@@ -724,7 +724,7 @@ BDO-UA-Client/
 
 §41.10 TLS verification ніколи не вимикати. Не використовувати GitHub token. Не використовувати HTTP.
 
-§41.10.1 Production application releases retain the direct `BDO-UA-Client.exe` asset for manual installation and backward compatibility. They may additionally include exactly one canonical updater ZIP, `BDO-UA-Client-vX.Y.Z-win-x64.zip`, containing only the flat `BDO-UA-Client.exe`. No `.7z`, `.rar`, `.tar`, `.tar.gz`, nested archive, or arbitrary package paths. New clients prefer the declared ZIP when both optional manifest package fields are valid; old clients ignore those fields and use the direct EXE. GitHub Actions' transport wrapper may contain the flat release files.
+§41.10.1 Production application releases are ZIP-only: they contain exactly one canonical `BDO-UA-Client-vX.Y.Z-win-x64.zip` with only the flat `BDO-UA-Client.exe` at its root, plus `release-manifest.json` and `SHA256SUMS.txt`. The standalone EXE is a build intermediate and is not uploaded as an Actions artifact or GitHub Release asset. No `.7z`, `.rar`, `.tar`, `.tar.gz`, nested archive, or arbitrary package paths. `asset_name` and `sha256` identify the EXE extracted from the ZIP; `package_name` and `package_sha256` identify the distributed ZIP. New clients prefer the declared ZIP when both optional manifest package fields are valid; old clients ignore those fields and use the direct-EXE fallback. v0.1.8+ supports canonical ZIP transport; future releases are ZIP-only. Old direct-EXE releases/manifests remain supported, but clients older than ZIP support may require manual update. GitHub Actions' transport wrapper contains only ZIP, manifest, sums, and release notes.
 
 §41.11 Stage 13 first implementation: NO automatic UAC elevation.
 

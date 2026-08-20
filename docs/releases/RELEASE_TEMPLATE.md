@@ -29,8 +29,9 @@ SHA-256:
 ## Як встановити
 
 1. Завантажте `{{ASSET_NAME}}` з цієї сторінки
-2. Запустіть `BDO-UA-Client.exe`
-3. Якщо Windows SmartScreen покаже попередження — натисніть "Докладніше" → "Виконати" (деталі: [README](https://github.com/merelyigor/bdo-ua-client#windows-smartscreen))
+2. Розпакуйте з архіву `BDO-UA-Client.exe`
+3. Запустіть `BDO-UA-Client.exe`
+4. Якщо Windows SmartScreen покаже попередження — натисніть "Докладніше" → "Виконати" (деталі: [README](https://github.com/merelyigor/bdo-ua-client#windows-smartscreen))
 
 ## Відомі проблеми / обмеження
 
