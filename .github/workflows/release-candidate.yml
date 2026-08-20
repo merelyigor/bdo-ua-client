@@ -175,14 +175,38 @@ jobs:
         }
         Write-Output "Flat release EXE prepared: $flatExe ($((Get-Item $flatExe).Length) bytes)"
 
+    - name: Prepare updater ZIP
+      shell: pwsh
+      run: |
+        $zipPath = "artifacts/BDO-UA-Client-v${{ steps.resolve.outputs.RELEASE_VERSION }}-win-x64.zip"
+        $staging = Join-Path $env:RUNNER_TEMP "bdo-ua-client-zip"
+        if (Test-Path $staging) { Remove-Item -LiteralPath $staging -Recurse -Force }
+        New-Item -ItemType Directory -Path $staging | Out-Null
+        Copy-Item -LiteralPath "artifacts/BDO-UA-Client.exe" -Destination (Join-Path $staging "BDO-UA-Client.exe")
+        Compress-Archive -LiteralPath (Join-Path $staging "BDO-UA-Client.exe") -DestinationPath $zipPath -CompressionLevel Optimal
+
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zipPath))
+        try {
+          if ($archive.Entries.Count -ne 1 -or $archive.Entries[0].FullName -ne "BDO-UA-Client.exe") {
+            Write-Error "Updater ZIP must contain exactly one root-level BDO-UA-Client.exe"
+            exit 1
+          }
+        }
+        finally { $archive.Dispose() }
+        Write-Output "Updater ZIP prepared: $zipPath ($((Get-Item $zipPath).Length) bytes)"
+
     - name: Calculate SHA-256
       shell: pwsh
       run: |
         $assetName = "BDO-UA-Client.exe"
         $exePath = "artifacts/$assetName"
         $hash = (Get-FileHash -Path $exePath -Algorithm SHA256).Hash.ToLower()
-        "$hash  $assetName" | Out-File -FilePath "artifacts/SHA256SUMS.txt" -Encoding utf8
-        Write-Output "SHA-256: $hash"
+        $zipName = "BDO-UA-Client-v${{ steps.resolve.outputs.RELEASE_VERSION }}-win-x64.zip"
+        $zipHash = (Get-FileHash -Path "artifacts/$zipName" -Algorithm SHA256).Hash.ToLower()
+        @("$hash  $assetName", "$zipHash  $zipName") | Out-File -FilePath "artifacts/SHA256SUMS.txt" -Encoding utf8
+        Write-Output "EXE SHA-256: $hash"
+        Write-Output "ZIP SHA-256: $zipHash"
 
     - name: Create release manifest
       shell: pwsh
@@ -191,7 +215,9 @@ jobs:
         $tag = "${{ steps.resolve.outputs.RELEASE_TAG }}"
         $sha = "${{ github.sha }}"
         $assetName = "BDO-UA-Client.exe"
-        $hash = (Get-Content "artifacts/SHA256SUMS.txt" -Raw).Split(" ")[0]
+        $hash = (Get-FileHash -Path "artifacts/BDO-UA-Client.exe" -Algorithm SHA256).Hash.ToLower()
+        $packageName = "BDO-UA-Client-v$version-win-x64.zip"
+        $packageHash = (Get-FileHash -Path "artifacts/$packageName" -Algorithm SHA256).Hash.ToLower()
         $runId = "${{ github.run_id }}"
 
         $manifest = @{
@@ -201,6 +227,8 @@ jobs:
           commit_sha = $sha
           asset_name = $assetName
           sha256 = $hash
+          package_name = $packageName
+          package_sha256 = $packageHash
           platform = "win-x64"
           workflow_run_id = $runId
         } | ConvertTo-Json -Depth 2
@@ -215,7 +243,7 @@ jobs:
         $tag = "${{ steps.resolve.outputs.RELEASE_TAG }}"
         $sha = "${{ github.sha }}"
         $assetName = "BDO-UA-Client.exe"
-        $hash = (Get-Content "artifacts/SHA256SUMS.txt" -Raw).Split(" ")[0]
+        $hash = (Get-FileHash -Path "artifacts/BDO-UA-Client.exe" -Algorithm SHA256).Hash.ToLower()
 
         $notes = & "${{ github.workspace }}\scripts\Generate-ReleaseNotes.ps1" `
           -Version $version `
@@ -235,6 +263,7 @@ jobs:
         name: BDO-UA-Client-v${{ steps.resolve.outputs.RELEASE_VERSION }}-win-x64
         path: |
           artifacts/BDO-UA-Client.exe
+          artifacts/BDO-UA-Client-v${{ steps.resolve.outputs.RELEASE_VERSION }}-win-x64.zip
           artifacts/SHA256SUMS.txt
           artifacts/release-manifest.json
           artifacts/RELEASE_NOTES-v${{ steps.resolve.outputs.RELEASE_VERSION }}.md
@@ -264,13 +293,14 @@ jobs:
         | **Tag** | ``$tag`` (will be created after this step) |
         | **Commit** | ``$sha`` |
         | **Asset** | $assetName |
-        | **SHA-256** | ``$hash`` |
+        | **EXE SHA-256** | ``$hash`` |
         | **Artifact** | ``BDO-UA-Client-v$version-win-x64`` |
 
         ### Artifact contents
 
         Downloaded GitHub Actions artifact (GitHub's transport wrapper) contains flat files:
-        - ``BDO-UA-Client.exe`` — the application
+         - ``BDO-UA-Client.exe`` — the application
+         - ``BDO-UA-Client-v$version-win-x64.zip`` — the canonical updater transport
         - ``SHA256SUMS.txt``
         - ``release-manifest.json``
         - ``RELEASE_NOTES-v$version.md``
@@ -282,9 +312,9 @@ jobs:
         3. Verify SHA-256 if desired
         4. Draft GitHub Release → select existing tag ``$tag``
         5. Use generated ``RELEASE_NOTES-v$version.md`` as release body (auto-generated from commits, edit if needed)
-        6. Upload the EXACT ``BDO-UA-Client.exe`` from the artifact (do NOT ZIP or repackage it)
-        7. Upload ``SHA256SUMS.txt`` to GitHub Release
-        8. Upload ``release-manifest.json`` to GitHub Release
+         6. Upload the EXACT ``BDO-UA-Client.exe`` and canonical updater ZIP from the artifact (do NOT repackage them)
+         7. Upload ``SHA256SUMS.txt`` to GitHub Release
+         8. Upload ``release-manifest.json`` to GitHub Release
         9. Click **Publish release**
 
         > GitHub Release is NOT created automatically.

@@ -3,9 +3,9 @@
 Plan ID: `client-self-update`
 Status: **ACTIVE**
 Focus: **PRIMARY**
-Current phase: v13.4.2.2 implemented — pending acceptance
-Next action: v13.5 — real published-release E2E verification
-ONLY after v13.4.2 acceptance
+Current phase: v13.5.1 implemented — pending acceptance
+Next action: v13.5.2 — real published-release E2E verification with ZIP transport
+ONLY after v13.5.1 acceptance
 
 Release history decision: `v0.1.5` is an obsolete RC tag only, has no GitHub
 Release, and must never be published or used as updater input. The first
@@ -260,7 +260,7 @@ Download URL брати з exact `browser_download_url` asset object від GitH
 
 ### Manifest contract
 
-Schema 1 canonical. Validate: `schema_version == 1`, `version == X.Y.Z`, `tag == vX.Y.Z`, `platform == "win-x64"`, `asset_name == "BDO-UA-Client.exe"`, `sha256` valid hex. `sha256` is the hash of the exact direct EXE asset.
+Schema 1 canonical. Validate: `schema_version == 1`, `version == X.Y.Z`, `tag == vX.Y.Z`, `platform == "win-x64"`, `asset_name == "BDO-UA-Client.exe"`, `sha256` valid hex. `sha256` is the hash of the exact direct EXE asset. Optional `package_name` and `package_sha256` identify the canonical ZIP and must be present and valid together.
 
 ### Optional GitHub asset digest
 
@@ -583,6 +583,18 @@ Program                     — detect internal updater mode vs normal UI
 
 ---
 
+### v13.5.1 — harden self-update and add ZIP transport
+
+**Status:** IMPLEMENTED — pending acceptance.
+
+- `File.Replace` retries only Win32 sharing/lock violations (32/33) for a bounded five-second window.
+- Schema 1 keeps direct EXE identity/hash and adds optional `package_name`/`package_sha256`.
+- New clients prefer the canonical flat ZIP when both optional fields validate; legacy manifests use direct EXE fallback.
+- ZIP validation requires exactly one root-level `BDO-UA-Client.exe`, verifies package and extracted EXE hashes, size, version, and cleans failed sessions.
+- Release Candidate artifacts contain the direct EXE, canonical ZIP, checksums, manifest, and release notes as flat files.
+
+---
+
 ### v13.5 — real published-release E2E
 
 **Goal:** Verify self-update with actual published GitHub Releases.
@@ -609,7 +621,7 @@ Program                     — detect internal updater mode vs normal UI
 - No unwanted .tmp/.new/.bak leftovers after confirmed success
 - Old application remains recoverable on simulated/apply failures via automated tests
 
-**If defect found:** targeted v13.5.1 fix.
+**If defect found:** targeted v13.5.2 fix.
 
 ---
 
@@ -640,7 +652,7 @@ Program                     — detect internal updater mode vs normal UI
 - Manual GitHub UI action by repository owner
 - Select existing tag
 - Paste/edit release notes
-- Upload the exact `BDO-UA-Client.exe` produced by Release Candidate workflow; do not archive or recompress it
+- Upload the exact `BDO-UA-Client.exe` and canonical updater ZIP produced by Release Candidate workflow; do not repackage them
 - Click Publish release
 
 ---

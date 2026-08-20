@@ -67,6 +67,20 @@ public sealed class UpdateManifestValidator
             return UpdateManifestValidationResult.Failure("Invalid SHA-256");
         }
 
+        var hasPackageName = !string.IsNullOrWhiteSpace(manifest.PackageName);
+        var hasPackageSha = !string.IsNullOrWhiteSpace(manifest.PackageSha256);
+        if (hasPackageName != hasPackageSha)
+            return UpdateManifestValidationResult.Failure("package_name and package_sha256 must be provided together");
+
+        if (hasPackageName)
+        {
+            var expectedPackageName = $"BDO-UA-Client-v{candidate.Version}-win-x64.zip";
+            if (!string.Equals(manifest.PackageName, expectedPackageName, StringComparison.Ordinal))
+                return UpdateManifestValidationResult.Failure("Package name mismatch");
+            if (!Sha256HexRegex.IsMatch(manifest.PackageSha256!))
+                return UpdateManifestValidationResult.Failure("Invalid package SHA-256");
+        }
+
         if (string.IsNullOrWhiteSpace(manifest.CommitSha) || !CommitShaRegex.IsMatch(manifest.CommitSha))
         {
             _logger.Warning($"Manifest: invalid commit_sha '{manifest.CommitSha}'");

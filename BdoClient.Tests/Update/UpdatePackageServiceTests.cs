@@ -131,6 +131,33 @@ public sealed class UpdatePackageServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task StageUpdate_DeclaredPackageMissing_FailsClosed()
+    {
+        var exe = new byte[] { 1, 2, 3 };
+        var json = ManifestJson("BDO-UA-Client.exe", Sha(exe), "BDO-UA-Client-v0.1.4-win-x64.zip", Sha(exe));
+        var result = await CreateService(new QueuedHandler(Encoding.UTF8.GetBytes(json))).StageUpdateAsync(
+            Candidate(new[] { ManifestAsset(json.Length), ExeAsset(exe.Length, "https://example.test/exe") }), PublicVersionInfo(), null);
+        Assert.Equal(UpdatePackageError.AssetMissing, result.Error);
+    }
+
+    [Fact]
+    public async Task StageUpdate_DeclaredPackageDuplicate_FailsClosed()
+    {
+        var exe = new byte[] { 1, 2, 3 };
+        var packageName = "BDO-UA-Client-v0.1.4-win-x64.zip";
+        var json = ManifestJson("BDO-UA-Client.exe", Sha(exe), packageName, Sha(exe));
+        var assets = new[]
+        {
+            ManifestAsset(json.Length),
+            new GitHubReleaseAsset { Name = packageName, BrowserDownloadUrl = "https://example.test/a", Size = 3, State = "uploaded" },
+            new GitHubReleaseAsset { Name = packageName, BrowserDownloadUrl = "https://example.test/b", Size = 3, State = "uploaded" }
+        };
+        var result = await CreateService(new QueuedHandler(Encoding.UTF8.GetBytes(json))).StageUpdateAsync(
+            Candidate(assets), PublicVersionInfo(), null);
+        Assert.Equal(UpdatePackageError.AssetMissing, result.Error);
+    }
+
+    [Fact]
     public async Task StageUpdate_DirectExeDownloadsToFixedStagingName()
     {
         var payload = Encoding.UTF8.GetBytes("direct exe payload");
@@ -208,8 +235,11 @@ public sealed class UpdatePackageServiceTests : IDisposable
         Digest = digest
     };
 
-    private static string ManifestJson(string assetName, string sha) =>
-        $"{{\"schema_version\":1,\"version\":\"0.1.4\",\"tag\":\"v0.1.4\",\"commit_sha\":\"74875dfcc6762ec0edb75c40e225150f94fa45e5\",\"asset_name\":\"{assetName}\",\"sha256\":\"{sha}\",\"platform\":\"win-x64\",\"workflow_run_id\":\"1\"}}";
+    private static string ManifestJson(string assetName, string sha, string? packageName = null, string? packageSha = null)
+    {
+        var packageFields = packageName == null ? "" : $",\"package_name\":\"{packageName}\",\"package_sha256\":\"{packageSha}\"";
+        return $"{{\"schema_version\":1,\"version\":\"0.1.4\",\"tag\":\"v0.1.4\",\"commit_sha\":\"74875dfcc6762ec0edb75c40e225150f94fa45e5\",\"asset_name\":\"{assetName}\",\"sha256\":\"{sha}\"{packageFields},\"platform\":\"win-x64\",\"workflow_run_id\":\"1\"}}";
+    }
 
     private static string Sha(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
 

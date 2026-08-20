@@ -45,9 +45,10 @@ Production GitHub Releases завжди публікуються вручну в
 - Вставте відредаговані реліз-нотатки у тіло релізу
 - Завантажте з artifact:
   - **`BDO-UA-Client.exe`** (обов'язково, exact artifact file)
+  - **`BDO-UA-Client-vX.Y.Z-win-x64.zip`** (canonical updater transport)
   - **`SHA256SUMS.txt`** (обов'язково)
   - **`release-manifest.json`** (обов'язково)
-- Не ZIP/recompress `BDO-UA-Client.exe`.
+- Не ZIP/recompress і не змінюйте ці файли; завантажуйте canonical ZIP без перепакування.
 - Для першого публічного прев'ю: позначте як **Pre-release**
 - Натисніть **Publish release**
 

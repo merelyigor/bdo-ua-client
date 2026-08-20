@@ -936,6 +936,9 @@ public partial class MainForm : Form
         updateButton.Text = state.Text;
         updateButton.Visible = state.Visible;
         updateButton.Enabled = state.Enabled;
+        updateButton.UseVisualStyleBackColor = false;
+        updateButton.BackColor = state.Visible ? SystemColors.Highlight : SystemColors.Control;
+        updateButton.ForeColor = state.Visible ? SystemColors.HighlightText : SystemColors.ControlText;
     }
 
     // --- Update button ---

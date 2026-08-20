@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using BdoClient.Logging;
 using BdoClient.Services;
 using BdoClient.Storage;
@@ -9,6 +10,8 @@ public sealed class UpdatePackageService
 {
     private const string ExeFileName = "BDO-UA-Client.exe";
     private const string ManifestFileName = "release-manifest.json";
+    private const string PackageEntryName = "BDO-UA-Client.exe";
+    public const long ZipMaxBytes = 100_000_000;
 
     private readonly GitHubUpdateClient _gitHubClient;
     private readonly UpdateManifestValidator _manifestValidator;
@@ -82,31 +85,55 @@ public sealed class UpdatePackageService
                 return UpdatePackageResult.Failure(UpdatePackageError.ManifestInvalid, validationResult.ErrorMessage!);
 
             var expectedSha = validationResult.NormalizedSha256!;
-            var exeAsset = FindExactlyOneAsset(candidate, manifest.AssetName!);
-            if (exeAsset == null)
-                return UpdatePackageResult.Failure(UpdatePackageError.AssetMissing, "EXE asset not found or ambiguous");
-
-            if (exeAsset.Size <= 0 || exeAsset.Size > GitHubUpdateClient.ExeMaxBytes)
-                return UpdatePackageResult.Failure(UpdatePackageError.SizeMismatch, $"Invalid EXE size: {exeAsset.Size}");
-
-            if (!ValidateGitHubDigest(exeAsset, expectedSha))
-                return UpdatePackageResult.Failure(UpdatePackageError.HashMismatch, "GitHub digest mismatch or unsupported format");
-
-            progress?.Report(new UpdateStageProgress($"Завантаження оновлення {candidate.TagName}...", 0));
             var exePath = Path.Combine(sessionDir, ExeFileName);
             var downloadProgress = new Progress<double>(pct =>
                 progress?.Report(new UpdateStageProgress($"Завантаження оновлення {candidate.TagName}...", pct)));
 
-            var downloadResult = await _gitHubClient.DownloadAssetAsync(
-                exeAsset.BrowserDownloadUrl!, exePath, exeAsset.Size, downloadProgress, cancellationToken);
-            if (!downloadResult.IsSuccess)
-                return UpdatePackageResult.Failure(UpdatePackageError.DownloadFailed, downloadResult.ErrorMessage!);
-
-            var downloadInfo = downloadResult.Value!;
-            progress?.Report(new UpdateStageProgress("Перевірка цілісності...", 100));
-            if (!string.Equals(downloadInfo.Sha256, expectedSha, StringComparison.Ordinal))
+            string packageAssetName = ExeFileName;
+            string packageSha;
+            if (!string.IsNullOrWhiteSpace(manifest.PackageName) && !string.IsNullOrWhiteSpace(manifest.PackageSha256))
             {
-                _logger.Error($"EXE SHA mismatch: actual={downloadInfo.Sha256} expected={expectedSha}");
+                var packageAsset = FindExactlyOneAsset(candidate, manifest.PackageName);
+                if (packageAsset == null)
+                    return UpdatePackageResult.Failure(UpdatePackageError.AssetMissing, "ZIP package not found or ambiguous");
+                if (packageAsset.Size <= 0 || packageAsset.Size > ZipMaxBytes)
+                    return UpdatePackageResult.Failure(UpdatePackageError.SizeMismatch, $"Invalid ZIP size: {packageAsset.Size}");
+                if (!ValidateGitHubDigest(packageAsset, manifest.PackageSha256))
+                    return UpdatePackageResult.Failure(UpdatePackageError.HashMismatch, "ZIP GitHub digest mismatch or unsupported format");
+
+                var packagePath = Path.Combine(sessionDir, manifest.PackageName);
+                var packageResult = await _gitHubClient.DownloadAssetAsync(
+                    packageAsset.BrowserDownloadUrl!, packagePath, packageAsset.Size, downloadProgress, cancellationToken);
+                if (!packageResult.IsSuccess)
+                    return UpdatePackageResult.Failure(UpdatePackageError.DownloadFailed, packageResult.ErrorMessage!);
+                packageSha = packageResult.Value!.Sha256;
+                if (!string.Equals(packageSha, manifest.PackageSha256, StringComparison.OrdinalIgnoreCase))
+                    return UpdatePackageResult.Failure(UpdatePackageError.HashMismatch, "ZIP SHA-256 mismatch");
+                var extractionResult = await ExtractValidatedExeAsync(packagePath, exePath, expectedSha, candidate.Version, cancellationToken);
+                if (!extractionResult.IsValid)
+                    return UpdatePackageResult.Failure(UpdatePackageError.PackageInvalid, extractionResult.Error!);
+            }
+            else
+            {
+                var exeAsset = FindExactlyOneAsset(candidate, manifest.AssetName!);
+                if (exeAsset == null)
+                    return UpdatePackageResult.Failure(UpdatePackageError.AssetMissing, "EXE asset not found or ambiguous");
+                if (exeAsset.Size <= 0 || exeAsset.Size > GitHubUpdateClient.ExeMaxBytes)
+                    return UpdatePackageResult.Failure(UpdatePackageError.SizeMismatch, $"Invalid EXE size: {exeAsset.Size}");
+                if (!ValidateGitHubDigest(exeAsset, expectedSha))
+                    return UpdatePackageResult.Failure(UpdatePackageError.HashMismatch, "GitHub digest mismatch or unsupported format");
+                var downloadResult = await _gitHubClient.DownloadAssetAsync(
+                    exeAsset.BrowserDownloadUrl!, exePath, exeAsset.Size, downloadProgress, cancellationToken);
+                if (!downloadResult.IsSuccess)
+                    return UpdatePackageResult.Failure(UpdatePackageError.DownloadFailed, downloadResult.ErrorMessage!);
+                packageSha = downloadResult.Value!.Sha256;
+            }
+
+            progress?.Report(new UpdateStageProgress("Перевірка цілісності...", 100));
+            var downloadedExeSha = await HashHelper.ComputeFileSha256Async(exePath, cancellationToken);
+            if (!string.Equals(downloadedExeSha, expectedSha, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.Error($"EXE SHA mismatch: actual={downloadedExeSha} expected={expectedSha}");
                 return UpdatePackageResult.Failure(UpdatePackageError.HashMismatch, "EXE SHA-256 mismatch");
             }
 
@@ -116,7 +143,7 @@ public sealed class UpdatePackageService
                 return UpdatePackageResult.Failure(UpdatePackageError.ExecutableInvalid, versionError!);
 
             var exeSha = await HashHelper.ComputeFileSha256Async(exePath, cancellationToken);
-            if (!string.Equals(exeSha, downloadInfo.Sha256, StringComparison.Ordinal))
+            if (!string.Equals(exeSha, expectedSha, StringComparison.OrdinalIgnoreCase))
                 return UpdatePackageResult.Failure(UpdatePackageError.HashMismatch, "Staged EXE SHA-256 mismatch");
 
             var targetPath = Environment.ProcessPath;
@@ -135,8 +162,8 @@ public sealed class UpdatePackageService
                 TargetTag = candidate.TagName,
                 TargetPath = targetPath,
                 ParentPid = Environment.ProcessId,
-                PackageAssetName = manifest.AssetName!,
-                PackageSha256 = expectedSha,
+                PackageAssetName = packageAssetName,
+                PackageSha256 = packageSha,
                 StagedExeSha256 = exeSha
             };
 
@@ -162,6 +189,55 @@ public sealed class UpdatePackageService
         {
             if (!keepSession)
                 _sessionStore.CleanupSession(sessionId);
+        }
+    }
+
+    internal static async Task<(bool IsValid, string? Error)> ExtractValidatedExeAsync(
+        string packagePath,
+        string exePath,
+        string expectedSha,
+        AppVersion version,
+        CancellationToken cancellationToken = default,
+        Func<string?, string?, bool>? versionValidator = null)
+    {
+        try
+        {
+            using var archive = ZipFile.OpenRead(packagePath);
+            if (archive.Entries.Count != 1)
+                return (false, "ZIP must contain exactly one entry");
+            var entry = archive.Entries[0];
+            if (!string.Equals(entry.FullName, PackageEntryName, StringComparison.Ordinal) || entry.FullName.Contains('/') || entry.FullName.Contains('\\'))
+                return (false, "ZIP entry must be exactly BDO-UA-Client.exe at archive root");
+            if (entry.Length <= 0 || entry.Length > GitHubUpdateClient.ExeMaxBytes)
+                return (false, "ZIP EXE entry size is invalid");
+            using var input = entry.Open();
+            await using (var output = new FileStream(exePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                await input.CopyToAsync(output, cancellationToken);
+                await output.FlushAsync(cancellationToken);
+            }
+            var stagedSha = await HashHelper.ComputeFileSha256Async(exePath, cancellationToken);
+            if (!string.Equals(stagedSha, expectedSha, StringComparison.OrdinalIgnoreCase))
+                return (false, "Extracted EXE SHA-256 mismatch");
+            var info = FileVersionInfo.GetVersionInfo(exePath);
+            if (versionValidator == null)
+            {
+                if (!ExecutableVersionValidator.Validate(info.FileVersion, info.ProductVersion, version, out var error))
+                    return (false, error);
+            }
+            else if (!versionValidator(info.FileVersion, info.ProductVersion))
+            {
+                return (false, "Executable version metadata mismatch");
+            }
+            return (true, null);
+        }
+        catch (InvalidDataException ex)
+        {
+            return (false, $"Malformed ZIP: {ex.Message}");
+        }
+        catch (IOException ex)
+        {
+            return (false, $"ZIP extraction failed: {ex.Message}");
         }
     }
 

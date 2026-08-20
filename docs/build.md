@@ -105,9 +105,9 @@ Trimming може видалити типи, які використовують
 - Це внутрішній артефакт workflow, НЕ для кінцевого користувача
 
 **Public release asset** (what users download from GitHub Release): **`BDO-UA-Client.exe`**
-- Це прямий application asset без project-created archive
+- Це прямий application asset; додатково створюється один canonical updater ZIP з одним EXE
 
-GitHub може створити власний transport wrapper для Actions artifact. Проєкт не створює application archives.
+GitHub може створити власний transport wrapper для Actions artifact. Проєктний updater ZIP є єдиним дозволеним application transport archive і містить лише `BDO-UA-Client.exe`.
 
 ## Workflows
 
@@ -133,4 +133,4 @@ GitHub може створити власний transport wrapper для Actions
 ### D. GitHub Release
 - Створюється та публікується **вручну власником** репозиторію
 - Після успішного Release Candidate: завантажити artifact → створити release → обрати тег → завантажити exact `BDO-UA-Client.exe`, manifest і SHA256SUMS → Publish
-- Не ZIP/recompress `BDO-UA-Client.exe`.
+- Не ZIP/recompress `BDO-UA-Client.exe` вручну; використовуйте canonical updater ZIP із workflow.

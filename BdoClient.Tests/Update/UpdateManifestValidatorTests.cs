@@ -1,5 +1,6 @@
 using BdoClient.Logging;
 using BdoClient.Update;
+using System.Text.Json;
 
 namespace BdoClient.Tests.Update;
 
@@ -31,6 +32,59 @@ public class UpdateManifestValidatorTests
         var result = validator.Validate(ValidManifest(), MakeCandidate("v0.1.4", new AppVersion(0, 1, 4)));
         Assert.True(result.IsValid);
         Assert.NotNull(result.NormalizedSha256);
+    }
+
+    [Fact]
+    public void OptionalPackageFields_Valid()
+    {
+        var manifest = ValidManifest();
+        manifest.PackageName = "BDO-UA-Client-v0.1.4-win-x64.zip";
+        manifest.PackageSha256 = new string('b', 64);
+        Assert.True(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void OnlyOneOptionalPackageField_Fails(bool hasName, bool hasSha)
+    {
+        var manifest = ValidManifest();
+        manifest.PackageName = hasName ? "BDO-UA-Client-v0.1.4-win-x64.zip" : null;
+        manifest.PackageSha256 = hasSha ? new string('b', 64) : null;
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
+    }
+
+    [Fact]
+    public void MalformedPackageSha_Fails()
+    {
+        var manifest = ValidManifest();
+        manifest.PackageName = "BDO-UA-Client-v0.1.4-win-x64.zip";
+        manifest.PackageSha256 = "not-a-sha";
+        Assert.False(new UpdateManifestValidator(Logger).Validate(manifest, MakeCandidate("v0.1.4", new AppVersion(0, 1, 4))).IsValid);
+    }
+
+    [Fact]
+    public void LegacyShapeDeserializer_IgnoresOptionalPackageFields()
+    {
+        const string json = "{\"schema_version\":1,\"version\":\"0.1.4\",\"tag\":\"v0.1.4\",\"commit_sha\":\"74875dfcc6762ec0edb75c40e225150f94fa45e5\",\"asset_name\":\"BDO-UA-Client.exe\",\"sha256\":\"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2\",\"package_name\":\"BDO-UA-Client-v0.1.4-win-x64.zip\",\"package_sha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"platform\":\"win-x64\",\"workflow_run_id\":\"1\"}";
+        var legacy = JsonSerializer.Deserialize<LegacyManifest>(json);
+        Assert.NotNull(legacy);
+        Assert.Equal("BDO-UA-Client.exe", legacy!.AssetName);
+        Assert.Equal("0.1.4", legacy.Version);
+    }
+
+    private sealed class LegacyManifest
+    {
+        public int schema_version { get; set; }
+        public string? version { get; set; }
+        public string? tag { get; set; }
+        public string? commit_sha { get; set; }
+        public string? asset_name { get; set; }
+        public string? sha256 { get; set; }
+        public string? platform { get; set; }
+        public string? workflow_run_id { get; set; }
+        public string? AssetName => asset_name;
+        public string? Version => version;
     }
 
     [Fact]

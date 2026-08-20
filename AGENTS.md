@@ -724,7 +724,7 @@ BDO-UA-Client/
 
 §41.10 TLS verification ніколи не вимикати. Не використовувати GitHub token. Не використовувати HTTP.
 
-§41.10.1 Production application releases use the direct `BDO-UA-Client.exe` asset. Project-created application archives (`.zip`, `.7z`, `.rar`, `.tar`, `.tar.gz`) are forbidden. GitHub Actions' own artifact transport wrapper is the only allowed archive; its extracted contents must be flat. The updater downloads and verifies the direct EXE. Introducing archive packaging requires a separate explicit owner architecture decision.
+§41.10.1 Production application releases retain the direct `BDO-UA-Client.exe` asset for manual installation and backward compatibility. They may additionally include exactly one canonical updater ZIP, `BDO-UA-Client-vX.Y.Z-win-x64.zip`, containing only the flat `BDO-UA-Client.exe`. No `.7z`, `.rar`, `.tar`, `.tar.gz`, nested archive, or arbitrary package paths. New clients prefer the declared ZIP when both optional manifest package fields are valid; old clients ignore those fields and use the direct EXE. GitHub Actions' transport wrapper may contain the flat release files.
 
 §41.11 Stage 13 first implementation: NO automatic UAC elevation.
 
