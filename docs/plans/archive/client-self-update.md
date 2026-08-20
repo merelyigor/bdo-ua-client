@@ -1,11 +1,15 @@
 # Client Self-Update
 
 Plan ID: `client-self-update`
-Status: **ACTIVE**
-Focus: **PRIMARY**
-Current phase: v14.0 — make localization state patch-aware
-Next action: v14.1 — follow-up after v14.0 acceptance
-ONLY after v14.0 acceptance
+> **Status: ARCHIVED**
+> **Coverage:** v13.1.2 through v14.0.1
+> **Last accepted baseline:** `86d110e0f47d31db1342623689331d28cd903c8e`
+> **This document is historical and must NOT be treated as an active implementation roadmap.**
+
+Status: **ARCHIVED**
+Focus: **HISTORICAL**
+Current phase: v13.5.1 accepted; real E2E completed
+Next action: none; new work requires an explicit owner plan/activation decision
 
 Release history decision: `v0.1.5` is an obsolete RC tag only, has no GitHub
 Release, and must never be published or used as updater input. The first
@@ -625,17 +629,6 @@ Program                     — detect internal updater mode vs normal UI
 - Old application remains recoverable on simulated/apply failures via automated tests
 
 **If defect found:** targeted follow-up fix.
-
----
-
-### v14.0 — make localization state patch-aware
-
-**Status:** IMPLEMENTED — pending acceptance.
-
-- Added safe `ads_files` reader for the local `languagedata_en.loc` game patch.
-- Higher local game patch no longer classifies a localization hash mismatch as corruption.
-- Added factual outdated-localization and game-replaced-file presentation.
-- Current release absence now uses contextual Ukrainian messaging and keeps Install disabled.
 
 ---
 

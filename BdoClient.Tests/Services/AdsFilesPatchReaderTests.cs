@@ -51,6 +51,20 @@ public sealed class AdsFilesPatchReaderTests : IDisposable
     }
 
     [Fact]
+    public void ValidAndMalformedDuplicate_ReturnsUnavailable()
+    {
+        File.WriteAllText(Path.Combine(_root, "ads_files"), "languagedata_en.loc 398\nlanguagedata_en.loc garbage\n");
+        Assert.Null(AdsFilesPatchReader.TryReadPatch(_root));
+    }
+
+    [Fact]
+    public void TwoMalformedDuplicates_ReturnUnavailable()
+    {
+        File.WriteAllText(Path.Combine(_root, "ads_files"), "languagedata_en.loc garbage\nlanguagedata_en.loc nope\n");
+        Assert.Null(AdsFilesPatchReader.TryReadPatch(_root));
+    }
+
+    [Fact]
     public void MissingFile_ReturnsUnavailable()
     {
         Assert.Null(AdsFilesPatchReader.TryReadPatch(_root));

@@ -2,15 +2,15 @@
 
 ## Current focus
 
-**Primary:** `client-self-update`
-**Current phase:** v13.1.2 accepted
-**Next:** v13.2 — add verified update package staging
+**Primary:** none — awaiting explicit owner activation decision
+**Current phase:** v14.0.1 accepted; self-update plan archived
+**Next:** no active plan
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| **PRIMARY** | `client-self-update` | [active/client-self-update.md](active/client-self-update.md) | v13.1.2 accepted | v13.2 — add verified update package staging |
+| — | — | — | No active plan | Explicit owner activation required |
 
 ## Backlog
 
@@ -23,6 +23,7 @@
 | ID | Plan | Coverage |
 |---|---|---|
 | `initial-implementation` | [archive/initial-implementation-plan.md](archive/initial-implementation-plan.md) | Stage 1–12.2 |
+| `client-self-update` | [archive/client-self-update.md](archive/client-self-update.md) | v13.1.2–v14.0.1; ZIP self-update E2E completed |
 
 ## Rules / lifecycle
 

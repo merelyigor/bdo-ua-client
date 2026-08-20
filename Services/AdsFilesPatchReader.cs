@@ -4,8 +4,8 @@ namespace BdoClient.Services;
 
 public static class AdsFilesPatchReader
 {
-    private static readonly Regex EnglishEntry = new(
-        @"^\s*languagedata_en\.loc\s+([1-9][0-9]*)\s*$",
+    private static readonly Regex EntryLine = new(
+        @"^\s*(\S+)(?:\s+(.*?))?\s*$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public static int? TryReadPatch(string? gameRoot)
@@ -20,15 +20,21 @@ public static class AdsFilesPatchReader
             if (!File.Exists(path))
                 return null;
 
-            var patches = new List<int>();
+            var entryCount = 0;
+            int? patch = null;
             foreach (var line in File.ReadLines(path))
             {
-                var match = EnglishEntry.Match(line);
-                if (match.Success && int.TryParse(match.Groups[1].Value, out var patch) && patch > 0)
-                    patches.Add(patch);
+                var match = EntryLine.Match(line);
+                if (!match.Success || !string.Equals(match.Groups[1].Value, "languagedata_en.loc", StringComparison.Ordinal))
+                    continue;
+
+                entryCount++;
+                var value = match.Groups[2].Success ? match.Groups[2].Value.Trim() : "";
+                if (entryCount == 1 && int.TryParse(value, out var parsedPatch) && parsedPatch > 0)
+                    patch = parsedPatch;
             }
 
-            return patches.Count == 1 ? patches[0] : null;
+            return entryCount == 1 ? patch : null;
         }
         catch (IOException)
         {
