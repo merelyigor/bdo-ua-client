@@ -209,9 +209,8 @@ SHA-256:
 ## How to install
 
 1. Download ``$AssetName`` from this page
-2. Extract archive
-3. Run ``BDO-UA-Client.exe``
-4. If Windows SmartScreen shows warning - click "More info" -> "Run" (details: [README](https://github.com/merelyigor/bdo-ua-client#windows-smartscreen))
+2. Run ``BDO-UA-Client.exe``
+3. If Windows SmartScreen shows warning - click "More info" -> "Run" (details: [README](https://github.com/merelyigor/bdo-ua-client#windows-smartscreen))
 
 ## Links
 
