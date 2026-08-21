@@ -471,6 +471,8 @@ BDO-UA-Client/
 - Не заявляти, що CI успішний, якщо результат реально не перевірено.
 - Failure CI не ігнорувати перед переходом до наступного етапу.
 
+§26.4 Для meaningful UI/visual implementation tasks, де потрібне owner visual approval, automated build/tests недостатні для handoff: перед ручним review агент зобов'язаний створити local runnable preview build. Preview не замінює build/tests або CI; GitHub Actions artifacts не є обов'язковою залежністю для локальної visual inspection, якщо можливий local publish. Preview artifacts є тимчасовим локальним output і ніколи не commit-яться.
+
 ---
 
 ## §27 🧪 Тести
