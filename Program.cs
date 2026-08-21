@@ -104,11 +104,13 @@ static class Program
         ILogger logger = new FileLogger(appPaths.LogsDir);
         var configStore = new ConfigStore(appPaths, logger);
         var stateStore = new InstallationStateStore(appPaths, logger);
+        var appVersionInfo = AppVersionInfo.Detect();
         var httpClient = new HttpClient(new HttpClientHandler
         {
             UseProxy = false
         });
         httpClient.Timeout = TimeSpan.FromSeconds(30);
+        Api.BdoUaHttpClientConfiguration.Configure(httpClient, appVersionInfo);
 
         var apiClient = new Api.BdoUaApiClient(httpClient, logger);
         var localizationInstaller = new LocalizationInstaller(httpClient, appPaths, logger);
@@ -117,7 +119,6 @@ static class Program
         var stateService = new LocalizationStateService(stateStore, logger);
         var compatService = new LocalizationCompatibilityService();
 
-        var appVersionInfo = AppVersionInfo.Detect();
         logger.Info($"Application started. version={appVersionInfo.RawVersion}");
 
         var gitHubHttpClient = new HttpClient(new HttpClientHandler

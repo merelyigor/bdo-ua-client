@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
+using BdoClient.Api;
 using BdoClient.Logging;
 using BdoClient.Models;
 using BdoClient.Storage;
@@ -30,10 +31,17 @@ public sealed class LocalizationInstaller
 
     public LocalizationInstaller(AppPaths appPaths, ILogger logger,
         int timeoutSeconds = DefaultTimeoutSeconds, int[]? retryDelaysMs = null)
-        : this(new HttpClient(new HttpClientHandler
+        : this(CreateDefaultHttpClient(), appPaths, logger, timeoutSeconds, retryDelaysMs) { }
+
+    private static HttpClient CreateDefaultHttpClient()
+    {
+        var httpClient = new HttpClient(new HttpClientHandler
         {
             UseProxy = false
-        }), appPaths, logger, timeoutSeconds, retryDelaysMs) { }
+        });
+        BdoUaHttpClientConfiguration.Configure(httpClient, BdoClient.Update.AppVersionInfo.Detect());
+        return httpClient;
+    }
 
     public async Task<DownloadResult> DownloadReleaseAsync(
         CurrentRelease release,

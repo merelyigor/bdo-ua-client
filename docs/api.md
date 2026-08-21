@@ -10,6 +10,18 @@ GET https://bdo-ua.com.ua/api/public/v1/releases
 
 Авторизація не потрібна. Відповідь — JSON.
 
+## Ідентифікація desktop client
+
+Application-owned HTTP requests до BDO-UA services використовують User-Agent:
+
+```text
+BdoUaClient/<version> (+https://bdo-ua.com.ua)
+```
+
+Наприклад, public release використовує `BdoUaClient/1.4.2 (+https://bdo-ua.com.ua)`, development build — `BdoUaClient/DEV (+https://bdo-ua.com.ua)`, а невідома версія — `BdoUaClient/unknown (+https://bdo-ua.com.ua)`.
+
+Це потрібне лише для server-side aggregate source attribution вже наявних localization downloads. Це не user telemetry: клієнт не надсилає user, installation, machine або інший персональний ідентифікатор, а також не створює окремих analytics-запитів.
+
 ---
 
 ## BdoUaApiClient
