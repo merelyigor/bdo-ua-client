@@ -174,6 +174,7 @@ public sealed class RestoreBackupService
             return RestoreResult.Failure(RestoreError.StateRestoreFailed, ex.Message);
         }
 
+        await _backupStore.PruneRestorePointsAsync(preRpDir).ConfigureAwait(false);
         _logger.Info($"Restore Backup completed: {restorePointId}");
         return RestoreResult.Success();
     }

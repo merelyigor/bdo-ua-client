@@ -34,6 +34,9 @@ public sealed class UpdateSession
     [JsonPropertyName("package_asset_name")]
     public string PackageAssetName { get; set; } = "";
 
+    [JsonPropertyName("package_file_name")]
+    public string? PackageFileName { get; set; }
+
     [JsonPropertyName("package_sha256")]
     public string PackageSha256 { get; set; } = "";
 

@@ -126,7 +126,7 @@ public class UpdateSessionStoreTests : IDisposable
         _store.WriteSession(session);
         var sessionDir = _store.GetSessionDir(session.SessionId);
         Assert.True(Directory.Exists(sessionDir));
-        _store.CleanupSession(session.SessionId);
+        Assert.True(_store.CleanupSession(session.SessionId));
         Assert.False(Directory.Exists(sessionDir));
     }
 
@@ -134,6 +134,81 @@ public class UpdateSessionStoreTests : IDisposable
     public void CleanupSession_Missing_DoesNotThrow()
     {
         Assert.Null(Record.Exception(() => _store.CleanupSession(Guid.NewGuid().ToString("D"))));
+    }
+
+    [Fact]
+    public void CleanupSession_TransientHelperLock_RetriesAndSucceeds()
+    {
+        var session = MakeSession();
+        session.PackageFileName = "BDO-UA-Client-v0.1.4-win-x64.zip";
+        _store.WriteSession(session);
+        var sessionDir = _store.GetSessionDir(session.SessionId);
+        var helperPath = Path.Combine(sessionDir, session.PackageAssetName);
+        File.WriteAllText(helperPath, "helper");
+        File.WriteAllText(Path.Combine(sessionDir, session.PackageFileName), "package");
+
+        var attempts = 0;
+        _store.DeleteFileOverride = path =>
+        {
+            if (string.Equals(Path.GetFileName(path), session.PackageAssetName, StringComparison.OrdinalIgnoreCase)
+                && ++attempts < 3)
+                return false;
+
+            File.Delete(path);
+            return true;
+        };
+
+        Assert.True(_store.CleanupSession(session.SessionId));
+        Assert.Equal(3, attempts);
+        Assert.False(Directory.Exists(sessionDir));
+    }
+
+    [Fact]
+    public void CleanupSession_PersistentHelperLock_RetainsRetryableMetadata()
+    {
+        var session = MakeSession();
+        _store.WriteSession(session);
+        var sessionDir = _store.GetSessionDir(session.SessionId);
+        var helperPath = Path.Combine(sessionDir, session.PackageAssetName);
+        File.WriteAllText(helperPath, "helper");
+        _store.DeleteFileOverride = path =>
+            string.Equals(Path.GetFileName(path), session.PackageAssetName, StringComparison.OrdinalIgnoreCase)
+                ? false
+                : Delete(path);
+
+        Assert.False(_store.CleanupSession(session.SessionId));
+        Assert.True(File.Exists(Path.Combine(sessionDir, "update-session.json")));
+        Assert.True(File.Exists(helperPath));
+    }
+
+    [Fact]
+    public void CleanupSession_LaterRetry_RemovesPreviouslyLockedSession()
+    {
+        var session = MakeSession();
+        _store.WriteSession(session);
+        var sessionDir = _store.GetSessionDir(session.SessionId);
+        File.WriteAllText(Path.Combine(sessionDir, session.PackageAssetName), "helper");
+
+        _store.DeleteFileOverride = _ => false;
+        Assert.False(_store.CleanupSession(session.SessionId));
+
+        _store.DeleteFileOverride = Delete;
+        Assert.True(_store.CleanupSession(session.SessionId));
+        Assert.False(Directory.Exists(sessionDir));
+    }
+
+    [Fact]
+    public void CleanupSession_UnknownFile_IsPreservedFailClosed()
+    {
+        var session = MakeSession();
+        _store.WriteSession(session);
+        var sessionDir = _store.GetSessionDir(session.SessionId);
+        var unknownPath = Path.Combine(sessionDir, "owner-data.bin");
+        File.WriteAllText(unknownPath, "do not delete");
+
+        Assert.False(_store.CleanupSession(session.SessionId));
+        Assert.True(File.Exists(unknownPath));
+        Assert.True(File.Exists(Path.Combine(sessionDir, "update-session.json")));
     }
 
     [Fact]
@@ -671,6 +746,12 @@ public class UpdateSessionStoreTests : IDisposable
         PackageSha256 = new string('a', 64),
         StagedExeSha256 = new string('b', 64)
     };
+
+    private static bool Delete(string path)
+    {
+        File.Delete(path);
+        return true;
+    }
 
     private class NullLogger : ILogger
     {

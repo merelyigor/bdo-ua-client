@@ -25,6 +25,9 @@ public class BackupStore
 
     internal string OriginalBackupDir => _paths.OriginalBackupDir;
     internal string RestorePointsDir => _paths.RestorePointsDir;
+    internal Func<string, bool>? DeleteRestorePointOverride { get; set; }
+
+    private const int MaxRetainedRestorePoints = 3;
 
     public BackupStore(AppPaths paths, ILogger logger)
     {
@@ -328,6 +331,103 @@ public class BackupStore
         return result;
     }
 
+    public async Task PruneRestorePointsAsync(
+        string? protectedRestorePointDir = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var restorePoints = (await ListRestorePointsAsync(cancellationToken).ConfigureAwait(false))
+                .Where(info => info.IsRestorable)
+                .OrderByDescending(info => info.CreatedAt)
+                .ThenByDescending(info => info.Id, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var keepIds = restorePoints
+                .Take(MaxRetainedRestorePoints)
+                .Select(info => info.Id)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var protectedId = GetRestorePointId(protectedRestorePointDir);
+            if (protectedId != null && restorePoints.Any(info =>
+                string.Equals(info.Id, protectedId, StringComparison.OrdinalIgnoreCase)))
+            {
+                keepIds.Add(protectedId);
+            }
+
+            foreach (var restorePoint in restorePoints)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (keepIds.Contains(restorePoint.Id))
+                    continue;
+
+                var directory = Path.Combine(_paths.RestorePointsDir, restorePoint.Id);
+                if (!TryDeleteOwnedRestorePoint(directory))
+                    _logger.Warning($"Restore point pruning retained {restorePoint.Id}");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.Warning("Restore point pruning cancelled; retained remaining restore points");
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"Restore point pruning failed: {ex.Message}");
+        }
+    }
+
+    private string? GetRestorePointId(string? restorePointDir)
+    {
+        if (string.IsNullOrWhiteSpace(restorePointDir))
+            return null;
+
+        var normalized = Path.GetFullPath(restorePointDir);
+        var root = Path.GetFullPath(_paths.RestorePointsDir).TrimEnd(Path.DirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        if (!normalized.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        return Path.GetFileName(normalized);
+    }
+
+    private bool TryDeleteOwnedRestorePoint(string directory)
+    {
+        if (!Directory.Exists(directory))
+            return true;
+
+        var allowedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            SnapshotFile,
+            MetadataFile,
+            "installation-state.json"
+        };
+
+        try
+        {
+            var entries = Directory.GetFileSystemEntries(directory);
+            if (entries.Any(entry => Directory.Exists(entry)
+                || !allowedFiles.Contains(Path.GetFileName(entry))))
+                return false;
+
+            var deleted = DeleteRestorePointOverride?.Invoke(directory) ?? DeleteRestorePoint(directory, entries);
+            return deleted && !Directory.Exists(directory);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"Restore point deletion failed for {Path.GetFileName(directory)}: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static bool DeleteRestorePoint(string directory, IEnumerable<string> entries)
+    {
+        foreach (var entry in entries)
+            File.Delete(entry);
+
+        Directory.Delete(directory, recursive: false);
+        return true;
+    }
+
     internal async Task<RestorePointInfo?> LoadRestorePointInfoAsync(
         string restorePointDir, CancellationToken cancellationToken = default)
     {
@@ -341,6 +441,9 @@ public class BackupStore
         var json = await File.ReadAllTextAsync(metadataPath, cancellationToken).ConfigureAwait(false);
         var metadata = JsonSerializer.Deserialize<BackupMetadata>(json, JsonOptions);
         if (metadata == null)
+            return null;
+
+        if (metadata.CreatedAt == default || metadata.SizeBytes < 0)
             return null;
 
         var fileInfo = new FileInfo(gameFilePath);

@@ -126,6 +126,7 @@ public sealed class RestoreOriginalService
             return RestoreResult.Failure(RestoreError.StateSaveFailed, ex.Message);
         }
 
+        await _backupStore.PruneRestorePointsAsync(rpDir).ConfigureAwait(false);
         _logger.Info("Restore Original via official source completed successfully");
         return RestoreResult.Success();
     }
@@ -228,6 +229,7 @@ public sealed class RestoreOriginalService
             return RestoreResult.Failure(RestoreError.StateSaveFailed, ex.Message);
         }
 
+        await _backupStore.PruneRestorePointsAsync(rpDir).ConfigureAwait(false);
         _logger.Info("Restore Original via snapshot fallback completed successfully");
         return RestoreResult.Success();
     }

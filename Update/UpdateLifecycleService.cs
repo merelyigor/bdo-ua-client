@@ -448,11 +448,10 @@ public sealed class UpdateLifecycleService
     {
         try
         {
-            _sessionStore.CleanupSession(session.SessionId);
-            var workspace = ReplacementWorkspace.Derive(_appPaths, session.SessionId, session.TargetPath);
-            if (!workspace.TryDeleteOwnedFallbackWorkspace())
-                _logger.Warning($"Update lifecycle: fallback workspace retained for session {session.SessionId}");
-            _logger.Debug($"Update lifecycle: cleaned up session directory {session.SessionId}");
+            if (_sessionStore.CleanupSession(session.SessionId))
+                _logger.Debug($"Update lifecycle: cleaned up session directory {session.SessionId}");
+            else
+                _logger.Warning($"Update lifecycle: session directory {session.SessionId} retained for retry");
         }
         catch (Exception ex)
         {

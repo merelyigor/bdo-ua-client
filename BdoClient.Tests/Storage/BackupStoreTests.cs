@@ -301,6 +301,100 @@ public class BackupStoreTests : IDisposable
         Assert.Null(rpDir);
     }
 
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task PruneRestorePoints_UpToThree_LeavesAll(int count)
+    {
+        var gameRoot = CreateGameRoot();
+        var gameFile = Path.Combine(gameRoot, "ads", "languagedata_en.loc");
+        var restorePoints = await CreateRestorePointsAsync(gameFile, count);
+
+        await _store.PruneRestorePointsAsync();
+
+        Assert.Equal(count, Directory.GetDirectories(_paths.RestorePointsDir).Length);
+        Assert.All(restorePoints, directory => Assert.True(Directory.Exists(directory)));
+    }
+
+    [Fact]
+    public async Task PruneRestorePoints_FourValid_LeavesLatestThree()
+    {
+        var gameRoot = CreateGameRoot();
+        var gameFile = Path.Combine(gameRoot, "ads", "languagedata_en.loc");
+        var restorePoints = await CreateRestorePointsAsync(gameFile, 4);
+        SetRestorePointDates(restorePoints);
+
+        await _store.PruneRestorePointsAsync();
+
+        Assert.Equal(3, Directory.GetDirectories(_paths.RestorePointsDir).Length);
+        Assert.False(Directory.Exists(restorePoints[0]));
+        Assert.True(Directory.Exists(restorePoints[1]));
+        Assert.True(Directory.Exists(restorePoints[2]));
+        Assert.True(Directory.Exists(restorePoints[3]));
+    }
+
+    [Fact]
+    public async Task PruneRestorePoints_ProtectedOldPoint_IsNotPruned()
+    {
+        var gameRoot = CreateGameRoot();
+        var gameFile = Path.Combine(gameRoot, "ads", "languagedata_en.loc");
+        var restorePoints = await CreateRestorePointsAsync(gameFile, 4);
+        SetRestorePointDates(restorePoints);
+
+        await _store.PruneRestorePointsAsync(restorePoints[0]);
+
+        Assert.True(Directory.Exists(restorePoints[0]));
+        Assert.Equal(4, Directory.GetDirectories(_paths.RestorePointsDir).Length);
+    }
+
+    [Fact]
+    public async Task PruneRestorePoints_OriginalSnapshot_IsUntouched()
+    {
+        var gameRoot = CreateGameRoot(Encoding.UTF8.GetBytes("original"));
+        await _store.CreateOriginalSnapshotAsync(gameRoot, 100);
+        var snapshotPath = Path.Combine(_paths.OriginalBackupDir, "languagedata_en.loc");
+        var snapshotHash = await BdoClient.Services.HashHelper.ComputeFileSha256Async(snapshotPath);
+        var gameFile = Path.Combine(gameRoot, "ads", "languagedata_en.loc");
+        await CreateRestorePointsAsync(gameFile, 4);
+
+        await _store.PruneRestorePointsAsync();
+
+        Assert.True(File.Exists(snapshotPath));
+        Assert.Equal(snapshotHash, await BdoClient.Services.HashHelper.ComputeFileSha256Async(snapshotPath));
+        Assert.True(File.Exists(Path.Combine(_paths.OriginalBackupDir, "metadata.json")));
+    }
+
+    [Fact]
+    public async Task PruneRestorePoints_DeleteFailure_IsLoggedAndRetained()
+    {
+        var gameRoot = CreateGameRoot();
+        var gameFile = Path.Combine(gameRoot, "ads", "languagedata_en.loc");
+        var restorePoints = await CreateRestorePointsAsync(gameFile, 4);
+        SetRestorePointDates(restorePoints);
+        _store.DeleteRestorePointOverride = _ => false;
+
+        await _store.PruneRestorePointsAsync();
+
+        Assert.Equal(4, Directory.GetDirectories(_paths.RestorePointsDir).Length);
+        Assert.True(Directory.Exists(restorePoints[0]));
+    }
+
+    [Fact]
+    public async Task PruneRestorePoints_UnknownEntry_IsPreservedFailClosed()
+    {
+        var gameRoot = CreateGameRoot();
+        var gameFile = Path.Combine(gameRoot, "ads", "languagedata_en.loc");
+        var restorePoints = await CreateRestorePointsAsync(gameFile, 4);
+        SetRestorePointDates(restorePoints);
+        File.WriteAllText(Path.Combine(restorePoints[0], "foreign.bin"), "preserve");
+
+        await _store.PruneRestorePointsAsync();
+
+        Assert.Equal(4, Directory.GetDirectories(_paths.RestorePointsDir).Length);
+        Assert.True(File.Exists(Path.Combine(restorePoints[0], "foreign.bin")));
+    }
+
     // --- Replace game file: pre-replace failure ---
 
     [Fact]
@@ -593,5 +687,29 @@ public class BackupStoreTests : IDisposable
         public void Info(string message) { }
         public void Warning(string message) { }
         public void Error(string message) { }
+    }
+
+    private async Task<List<string>> CreateRestorePointsAsync(string gameFile, int count)
+    {
+        var result = new List<string>();
+        for (var index = 0; index < count; index++)
+        {
+            var (directory, createResult) = await _store.CreateRestorePointAsync(gameFile, 100, $"test-{index}");
+            Assert.True(createResult.IsSuccess);
+            result.Add(directory!);
+        }
+
+        return result;
+    }
+
+    private static void SetRestorePointDates(IReadOnlyList<string> restorePoints)
+    {
+        for (var index = 0; index < restorePoints.Count; index++)
+        {
+            var metadataPath = Path.Combine(restorePoints[index], "metadata.json");
+            var metadata = System.Text.Json.JsonSerializer.Deserialize<BackupMetadata>(File.ReadAllText(metadataPath))!;
+            metadata.CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, index, TimeSpan.Zero);
+            File.WriteAllText(metadataPath, System.Text.Json.JsonSerializer.Serialize(metadata));
+        }
     }
 }

@@ -54,6 +54,8 @@ public sealed class UpdateSessionStore
     private readonly AppPaths _appPaths;
     private readonly ILogger _logger;
 
+    internal Func<string, bool>? DeleteFileOverride { get; set; }
+
     public UpdateSessionStore(AppPaths appPaths, ILogger logger)
     {
         _appPaths = appPaths ?? throw new ArgumentNullException(nameof(appPaths));
@@ -79,6 +81,17 @@ public sealed class UpdateSessionStore
     public static bool IsValidSha256Hex(string? value)
     {
         return !string.IsNullOrEmpty(value) && Sha256HexRegex.IsMatch(value);
+    }
+
+    private static bool IsValidPackageFileName(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            || (!Path.IsPathRooted(value)
+                && !value.Contains(Path.DirectorySeparatorChar)
+                && !value.Contains(Path.AltDirectorySeparatorChar)
+                && value != "."
+                && value != ".."
+                && !string.Equals(value, "update-session.json", StringComparison.OrdinalIgnoreCase));
     }
 
     public string GetSessionDir(string sessionId)
@@ -241,6 +254,9 @@ public sealed class UpdateSessionStore
         if (!IsValidSha256Hex(session.PackageSha256))
             return UpdateSessionLoadResult.Invalid;
 
+        if (!IsValidPackageFileName(session.PackageFileName))
+            return UpdateSessionLoadResult.Invalid;
+
         if (!IsValidSha256Hex(session.StagedExeSha256))
             return UpdateSessionLoadResult.Invalid;
 
@@ -300,6 +316,9 @@ public sealed class UpdateSessionStore
         if (!IsValidSha256Hex(session.PackageSha256))
             return UpdateSessionLoadResult.Invalid;
 
+        if (!IsValidPackageFileName(session.PackageFileName))
+            return UpdateSessionLoadResult.Invalid;
+
         if (!IsValidSha256Hex(session.StagedExeSha256))
             return UpdateSessionLoadResult.Invalid;
 
@@ -312,21 +331,133 @@ public sealed class UpdateSessionStore
         return UpdateSessionLoadResult.Valid(session);
     }
 
-    public void CleanupSession(string sessionId)
+    public bool CleanupSession(string sessionId, IEnumerable<string>? knownOwnedFiles = null)
     {
         try
         {
             var normalizedId = NormalizeSessionId(sessionId);
             var sessionDir = GetSessionDir(normalizedId);
-            if (Directory.Exists(sessionDir))
+            if (!Directory.Exists(sessionDir))
+                return true;
+
+            var loadResult = LoadSessionAnyState(normalizedId);
+            if (loadResult.Status != UpdateSessionLoadStatus.Valid || loadResult.Session == null)
             {
-                Directory.Delete(sessionDir, recursive: true);
-                _logger.Debug($"Session {normalizedId}: cleaned up");
+                if (knownOwnedFiles != null)
+                {
+                    var preMetadataOwnedNames = new HashSet<string>(knownOwnedFiles, StringComparer.OrdinalIgnoreCase)
+                    {
+                        SessionFileName
+                    };
+                    var preMetadataEntries = Directory.GetFileSystemEntries(sessionDir);
+                    if (preMetadataEntries.Any(entry => Directory.Exists(entry)
+                        || !preMetadataOwnedNames.Contains(Path.GetFileName(entry))))
+                    {
+                        _logger.Warning($"Session {normalizedId}: cleanup retained because unknown files are present");
+                        return false;
+                    }
+
+                    foreach (var entry in preMetadataEntries)
+                    {
+                        if (!TryDeleteFileWithRetry(entry))
+                            return false;
+                    }
+
+                    Directory.Delete(sessionDir, recursive: false);
+                    return true;
+                }
+
+                _logger.Warning($"Session {normalizedId}: cleanup retained because metadata is not valid");
+                return false;
             }
+
+            var session = loadResult.Session;
+            var ownedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                SessionFileName,
+                session.PackageAssetName
+            };
+
+            if (!string.IsNullOrWhiteSpace(session.PackageFileName))
+                ownedNames.Add(session.PackageFileName);
+
+            var entries = Directory.GetFileSystemEntries(sessionDir);
+            if (entries.Any(entry => Directory.Exists(entry)
+                || !ownedNames.Contains(Path.GetFileName(entry)) &&
+                   !string.Equals(Path.GetFileName(entry), SessionFileName + ".tmp", StringComparison.OrdinalIgnoreCase)))
+            {
+                _logger.Warning($"Session {normalizedId}: cleanup retained because unknown files are present");
+                return false;
+            }
+
+            var workspace = ReplacementWorkspace.Derive(_appPaths, normalizedId, session.TargetPath);
+            if (!workspace.TryDeleteOwnedFallbackWorkspace())
+            {
+                _logger.Warning($"Session {normalizedId}: cleanup retained because fallback workspace is not empty");
+                return false;
+            }
+
+            foreach (var entry in entries)
+            {
+                var name = Path.GetFileName(entry);
+                if (string.Equals(name, SessionFileName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (!TryDeleteFileWithRetry(entry))
+                {
+                    _logger.Warning($"Session {normalizedId}: cleanup retained because '{name}' could not be deleted");
+                    return false;
+                }
+            }
+
+            var metadataPath = Path.Combine(sessionDir, SessionFileName);
+            if (!TryDeleteFileWithRetry(metadataPath))
+            {
+                _logger.Warning($"Session {normalizedId}: cleanup retained because session metadata could not be deleted");
+                return false;
+            }
+
+            Directory.Delete(sessionDir, recursive: false);
+            _logger.Debug($"Session {normalizedId}: cleaned up");
+            return true;
         }
         catch (Exception ex)
         {
             _logger.Warning($"Session cleanup failed for {sessionId}: {ex.Message}");
+            return false;
         }
+    }
+
+    private bool TryDeleteFileWithRetry(string path)
+    {
+        const int attempts = 3;
+        for (var attempt = 1; attempt <= attempts; attempt++)
+        {
+            try
+            {
+                var deleted = DeleteFileOverride?.Invoke(path) ?? DeleteFile(path);
+                if (deleted && !File.Exists(path))
+                    return true;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                if (attempt == attempts)
+                    _logger.Warning($"Session file cleanup failed for {path}: {ex.Message}");
+            }
+
+            if (attempt < attempts)
+                Thread.Sleep(50 * attempt);
+        }
+
+        return !File.Exists(path);
+    }
+
+    private static bool DeleteFile(string path)
+    {
+        if (!File.Exists(path))
+            return true;
+
+        File.Delete(path);
+        return !File.Exists(path);
     }
 }

@@ -316,6 +316,7 @@ public sealed class LocalizationInstallService
 
         // --- Phase 10: Commit ---
         CleanupDownloadTemp(downloadTempPath);
+        await _backupStore.PruneRestorePointsAsync(restorePointDir).ConfigureAwait(false);
         _logger.Info($"Install transaction completed: mode={modeSlug}, public_id={release.PublicId}");
         return InstallResult.Success();
     }

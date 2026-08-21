@@ -137,6 +137,23 @@ public class UpdateLifecycleServiceTests : IDisposable
     }
 
     [Fact]
+    public void RunStartupMaintenance_PersistentSessionLock_DoesNotReportSuccess()
+    {
+        var targetPath = CreateCurrentTarget();
+        var session = CreateStagedSession(targetPath, DateTimeOffset.UtcNow - TimeSpan.FromDays(8));
+        _store.WriteSession(session);
+        var sessionDir = _store.GetSessionDir(session.SessionId);
+        File.WriteAllText(Path.Combine(sessionDir, session.PackageAssetName), "locked helper");
+        _store.DeleteFileOverride = _ => false;
+
+        CreateService(targetPath).RunStartupMaintenance();
+
+        Assert.True(Directory.Exists(sessionDir));
+        Assert.Contains(_logger.Warnings, warning => warning.Contains("retained", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(_logger.DebugMessages, message => message.Contains("cleaned up session directory", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void RunStartupMaintenance_PreparedSession_CandidateShaMismatch_DoesNotDelete()
     {
         var targetDir = Path.Combine(_tempRoot, "target");
@@ -458,9 +475,11 @@ public class UpdateLifecycleServiceTests : IDisposable
 
     private class NullLogger : ILogger
     {
-        public void Debug(string message) { }
+        public List<string> DebugMessages { get; } = new();
+        public List<string> Warnings { get; } = new();
+        public void Debug(string message) => DebugMessages.Add(message);
         public void Info(string message) { }
-        public void Warning(string message) { }
+        public void Warning(string message) => Warnings.Add(message);
         public void Error(string message) { }
     }
 }

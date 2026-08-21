@@ -68,6 +68,7 @@ public sealed class UpdatePackageService
         _logger.Info($"Update staging started: {candidate.TagName} (session={sessionId})");
 
         var keepSession = false;
+        string? packageFileName = null;
         try
         {
             Directory.CreateDirectory(sessionDir);
@@ -94,6 +95,7 @@ public sealed class UpdatePackageService
                     return UpdatePackageResult.Failure(UpdatePackageError.HashMismatch, "ZIP GitHub digest missing, malformed, or unsupported");
 
                 var packagePath = Path.Combine(sessionDir, bundleName);
+                packageFileName = bundleName;
                 var packageResult = await _gitHubClient.DownloadAssetAsync(
                     packageAsset.BrowserDownloadUrl!, packagePath, packageAsset.Size, downloadProgress, cancellationToken);
                 if (!packageResult.IsSuccess)
@@ -131,6 +133,7 @@ public sealed class UpdatePackageService
                         return UpdatePackageResult.Failure(UpdatePackageError.HashMismatch, "ZIP GitHub digest mismatch or unsupported format");
 
                     var packagePath = Path.Combine(sessionDir, manifest.PackageName);
+                    packageFileName = manifest.PackageName;
                     var packageResult = await _gitHubClient.DownloadAssetAsync(
                         packageAsset.BrowserDownloadUrl!, packagePath, packageAsset.Size, downloadProgress, cancellationToken);
                     if (!packageResult.IsSuccess)
@@ -193,6 +196,7 @@ public sealed class UpdatePackageService
                 TargetPath = targetPath,
                 ParentPid = Environment.ProcessId,
                 PackageAssetName = packageAssetName,
+                PackageFileName = packageFileName,
                 PackageSha256 = packageSha,
                 StagedExeSha256 = exeSha
             };
@@ -218,7 +222,10 @@ public sealed class UpdatePackageService
         finally
         {
             if (!keepSession)
-                _sessionStore.CleanupSession(sessionId);
+                _sessionStore.CleanupSession(sessionId,
+                    packageFileName == null
+                        ? new[] { ExeFileName }
+                        : new[] { ExeFileName, packageFileName });
         }
     }
 
