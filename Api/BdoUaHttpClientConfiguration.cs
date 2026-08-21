@@ -10,8 +10,11 @@ internal static class BdoUaHttpClientConfiguration
     {
         ArgumentNullException.ThrowIfNull(versionInfo);
 
-        var productVersion = versionInfo.PublicVersion?.ToString()
-            ?? (versionInfo.DisplayVersion == "DEV" ? "DEV" : "unknown");
+        var productVersion = versionInfo.IsPublicRelease && versionInfo.PublicVersion.HasValue
+            ? versionInfo.PublicVersion.Value.ToString()
+            : string.Equals(versionInfo.RawVersion, "unknown", StringComparison.Ordinal)
+                ? "unknown"
+                : "DEV";
 
         return $"BdoUaClient/{productVersion} (+{WebsiteUrl})";
     }

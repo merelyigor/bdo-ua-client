@@ -31,6 +31,15 @@ public class BdoUaHttpClientConfigurationTests
     }
 
     [Fact]
+    public void BuildUserAgent_PrereleaseVersion_UsesDevelopmentToken()
+    {
+        var version = AppVersionInfo.FromRawVersion("0.0.0-dev.local");
+
+        Assert.Equal("BdoUaClient/DEV (+https://bdo-ua.com.ua)",
+            BdoUaHttpClientConfiguration.BuildUserAgent(version));
+    }
+
+    [Fact]
     public void BuildUserAgent_UnknownVersion_StillIdentifiesApplication()
     {
         var version = AppVersionInfo.FromRawVersion("unknown");
