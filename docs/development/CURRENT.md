@@ -6,7 +6,7 @@
 
 BDO-UA Client — Windows .NET 8 WinForms застосунок для пошуку Black Desert Online, отримання українських локалізацій через `bdo-ua.com.ua`, безпечного встановлення, оновлення та відновлення файлів гри.
 
-Поточний Git baseline: `v14.2.3` — direct networking policy для application-owned HTTP clients. Активного implementation plan немає. Backlog UI redesign існує, але не авторизований до реалізації.
+Поточний Git baseline: `v14.2.4` (documentation-only persistent context). Останній runtime-affecting baseline: `v14.2.3` — direct networking policy для application-owned HTTP clients. Активного implementation plan немає. Backlog UI redesign існує, але не авторизований до реалізації.
 
 ## Architecture Summary
 
