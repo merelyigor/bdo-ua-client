@@ -2,21 +2,19 @@
 
 ## Current focus
 
-**Primary:** none — awaiting explicit owner activation decision
-**Current phase:** v14.0.1 accepted; self-update plan archived
-**Next:** no active plan
+**Primary:** `client-ui-redesign`
+**Current phase:** Stage 0 completed; Stage 1 next
+**Next:** implement the active UI redesign roadmap
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| — | — | — | No active plan | Explicit owner activation required |
+| 1 | `client-ui-redesign` | [active/client-ui-redesign.md](active/client-ui-redesign.md) | Stage 0 completed / Stage 1 next | Implement Stage 1 |
 
 ## Backlog
 
-| Order | ID | Plan | State / Next action |
-|---|---|---|---|
-| 1 | `client-ui-redesign` | [backlog/client-ui-redesign.md](backlog/client-ui-redesign.md) | Requirements/roadmap to be defined before activation |
+No backlog plans.
 
 ## Archive
 
