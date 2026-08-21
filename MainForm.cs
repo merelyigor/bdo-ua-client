@@ -52,8 +52,6 @@ public partial class MainForm : Form
     private UpdateSession? _stagedUpdateSession;
     private volatile bool _updateHandoffInProgress;
 
-    private static readonly Color SuccessGreen = Color.FromArgb(0, 128, 0);
-
     public MainForm(
         ConfigStore configStore,
         BdoUaApiClient apiClient,
@@ -95,8 +93,59 @@ public partial class MainForm : Form
         _poller.OnPollFailed += OnReleasePollFailed;
 
         InitializeComponent();
+        ApplyTheme();
         WireEventHandlers();
         this.Shown += MainForm_Shown;
+    }
+
+    private void ApplyTheme()
+    {
+        BackColor = UiTheme.Background;
+        ForeColor = UiTheme.PrimaryText;
+        Font = new Font("Segoe UI", 9F);
+
+        foreach (Control control in Controls)
+            ApplyContainerTheme(control);
+
+        gameGroupBox.BackColor = UiTheme.PanelBackground;
+        gameGroupBox.ForeColor = UiTheme.PrimaryText;
+        modeGroupBox.BackColor = UiTheme.PanelBackground;
+        modeGroupBox.ForeColor = UiTheme.PrimaryText;
+        statusGroupBox.BackColor = UiTheme.PanelBackground;
+        statusGroupBox.ForeColor = UiTheme.PrimaryText;
+
+        modesFlowPanel.BackColor = Color.Transparent;
+        gameStatusLabel.ForeColor = UiTheme.SecondaryText;
+        gamePathLabel.ForeColor = UiTheme.SecondaryText;
+        localizationStateLabel.ForeColor = UiTheme.PrimaryText;
+        installedInfoLabel.ForeColor = UiTheme.SecondaryText;
+        detailsLabel.ForeColor = UiTheme.SecondaryText;
+        progressLabel.ForeColor = UiTheme.SecondaryText;
+        versionLabel.ForeColor = UiTheme.SecondaryText;
+
+        messageTextBox.BackColor = UiTheme.ControlBackground;
+        messageTextBox.ForeColor = UiTheme.PrimaryText;
+        messageTextBox.BorderStyle = BorderStyle.FixedSingle;
+
+        UiTheme.StyleSecondaryButton(detectGameButton);
+        UiTheme.StyleSecondaryButton(browseGameButton);
+        UiTheme.StylePrimaryButton(installButton);
+        UiTheme.StyleAccentSecondaryButton(restoreOriginalButton);
+        UiTheme.StyleDestructiveButton(cancelButton);
+        UiTheme.StyleAccentSecondaryButton(updateButton);
+        UiTheme.StyleSecondaryButton(logsButton);
+
+        progressBar.BackColor = UiTheme.ControlBackground;
+        progressBar.ForeColor = UiTheme.Accent;
+    }
+
+    private static void ApplyContainerTheme(Control control)
+    {
+        if (control is Panel)
+            control.BackColor = Color.Transparent;
+
+        foreach (Control child in control.Controls)
+            ApplyContainerTheme(child);
     }
 
     private void WireEventHandlers()
@@ -251,7 +300,8 @@ public partial class MainForm : Form
                     ? $"Для патча {patch.Value} поки немає доступних режимів локалізації."
                     : "Наразі немає доступних режимів.",
                 AutoSize = true,
-                ForeColor = SystemColors.GrayText,
+                ForeColor = UiTheme.SecondaryText,
+                BackColor = Color.Transparent,
                 Margin = new Padding(0)
             };
             modesFlowPanel.Controls.Add(label);
@@ -272,6 +322,8 @@ public partial class MainForm : Form
                 Text = text,
                 Tag = mode.Slug,
                 AutoSize = true,
+                ForeColor = UiTheme.PrimaryText,
+                BackColor = Color.Transparent,
                 Margin = new Padding(0, 0, 0, 6)
             };
             rb.CheckedChanged += ModeRadioButton_CheckedChanged;
@@ -296,7 +348,8 @@ public partial class MainForm : Form
         {
             Text = "Завантаження доступних режимів...",
             AutoSize = true,
-            ForeColor = SystemColors.GrayText,
+            ForeColor = UiTheme.SecondaryText,
+            BackColor = Color.Transparent,
             Margin = new Padding(0)
         };
         modesFlowPanel.Controls.Add(label);
@@ -309,7 +362,8 @@ public partial class MainForm : Form
         {
             Text = "Не вдалося завантажити режими.",
             AutoSize = true,
-            ForeColor = SystemColors.GrayText,
+            ForeColor = UiTheme.SecondaryText,
+            BackColor = Color.Transparent,
             Margin = new Padding(0)
         };
         modesFlowPanel.Controls.Add(label);
@@ -941,9 +995,7 @@ public partial class MainForm : Form
         updateButton.Text = state.Text;
         updateButton.Visible = state.Visible;
         updateButton.Enabled = state.Enabled;
-        updateButton.UseVisualStyleBackColor = false;
-        updateButton.BackColor = state.Visible ? SystemColors.Highlight : SystemColors.Control;
-        updateButton.ForeColor = state.Visible ? SystemColors.HighlightText : SystemColors.ControlText;
+        UiTheme.RefreshButtonState(updateButton);
     }
 
     // --- Update button ---
@@ -1325,21 +1377,21 @@ public partial class MainForm : Form
         gameStatusLabel.Text = source == DetectionSource.Manual
             ? "✓ Гру знайдено вручну"
             : "✓ Гру знайдено";
-        gameStatusLabel.ForeColor = SuccessGreen;
+        gameStatusLabel.ForeColor = UiTheme.Success;
         gamePathLabel.Text = path;
     }
 
     private void SetGameNotFound(string reason)
     {
         gameStatusLabel.Text = reason;
-        gameStatusLabel.ForeColor = SystemColors.GrayText;
+        gameStatusLabel.ForeColor = UiTheme.SecondaryText;
         gamePathLabel.Text = "";
     }
 
     private void SetGameSearching()
     {
         gameStatusLabel.Text = "Пошук гри...";
-        gameStatusLabel.ForeColor = SystemColors.GrayText;
+        gameStatusLabel.ForeColor = UiTheme.SecondaryText;
         gamePathLabel.Text = "";
     }
 
@@ -1572,19 +1624,19 @@ public partial class MainForm : Form
     public void SetLocalizationStateText(string text)
     {
         localizationStateLabel.Text = text;
-        localizationStateLabel.ForeColor = SystemColors.ControlText;
+        localizationStateLabel.ForeColor = UiTheme.PrimaryText;
     }
 
     private void ApplyLocalizationStatePresentation(LocalizationStateResult result)
     {
         localizationStateLabel.Text = LocalizationStatePresentation.GetDisplayText(result);
         localizationStateLabel.ForeColor = result.PatchTransition != LocalizationPatchTransition.None
-            ? Color.DarkGoldenrod
+            ? UiTheme.Accent
             : result.State switch
         {
-            LocalizationState.UpToDate => SuccessGreen,
-            LocalizationState.Corrupted => Color.DarkRed,
-            _ => SystemColors.ControlText
+            LocalizationState.UpToDate => UiTheme.Success,
+            LocalizationState.Corrupted => UiTheme.Error,
+            _ => UiTheme.PrimaryText
         };
     }
 

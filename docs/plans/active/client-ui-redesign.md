@@ -5,8 +5,8 @@ Status: **ACTIVE**
 Backlog order: 1
 PRIMARY: **YES**
 Implementation authorization: **YES**
-Current phase: **Stage 0 completed / Stage 1 next**
-Next action: implement Stage 1 after this activation commit
+Current phase: **Stage 1 completed / Stage 2 next**
+Next action: implement Stage 2 — Static Material-inspired layout and information hierarchy
 
 ---
 
@@ -21,7 +21,7 @@ Apply BDO dark theme (black + gold) to MainForm. Make the application visually a
 - The owner-local prototype source is preserved as `ThemePrototype.cs.reference.txt` visual/reference material only; it is not compiled, not wired through a `--prototype` launch mode in `Program.cs`, and is not a committed canonical file.
 - ReaLTaiizor is not a committed production dependency. It was used only by the owner-local prototype as the `MaterialForm` base type and is not part of the production project.
 - Production UI remains native .NET 8 WinForms with no new UI/framework NuGet dependency.
-- Design direction: BDO dark theme (not Material Design, not Metro).
+- Design direction: **Material-inspired BDO dark design**. Use Material principles for visual hierarchy, spacing, surfaces/cards, typography, interaction states, and presentation controls while retaining the Black Desert black/gold identity. This is not adoption of a Material framework: production remains native .NET 8 WinForms with no ReaLTaiizor, MaterialSkin, Metro framework, or other new UI dependency. Adapt the principles to a compact Windows desktop client; do not blindly imitate Google's mobile Material components.
 
 **Prototype findings (approved by user):**
 - Dark background (#121212) works well
@@ -113,17 +113,32 @@ Introduce the approved palette, Segoe UI typography, common style values, base f
 
 Likely scope: `MainForm` presentation code and an optional small UI-only theme/palette helper.
 
-Validation: Release build, full solution tests, local preview publish, and owner manual visual review.
+Delivered: centralized BDO dark palette, static dark-theme readability, semantic Primary / Accent Secondary / Neutral / Destructive button roles with runtime enabled/disabled synchronization, and local development version display as `DEV`.
+
+Acceptance: Release build, full solution tests, local preview publish, and owner manual visual review completed. Stage 1 is **COMPLETED** and owner-approved. Stage 2 is next; no Stage 2 implementation has started.
 
 ### Stage 2 — Static main-window layout and cards
 
 Apply the approved visual hierarchy to the header, game section, status section, diagnostic area, footer/actions, and version/log utility area while preserving control responsibilities and event behavior.
+
+Stage 2 information architecture requirements:
+
+- Preserve the three principal user concepts: `Гра`, `Локалізація`, and `Стан`.
+- Introduce a compact application header with the conceptual hierarchy `BDO UA Client` and `Українська локалізація Black Desert Online`; version and logs may remain in an unobtrusive header/footer utility area.
+- Prefer the clear Ukrainian section names `Гра`, `Локалізація`, and `Стан`; avoid technical wording such as `Режим локалізації` where `Локалізація` communicates the same concept.
+- Display release metadata in the form `v3 · патч 398 · 21.08.2026`, using Ukrainian `патч` and omitting a redundant `реліз` before a contextual date. API fields and semantics remain unchanged.
+- Avoid status duplication. When the selected mode equals the installed target, show one primary state such as `✓ Локалізація актуальна`, concise installed metadata once, and optionally `Встановлена остання доступна версія`; do not repeat an `Обрано` line or the same installed fact. When they differ, show `Зараз:` with the installed mode and `Буде встановлено:` with the selected mode. Business state and `InstallActionPolicy` remain authoritative.
+- Prefer action-oriented plain Ukrainian, including `Обрати папку` instead of `Обрати вручну` where applicable. Label changes must not alter event semantics or introduce speculative behavior changes.
 
 Validation: startup, resize, game found/not-found, default install/restore/cancel states, long game path, local preview, and owner visual approval.
 
 ### Stage 3 — Dynamic localization mode presentation
 
 Redesign dynamically generated localization mode controls while preserving identifiers and behavior.
+
+Stage 3 selectable mode card requirement: the final visible presentation must not expose classic WinForms `RadioButton` controls. Each API-driven localization mode must be presented as a Material-inspired selectable card with normal, hover, selected, selected+hover, installed, disabled/incompatible, and keyboard-focus states. The entire card must be clickable, with restrained BDO gold emphasis for selection rather than a bright yellow fill. Preserve one mutually exclusive selection, exact `ModeSlug` identity, `Tag`, `CheckedChanged`-equivalent behavior, `LastMode` persistence, feed-refresh restoration, exact `ModeSlug` + `PublicId` installed matching, fallback selection, invalid-mode filtering, and API-driven dynamic creation. Cards must retain visible focus, Tab navigation, keyboard activation, and readable disabled states; do not hardcode modes.
+
+Stage 3 flag-rendering requirement: do not rely on native `RadioButton` text rendering for regional-indicator country flags. Recognized leading flag tokens must be rendered as graphical presentation elements/icons, while preserving API-provided mode-name semantics and all existing slug, `Tag`, `CheckedChanged`, `LastMode`, exact `PublicId` matching, feed-refresh, invalid-mode filtering, and API-driven discovery behavior. Support at least the flags currently present in API mode names; ordinary text must remain readable when a flag cannot be mapped. Do not hardcode modes or add an external emoji framework/dependency solely for flags. This requirement is presentation-only and does not authorize implementing the cards or flag icons in Stage 1.
 
 Validation: multiple API modes, selection, exact installed match, update-available state, feed refresh, missing/invalid mode, long Ukrainian names, keyboard navigation, local preview, and owner approval.
 
@@ -173,7 +188,7 @@ Fix only concrete defects discovered by validation.
 - No new functional actions or features are authorized.
 - Do not introduce or change business logic, API/service/state/file-operation behavior merely for redesign.
 - Do NOT add UI/framework dependencies, including ReaLTaiizor, as part of this plan.
-- Do NOT implement Material Design or Metro styling (BDO dark only).
+- Do not add a Material, Metro, ReaLTaiizor, or MaterialSkin framework; use the approved Material-inspired BDO presentation direction with native WinForms only.
 
 ## Risks / dependencies
 
@@ -188,6 +203,8 @@ Fix only concrete defects discovered by validation.
 - [x] Canonical architecture and visual direction defined
 - [x] Local preview validation policy defined
 - [x] Plan activated as PRIMARY; Stage 1 is next
+- [x] Stage 1 theme foundation implemented, locally previewed, and owner-approved
+- [ ] Stage 2 — Static Material-inspired layout and information hierarchy
 
 ## Manual visual validation loop
 

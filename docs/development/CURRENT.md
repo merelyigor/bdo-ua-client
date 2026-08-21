@@ -6,7 +6,7 @@
 
 BDO-UA Client — Windows .NET 8 WinForms застосунок для пошуку Black Desert Online, отримання українських локалізацій через `bdo-ua.com.ua`, безпечного встановлення, оновлення та відновлення файлів гри.
 
-Останній runtime-affecting baseline: `v14.2.3` — direct networking policy для application-owned HTTP clients. Активний PRIMARY implementation plan: `client-ui-redesign`, Stage 0 completed / Stage 1 next. Runtime implementation ще не розпочато.
+Останній runtime-affecting baseline: `v14.2.3` — direct networking policy для application-owned HTTP clients. Активний PRIMARY implementation plan: `client-ui-redesign`, Stage 1 completed and owner-approved / Stage 2 next. Production visual direction — Material-inspired BDO на native .NET 8 WinForms. Stage 3 must use API-driven selectable mode cards and graphical flag presentation.
 
 ## Architecture Summary
 
@@ -54,7 +54,7 @@ Exact changes and validation are recorded in Git history and the monthly journal
 
 ## Active Work
 
-`client-ui-redesign` is the sole ACTIVE PRIMARY plan. Stage 0 is complete; Stage 1 — Theme foundation — is next. No runtime implementation has started.
+`client-ui-redesign` is the sole ACTIVE PRIMARY plan. Stage 1 — Theme foundation — is complete and owner-approved; Stage 2 — Static Material-inspired layout and information hierarchy — is next. Stage 2 implementation has not started.
 
 ## Known Issues / Unresolved Investigations
 
@@ -71,7 +71,7 @@ Exact changes and validation are recorded in Git history and the monthly journal
 
 ## Next Likely Work
 
-- Implement `client-ui-redesign` Stage 1 only after reviewing the canonical active plan and its local preview gate.
+- Implement `client-ui-redesign` Stage 2 only after reviewing the canonical active plan and its local preview gate.
 - For any new meaningful implementation task, update this handoff if current context changes and append one concise entry to the current monthly journal in the same commit.
 
 ## Canonical References
