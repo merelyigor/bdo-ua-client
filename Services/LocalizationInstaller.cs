@@ -30,7 +30,10 @@ public sealed class LocalizationInstaller
 
     public LocalizationInstaller(AppPaths appPaths, ILogger logger,
         int timeoutSeconds = DefaultTimeoutSeconds, int[]? retryDelaysMs = null)
-        : this(new HttpClient(), appPaths, logger, timeoutSeconds, retryDelaysMs) { }
+        : this(new HttpClient(new HttpClientHandler
+        {
+            UseProxy = false
+        }), appPaths, logger, timeoutSeconds, retryDelaysMs) { }
 
     public async Task<DownloadResult> DownloadReleaseAsync(
         CurrentRelease release,

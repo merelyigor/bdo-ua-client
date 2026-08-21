@@ -104,7 +104,10 @@ static class Program
         ILogger logger = new FileLogger(appPaths.LogsDir);
         var configStore = new ConfigStore(appPaths, logger);
         var stateStore = new InstallationStateStore(appPaths, logger);
-        var httpClient = new HttpClient();
+        var httpClient = new HttpClient(new HttpClientHandler
+        {
+            UseProxy = false
+        });
         httpClient.Timeout = TimeSpan.FromSeconds(30);
 
         var apiClient = new Api.BdoUaApiClient(httpClient, logger);
@@ -117,7 +120,10 @@ static class Program
         var appVersionInfo = AppVersionInfo.Detect();
         logger.Info($"Application started. version={appVersionInfo.RawVersion}");
 
-        var gitHubHttpClient = new HttpClient();
+        var gitHubHttpClient = new HttpClient(new HttpClientHandler
+        {
+            UseProxy = false
+        });
         var gitHubClient = new GitHubUpdateClient(gitHubHttpClient, logger);
         var selectionPolicy = new UpdateSelectionPolicy(logger);
 
