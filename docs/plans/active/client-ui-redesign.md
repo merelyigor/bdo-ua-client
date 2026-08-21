@@ -18,8 +18,8 @@ Apply BDO dark theme (black + gold) to MainForm. Make the application visually a
 
 - Current UI uses default Windows Forms styling (light theme, system colors)
 - User requested BDO-themed dark UI (black + gold accents)
-- `ThemePrototype.cs` is owner-dirty visual/reference material only; it is not wired through a `--prototype` launch mode in `Program.cs`.
-- ReaLTaiizor is not a committed production dependency. Its reference exists only in owner-dirty `BdoClient.csproj`, and the prototype uses it only as the `MaterialForm` base type.
+- The owner-local prototype source is preserved as `ThemePrototype.cs.reference.txt` visual/reference material only; it is not compiled, not wired through a `--prototype` launch mode in `Program.cs`, and is not a committed canonical file.
+- ReaLTaiizor is not a committed production dependency. It was used only by the owner-local prototype as the `MaterialForm` base type and is not part of the production project.
 - Production UI remains native .NET 8 WinForms with no new UI/framework NuGet dependency.
 - Design direction: BDO dark theme (not Material Design, not Metro).
 
@@ -38,9 +38,11 @@ Apply BDO dark theme (black + gold) to MainForm. Make the application visually a
 - Styling GroupBoxes, Labels, Buttons, ProgressBar, TextBox, RadioButton
 - Updating dynamic controls (BuildDynamicModes radio buttons)
 - Updating status color helpers (SetGameFound, ApplyLocalizationStatePresentation, etc.)
+- Presentation-only layout restructuring where required by the approved visual design
+- Presentation-only headers, cards, panels, labels, and other visual containers
 
 ### Out of scope
-- New UI controls or features
+- New functional application controls, actions, or features
 - Business logic changes
 - API/service layer changes
 - Game detection logic changes
@@ -166,15 +168,18 @@ Fix only concrete defects discovered by validation.
 ## Non-goals
 
 - This plan must NOT interrupt current self-update implementation unless owner explicitly promotes/reprioritizes it.
-- Do NOT change application layout or add new controls.
+- Presentation-only layout restructuring is allowed where required by the approved redesign; existing functional responsibilities and event behavior must remain preserved.
+- Presentation-only headers, cards, panels, labels, and other visual containers may be added. These are visual/presentation controls, not new functional application controls/actions.
+- No new functional actions or features are authorized.
+- Do not introduce or change business logic, API/service/state/file-operation behavior merely for redesign.
 - Do NOT add UI/framework dependencies, including ReaLTaiizor, as part of this plan.
 - Do NOT implement Material Design or Metro styling (BDO dark only).
 
 ## Risks / dependencies
 
 - Must account for completed self-update work when activated.
-- Owner-dirty `BdoClient.csproj` currently contains ReaLTaiizor `3.8.0.3`; this is not committed production architecture and must not be staged as part of this plan activation.
-- `ThemePrototype.cs` and `docs/design/` are owner-dirty reference materials; they are not production entry points or canonical runtime architecture.
+- The obsolete owner-local ReaLTaiizor project scaffolding was removed from `BdoClient.csproj` and must not be reintroduced as part of this plan.
+- `ThemePrototype.cs.reference.txt` and `docs/design/` remain owner-local reference materials; they are not production entry points or canonical runtime architecture.
 - Color palette reference: Background #121212/#1C1C1C/#2D2D2D, Accent #C8A415/#DCBA2B, Text #F0F0F0/#A0A0A0, Status #00B400/#FF4444.
 
 ## Current progress
