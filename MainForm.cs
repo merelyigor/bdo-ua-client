@@ -1380,6 +1380,8 @@ public partial class MainForm : Form
         {
             progressBar.Style = ProgressBarStyle.Continuous;
             progressBar.MarqueeAnimationSpeed = 0;
+            if (state == OperationState.Idle)
+                progressBar.Value = 0;
         }
     }
 
