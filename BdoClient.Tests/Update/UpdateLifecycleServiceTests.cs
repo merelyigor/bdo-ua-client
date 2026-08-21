@@ -143,7 +143,10 @@ public class UpdateLifecycleServiceTests : IDisposable
         var session = CreateStagedSession(targetPath, DateTimeOffset.UtcNow - TimeSpan.FromDays(8));
         _store.WriteSession(session);
         var sessionDir = _store.GetSessionDir(session.SessionId);
-        File.WriteAllText(Path.Combine(sessionDir, session.PackageAssetName), "locked helper");
+        var helperPath = Path.Combine(sessionDir, session.PackageAssetName);
+        File.WriteAllText(helperPath, "locked helper");
+        session.StagedExeSha256 = HashHelper.ComputeFileSha256(helperPath);
+        _store.WriteSession(session);
         _store.DeleteFileOverride = _ => false;
 
         CreateService(targetPath).RunStartupMaintenance();

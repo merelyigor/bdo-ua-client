@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using BdoClient.Logging;
+using BdoClient.Services;
 using BdoClient.Storage;
 
 namespace BdoClient.Update;
@@ -372,14 +373,18 @@ public sealed class UpdateSessionStore
             }
 
             var session = loadResult.Session;
+            var legacyPackageName = GetLegacyPackageFileName(session);
+            var packageName = string.IsNullOrWhiteSpace(session.PackageFileName)
+                ? legacyPackageName
+                : session.PackageFileName;
             var ownedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 SessionFileName,
                 session.PackageAssetName
             };
 
-            if (!string.IsNullOrWhiteSpace(session.PackageFileName))
-                ownedNames.Add(session.PackageFileName);
+            if (!string.IsNullOrWhiteSpace(packageName))
+                ownedNames.Add(packageName);
 
             var entries = Directory.GetFileSystemEntries(sessionDir);
             if (entries.Any(entry => Directory.Exists(entry)
@@ -389,6 +394,18 @@ public sealed class UpdateSessionStore
                 _logger.Warning($"Session {normalizedId}: cleanup retained because unknown files are present");
                 return false;
             }
+
+            if (!VerifyOwnedFileHash(
+                Path.Combine(sessionDir, session.PackageAssetName),
+                session.StagedExeSha256,
+                "helper EXE"))
+                return false;
+
+            if (!VerifyOwnedFileHash(
+                packageName == null ? null : Path.Combine(sessionDir, packageName),
+                session.PackageSha256,
+                "package ZIP"))
+                return false;
 
             var workspace = ReplacementWorkspace.Derive(_appPaths, normalizedId, session.TargetPath);
             if (!workspace.TryDeleteOwnedFallbackWorkspace())
@@ -459,5 +476,37 @@ public sealed class UpdateSessionStore
 
         File.Delete(path);
         return !File.Exists(path);
+    }
+
+    private static string? GetLegacyPackageFileName(UpdateSession session)
+    {
+        if (!string.IsNullOrWhiteSpace(session.PackageFileName))
+            return null;
+
+        var targetVersion = AppVersion.TryParseCoreVersion(session.TargetVersion);
+        return targetVersion.HasValue
+            ? $"BDO-UA-Client-v{targetVersion.Value}-win-x64.zip"
+            : null;
+    }
+
+    private bool VerifyOwnedFileHash(string? path, string expectedSha, string fileType)
+    {
+        if (path == null || !File.Exists(path))
+            return true;
+
+        try
+        {
+            var actualSha = HashHelper.ComputeFileSha256(path);
+            if (string.Equals(actualSha, expectedSha, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            _logger.Warning($"Session cleanup retained because {fileType} SHA mismatch at {path}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"Session cleanup retained because {fileType} hash verification failed: {ex.Message}");
+            return false;
+        }
     }
 }

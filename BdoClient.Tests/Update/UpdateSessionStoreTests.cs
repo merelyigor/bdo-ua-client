@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BdoClient.Logging;
+using BdoClient.Services;
 using BdoClient.Storage;
 using BdoClient.Update;
 
@@ -146,6 +147,9 @@ public class UpdateSessionStoreTests : IDisposable
         var helperPath = Path.Combine(sessionDir, session.PackageAssetName);
         File.WriteAllText(helperPath, "helper");
         File.WriteAllText(Path.Combine(sessionDir, session.PackageFileName), "package");
+        session.StagedExeSha256 = HashHelper.ComputeFileSha256(helperPath);
+        session.PackageSha256 = HashHelper.ComputeFileSha256(Path.Combine(sessionDir, session.PackageFileName));
+        _store.WriteSession(session);
 
         var attempts = 0;
         _store.DeleteFileOverride = path =>
@@ -171,6 +175,8 @@ public class UpdateSessionStoreTests : IDisposable
         var sessionDir = _store.GetSessionDir(session.SessionId);
         var helperPath = Path.Combine(sessionDir, session.PackageAssetName);
         File.WriteAllText(helperPath, "helper");
+        session.StagedExeSha256 = HashHelper.ComputeFileSha256(helperPath);
+        _store.WriteSession(session);
         _store.DeleteFileOverride = path =>
             string.Equals(Path.GetFileName(path), session.PackageAssetName, StringComparison.OrdinalIgnoreCase)
                 ? false
@@ -187,7 +193,10 @@ public class UpdateSessionStoreTests : IDisposable
         var session = MakeSession();
         _store.WriteSession(session);
         var sessionDir = _store.GetSessionDir(session.SessionId);
-        File.WriteAllText(Path.Combine(sessionDir, session.PackageAssetName), "helper");
+        var helperPath = Path.Combine(sessionDir, session.PackageAssetName);
+        File.WriteAllText(helperPath, "helper");
+        session.StagedExeSha256 = HashHelper.ComputeFileSha256(helperPath);
+        _store.WriteSession(session);
 
         _store.DeleteFileOverride = _ => false;
         Assert.False(_store.CleanupSession(session.SessionId));
@@ -208,6 +217,117 @@ public class UpdateSessionStoreTests : IDisposable
 
         Assert.False(_store.CleanupSession(session.SessionId));
         Assert.True(File.Exists(unknownPath));
+        Assert.True(File.Exists(Path.Combine(sessionDir, "update-session.json")));
+    }
+
+    [Fact]
+    public void LoadSession_LegacyWithoutPackageFileName_RemainsValid()
+    {
+        var session = MakeSession();
+        _store.WriteSession(session);
+        var filePath = Path.Combine(_store.GetSessionDir(session.SessionId), "update-session.json");
+        var json = File.ReadAllText(filePath)
+            .Replace("    \"package_file_name\": null,\r\n", string.Empty)
+            .Replace("    \"package_file_name\": null,\n", string.Empty);
+        File.WriteAllText(filePath, json);
+
+        var result = _store.LoadSessionAnyState(session.SessionId);
+
+        Assert.Equal(UpdateSessionLoadStatus.Valid, result.Status);
+        Assert.Null(result.Session!.PackageFileName);
+    }
+
+    [Fact]
+    public void CleanupSession_LegacyCanonicalPackageWithMatchingHashes_Succeeds()
+    {
+        var session = MakeSession();
+        session.PackageFileName = null;
+        _store.WriteSession(session);
+        var sessionDir = _store.GetSessionDir(session.SessionId);
+        var helperPath = Path.Combine(sessionDir, session.PackageAssetName);
+        var packagePath = Path.Combine(sessionDir, "BDO-UA-Client-v0.1.4-win-x64.zip");
+        File.WriteAllText(helperPath, "legacy helper");
+        File.WriteAllText(packagePath, "legacy package");
+        session.StagedExeSha256 = HashHelper.ComputeFileSha256(helperPath);
+        session.PackageSha256 = HashHelper.ComputeFileSha256(packagePath);
+        _store.WriteSession(session);
+        RemovePackageFileNameFromJson(session);
+
+        Assert.True(_store.CleanupSession(session.SessionId));
+        Assert.False(Directory.Exists(sessionDir));
+    }
+
+    [Fact]
+    public void CleanupSession_LegacyCanonicalPackageHashMismatch_RetainsSession()
+    {
+        var session = MakeSession();
+        session.PackageFileName = null;
+        _store.WriteSession(session);
+        var sessionDir = _store.GetSessionDir(session.SessionId);
+        var helperPath = Path.Combine(sessionDir, session.PackageAssetName);
+        var packagePath = Path.Combine(sessionDir, "BDO-UA-Client-v0.1.4-win-x64.zip");
+        File.WriteAllText(helperPath, "legacy helper");
+        File.WriteAllText(packagePath, "legacy package");
+        session.StagedExeSha256 = HashHelper.ComputeFileSha256(helperPath);
+        session.PackageSha256 = new string('d', 64);
+        _store.WriteSession(session);
+        RemovePackageFileNameFromJson(session);
+
+        Assert.False(_store.CleanupSession(session.SessionId));
+        Assert.True(File.Exists(packagePath));
+        Assert.True(File.Exists(Path.Combine(sessionDir, "update-session.json")));
+    }
+
+    [Fact]
+    public void CleanupSession_CurrentPackageWithMatchingHash_Succeeds()
+    {
+        var session = MakeSession();
+        session.PackageFileName = "verified-package.zip";
+        _store.WriteSession(session);
+        var sessionDir = _store.GetSessionDir(session.SessionId);
+        var helperPath = Path.Combine(sessionDir, session.PackageAssetName);
+        var packagePath = Path.Combine(sessionDir, session.PackageFileName);
+        File.WriteAllText(helperPath, "current helper");
+        File.WriteAllText(packagePath, "current package");
+        session.StagedExeSha256 = HashHelper.ComputeFileSha256(helperPath);
+        session.PackageSha256 = HashHelper.ComputeFileSha256(packagePath);
+        _store.WriteSession(session);
+
+        Assert.True(_store.CleanupSession(session.SessionId));
+        Assert.False(Directory.Exists(sessionDir));
+    }
+
+    [Fact]
+    public void CleanupSession_CurrentPackageHashMismatch_RetainsSession()
+    {
+        var session = MakeSession();
+        session.PackageFileName = "verified-package.zip";
+        _store.WriteSession(session);
+        var sessionDir = _store.GetSessionDir(session.SessionId);
+        var helperPath = Path.Combine(sessionDir, session.PackageAssetName);
+        var packagePath = Path.Combine(sessionDir, session.PackageFileName);
+        File.WriteAllText(helperPath, "current helper");
+        File.WriteAllText(packagePath, "current package");
+        session.StagedExeSha256 = HashHelper.ComputeFileSha256(helperPath);
+        session.PackageSha256 = new string('d', 64);
+        _store.WriteSession(session);
+
+        Assert.False(_store.CleanupSession(session.SessionId));
+        Assert.True(File.Exists(packagePath));
+        Assert.True(File.Exists(Path.Combine(sessionDir, "update-session.json")));
+    }
+
+    [Fact]
+    public void CleanupSession_HelperHashMismatch_RetainsSession()
+    {
+        var session = MakeSession();
+        _store.WriteSession(session);
+        var sessionDir = _store.GetSessionDir(session.SessionId);
+        var helperPath = Path.Combine(sessionDir, session.PackageAssetName);
+        File.WriteAllText(helperPath, "unexpected helper");
+
+        Assert.False(_store.CleanupSession(session.SessionId));
+        Assert.True(File.Exists(helperPath));
         Assert.True(File.Exists(Path.Combine(sessionDir, "update-session.json")));
     }
 
@@ -751,6 +871,15 @@ public class UpdateSessionStoreTests : IDisposable
     {
         File.Delete(path);
         return true;
+    }
+
+    private void RemovePackageFileNameFromJson(UpdateSession session)
+    {
+        var filePath = Path.Combine(_store.GetSessionDir(session.SessionId), "update-session.json");
+        var json = File.ReadAllText(filePath)
+            .Replace("    \"package_file_name\": null,\r\n", string.Empty)
+            .Replace("    \"package_file_name\": null,\n", string.Empty);
+        File.WriteAllText(filePath, json);
     }
 
     private class NullLogger : ILogger
