@@ -13,6 +13,7 @@
 | [testing.md](testing.md) | Тестування |
 | [build.md](build.md) | Збірка та пакування |
 | [Плани](plans/README.md) | Плани реалізації |
+| [Development context](development/README.md) | Поточний engineering handoff та monthly journal |
 
 ## Поточний стан
 
@@ -27,4 +28,5 @@
 |---|---|
 | [AGENTS.md](../AGENTS.md) | Постійні правила та контракти проєкту |
 | [Plans Registry](plans/README.md) | Реєстр активних, backlog та архівних планів |
+| [Development context](development/README.md) | Persistent engineering context та журнал завершених задач |
 | [Плани](plans/README.md) | Історичні та активні плани |

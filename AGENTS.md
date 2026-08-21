@@ -47,6 +47,7 @@
 | [§39](#39--плани) | 📋 Плани | Історичні плани |
 | [§40](#40--архів-реліз-нотаток) | 📦 Архів реліз-нотаток | Збереження текстів релізів |
 | [§41](#41--оновлення-клієнта) | 🔄 Оновлення клієнта | Client self-update |
+| [§42](#42--persistent-development-context) | 🧭 Persistent development context | Engineering handoff та journal |
 
 ---
 
@@ -729,3 +730,25 @@ BDO-UA-Client/
 §41.11 Stage 13 first implementation: NO automatic UAC elevation.
 
 §41.12 Detailed implementation roadmap живе тільки у canonical `docs/plans/active/client-self-update.md` (розділ Stage 13).
+
+---
+
+## §42 🧭 Persistent development context
+
+§42.1 `docs/development/CURRENT.md` — canonical living engineering handoff. Після кожної завершеної meaningful implementation task агент зобов'язаний визначити, чи потребує він оновлення.
+
+§42.2 `docs/development/history/YYYY-MM.md` — append-only chronological journal. Після кожної завершеної meaningful implementation task агент додає один стислий engineering entry до поточного місячного файлу.
+
+§42.3 Оновлення `CURRENT.md` і journal повинні входити до **того самого implementation commit**, що й відповідні зміни. Окремі "update changelog" commits заборонені.
+
+§42.4 Journal не дублює raw Git diffs. Він фіксує лише problem, decision, changed areas, validation, consequences та follow-up.
+
+§42.5 Meaningful implementation task включає feature implementation, bug fix, architecture decision, API behavior change, storage/state behavior change, security behavior change, networking behavior change, build/release workflow change або significant investigation, що призвела до persistent project decision. Minor typo-only documentation edits journal entry не потребують.
+
+§42.6 `CURRENT.md` — не append-only і має зазвичай залишатися меншим приблизно за 400 рядків. Старий контекст можна видаляти з нього лише після перевірки, що потрібна історична інформація вже є в monthly journal або Git history.
+
+§42.7 Один journal-файл створюється на календарний місяць у форматі `YYYY-MM.md`. При першій завершеній meaningful task нового місяця створюється новий файл. Попередні monthly files не переписуються, окрім factual corrections.
+
+§42.8 Не створювати довільні journal files на кшталт `DEVLOG-2.md` і не видаляти старі monthly files автоматично. Git залишається джерелом точних історичних diff.
+
+§42.9 Persistent context є публічним repository content. Journal і CURRENT **ніколи** не повинні містити passwords, API keys, tokens, credentials, private URLs, private user information, personal ChatGPT conversation details, raw sensitive logs або local environment secrets. Дозволені лише repository-relevant engineering facts.
