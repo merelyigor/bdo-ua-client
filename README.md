@@ -89,8 +89,6 @@ BDO UA Client наразі не підписаний комерційним се
 
 ### Ручний вибір папки
 
-<img src="docs/img/select-game-folder-manually.png" alt="Ручний вибір папки гри" width="100%">
-
 Поточна версія гарантовано підтримує вибір:
 
 - самої папки гри (наприклад, `Black Desert Online`)
