@@ -54,7 +54,7 @@ Exact changes and validation are recorded in Git history and the monthly journal
 
 ## Active Work
 
-`client-ui-redesign` is the sole ACTIVE PRIMARY plan. Stage 3 — UI completion — is complete and owner-approved: selectable mode cards, graphical flags, operation/progress presentation, and application-update visual consistency are now implemented. Stage 4 RC preparation is complete; external Release Candidate validation and regression closure are next. Stage 4 remains validation-driven, not another redesign stage.
+`client-ui-redesign` is the sole ACTIVE PRIMARY plan. Stage 3, including the owner-approved native WinForms launcher-presentation revision, is complete: mode cards own persistent install/update state and direct contextual actions, while a compact operation strip owns transient progress, cancellation, completion and critical diagnostics. The former large persistent status dashboard and global Install action are no longer part of the idle composition. Stage 4 Release Candidate validation and regression closure is next.
 
 ## Known Issues / Unresolved Investigations
 

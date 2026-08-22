@@ -6,44 +6,18 @@ namespace BdoClient;
 
 internal sealed class LocalizationModeCard : Control
 {
-    private const int CardPadding = 16;
-    private const int FlagWidth = 30;
-    private const int FlagHeight = 18;
-    private const int FlagGap = 4;
-    private const int FlagToTextGap = 12;
-    private const int BadgeHorizontalPadding = 9;
-    private const int BadgeVerticalPadding = 4;
-    private const string InstalledBadgeText = "✓ Встановлено";
-
+    private readonly Button _actionButton;
     private bool _hovered;
     private bool _selected;
     private bool _installed;
+    private ModeCardPresentation _presentation = new("", ModeCardTone.Neutral, null, false, false, false, null);
 
     public LocalizationMode Mode { get; }
     public string ModeSlug => Mode.Slug!;
+    public event EventHandler? ActionRequested;
     public event EventHandler? SelectionRequested;
-
-    public bool IsSelected
-    {
-        get => _selected;
-        set
-        {
-            if (_selected == value) return;
-            _selected = value;
-            Invalidate();
-        }
-    }
-
-    public bool IsInstalled
-    {
-        get => _installed;
-        set
-        {
-            if (_installed == value) return;
-            _installed = value;
-            Invalidate();
-        }
-    }
+    public bool IsSelected { get => _selected; set { if (_selected != value) { _selected = value; Invalidate(); } } }
+    public bool IsInstalled { get => _installed; set { if (_installed != value) { _installed = value; Invalidate(); } } }
 
     public LocalizationModeCard(LocalizationMode mode)
     {
@@ -51,264 +25,142 @@ internal sealed class LocalizationModeCard : Control
         Tag = mode.Slug;
         TabStop = true;
         Cursor = Cursors.Hand;
-        BackColor = UiTheme.PanelBackground;
-        ForeColor = UiTheme.PrimaryText;
-        Margin = new Padding(0, 0, 0, 8);
-        MinimumSize = new Size(160, 64);
-        AccessibleRole = AccessibleRole.RadioButton;
+        AccessibleRole = AccessibleRole.Grouping;
         AccessibleName = DynamicModePolicy.GetDisplayName(mode);
-        SetStyle(ControlStyles.UserPaint |
-            ControlStyles.AllPaintingInWmPaint |
-            ControlStyles.OptimizedDoubleBuffer |
-            ControlStyles.Selectable, true);
+        Margin = new Padding(0);
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
+            ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.Selectable, true);
+
+        _actionButton = new Button { AutoSize = false, Height = 32, TabStop = true, AccessibleName = $"Дія для режиму {AccessibleName}", Margin = new Padding(0) };
+        _actionButton.Click += (_, _) => ActionRequested?.Invoke(this, EventArgs.Empty);
+        Controls.Add(_actionButton);
+        MinimumSize = new Size(240, 220);
+    }
+
+    public void ApplyPresentation(ModeCardPresentation presentation)
+    {
+        _presentation = presentation;
+        _actionButton.Text = presentation.ActionText ?? "";
+        _actionButton.Visible = !string.IsNullOrWhiteSpace(presentation.ActionText);
+        _actionButton.Enabled = presentation.ActionEnabled;
+        _actionButton.AccessibleDescription = presentation.StateText;
+        UiTheme.StyleCardActionButton(_actionButton, presentation.Tone == ModeCardTone.Warning);
+        AccessibleDescription = $"{AccessibleName}. {presentation.StateText}. {DynamicModePolicy.FormatReleaseLine(Mode)}";
+        PerformLayout();
+        Invalidate();
     }
 
     public override Size GetPreferredSize(Size proposedSize)
     {
-        var width = Math.Max(160, proposedSize.Width > 0 ? proposedSize.Width : 520);
-        using var titleFont = new Font(Font, FontStyle.Bold);
-        using var bodyFont = new Font(Font, FontStyle.Regular);
+        var width = Math.Max(UiTheme.Scale(this, 240), proposedSize.Width > 0 ? proposedSize.Width : UiTheme.Scale(this, 300));
+        var padding = UiTheme.Scale(this, 18);
+        var textWidth = width - padding * 2;
+        using var titleFont = new Font(Font.FontFamily, 11F, FontStyle.Bold);
+        using var bodyFont = new Font(Font.FontFamily, 9F, FontStyle.Regular);
         var parsed = LocalizationFlagParser.Parse(DynamicModePolicy.GetDisplayName(Mode));
-        var textLeft = GetTextLeft(parsed.CountryCodes);
-        var badgeWidth = IsInstalled ? GetInstalledBadgeSize(bodyFont).Width + 12 : 0;
-        var textRight = width - CardPadding - badgeWidth;
-        var textWidth = Math.Max(80, textRight - textLeft);
-        var title = parsed.Title;
-        var release = DynamicModePolicy.FormatReleaseLine(Mode);
-        var description = string.IsNullOrWhiteSpace(Mode.Description) ? null : Mode.Description.Trim();
-        var height = 16 + MeasureWrapped(title, titleFont, textWidth).Height;
-        if (description != null)
-            height += 4 + MeasureWrapped(description, bodyFont, textWidth).Height;
-        if (!string.IsNullOrWhiteSpace(release))
-            height += 4 + MeasureWrapped(release, bodyFont, textWidth).Height;
-        return new Size(width, Math.Max(64, height + 16));
+        var height = padding + UiTheme.Scale(this, 24);
+        height += Measure(parsed.Title, titleFont, textWidth).Height + UiTheme.Scale(this, 8);
+        if (!string.IsNullOrWhiteSpace(Mode.Description))
+            height += Measure(Mode.Description.Trim(), bodyFont, textWidth).Height + UiTheme.Scale(this, 8);
+        height += Measure(DynamicModePolicy.FormatReleaseLine(Mode), bodyFont, textWidth).Height + UiTheme.Scale(this, 12);
+        height += _actionButton.Visible ? UiTheme.Scale(this, 32) + padding : Measure(_presentation.StateText, bodyFont, textWidth).Height + padding;
+        return new Size(width, Math.Max(UiTheme.Scale(this, 208), height));
     }
 
-    protected override void OnMouseEnter(EventArgs e)
+    protected override void OnLayout(LayoutEventArgs levent)
     {
-        _hovered = true;
-        Invalidate();
-        base.OnMouseEnter(e);
+        base.OnLayout(levent);
+        if (_actionButton.Visible)
+        {
+            var inset = UiTheme.Scale(this, 18);
+            _actionButton.Bounds = new Rectangle(inset, Height - inset - _actionButton.Height, Math.Max(UiTheme.Scale(this, 112), Width - inset * 2), _actionButton.Height);
+        }
     }
 
-    protected override void OnMouseLeave(EventArgs e)
+    protected override void OnMouseEnter(EventArgs e) { _hovered = true; Invalidate(); base.OnMouseEnter(e); }
+    protected override void OnMouseLeave(EventArgs e) { _hovered = false; Invalidate(); base.OnMouseLeave(e); }
+    protected override void OnPaintBackground(PaintEventArgs e)
     {
-        _hovered = false;
-        Invalidate();
-        base.OnMouseLeave(e);
+        e.Graphics.Clear(UiTheme.Background);
     }
-
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
-        if (e.Button == MouseButtons.Left && Enabled)
-        {
-            Focus();
-            SelectionRequested?.Invoke(this, EventArgs.Empty);
-        }
+        if (e.Button == MouseButtons.Left && Enabled) { Focus(); SelectionRequested?.Invoke(this, EventArgs.Empty); }
     }
-
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (Enabled && (e.KeyCode == Keys.Space || e.KeyCode == Keys.Enter))
-        {
-            SelectionRequested?.Invoke(this, EventArgs.Empty);
-            e.Handled = true;
-            e.SuppressKeyPress = true;
-            return;
-        }
-
+        if (Enabled && (e.KeyCode == Keys.Space || e.KeyCode == Keys.Enter) && _actionButton.Enabled && _actionButton.Visible)
+        { ActionRequested?.Invoke(this, EventArgs.Empty); e.Handled = true; e.SuppressKeyPress = true; return; }
         base.OnKeyDown(e);
     }
-
-    protected override void OnGotFocus(EventArgs e)
-    {
-        Invalidate();
-        base.OnGotFocus(e);
-    }
-
-    protected override void OnLostFocus(EventArgs e)
-    {
-        Invalidate();
-        base.OnLostFocus(e);
-    }
-
-    protected override void OnEnabledChanged(EventArgs e)
-    {
-        Invalidate();
-        base.OnEnabledChanged(e);
-    }
+    protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
+    protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+    protected override void OnEnabledChanged(EventArgs e) { _actionButton.Enabled = Enabled && _presentation.ActionEnabled; Invalidate(); base.OnEnabledChanged(e); }
 
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
-        var bounds = new Rectangle(0, 0, Math.Max(1, Width - 1), Math.Max(1, Height - 1));
-        var surface = !Enabled
-            ? UiTheme.DisabledSurface
-            : _selected && _hovered
-                ? UiTheme.ModeSelectedHoverSurface
-                : _selected
-                    ? UiTheme.ModeSelectedSurface
-                    : _hovered
-                        ? UiTheme.ModeHoverSurface
-                        : UiTheme.PanelBackground;
-        using var background = new SolidBrush(surface);
-        e.Graphics.FillRectangle(background, bounds);
+        var bounds = ClientRectangle; bounds.Width--; bounds.Height--;
+        if (bounds.Width <= 1 || bounds.Height <= 1) return;
+        var surface = !Enabled ? UiTheme.DisabledSurface : _hovered ? UiTheme.SurfaceHover : UiTheme.Surface;
+        var borderColor = !Enabled ? UiTheme.DisabledBorder : _hovered ? UiTheme.BorderHover : UiTheme.Border;
+        if (_presentation.Tone == ModeCardTone.Success) borderColor = UiTheme.Success;
+        if (_presentation.Tone == ModeCardTone.Warning) borderColor = UiTheme.Accent;
+        if (_presentation.Tone == ModeCardTone.Error) borderColor = UiTheme.Error;
+        using var path = Rounded(bounds, UiTheme.Scale(this, 16));
+        using var fill = new SolidBrush(surface);
+        using var border = new Pen(borderColor);
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        e.Graphics.FillPath(fill, path); e.Graphics.DrawPath(border, path);
 
-        var borderColor = !Enabled
-            ? UiTheme.DisabledBorder
-            : _selected
-                ? UiTheme.Accent
-                : UiTheme.Border;
-        using var border = new Pen(borderColor, _selected ? 2 : 1);
-        e.Graphics.DrawRectangle(border, bounds);
-
-        if (_selected)
-        {
-            using var strip = new SolidBrush(UiTheme.Accent);
-            e.Graphics.FillRectangle(strip, 0, 0, 4, Height);
-        }
-
+        var padding = UiTheme.Scale(this, 18);
         var parsed = LocalizationFlagParser.Parse(DynamicModePolicy.GetDisplayName(Mode));
-        var flagGroupWidth = GetFlagGroupWidth(parsed.CountryCodes);
-        var flagBounds = new Rectangle(CardPadding, Math.Max(12, (Height - FlagHeight) / 2),
-            flagGroupWidth, FlagHeight);
-        DrawFlags(e.Graphics, parsed.CountryCodes, flagBounds, Enabled);
+        DrawFlags(e.Graphics, parsed.CountryCodes, new Point(padding, padding), DeviceDpi / 96f);
+        using var badgeFont = new Font(Font.FontFamily, 8.5F, FontStyle.Bold);
+        var badgeSize = TextRenderer.MeasureText(_presentation.StateText, badgeFont);
+        var badgeRect = new Rectangle(Width - padding - badgeSize.Width - UiTheme.Scale(this, 14), padding - UiTheme.Scale(this, 3), badgeSize.Width + UiTheme.Scale(this, 14), UiTheme.Scale(this, 24));
+        using var badgeFill = new SolidBrush(ToneSurface(_presentation.Tone));
+        using var badgeBorder = new Pen(borderColor);
+        using var badgePath = Rounded(badgeRect, UiTheme.Scale(this, 12));
+        e.Graphics.FillPath(badgeFill, badgePath); e.Graphics.DrawPath(badgeBorder, badgePath);
+        TextRenderer.DrawText(e.Graphics, _presentation.StateText, badgeFont, badgeRect, ToneText(_presentation.Tone), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
 
-        using var titleFont = new Font(Font, FontStyle.Bold);
-        using var bodyFont = new Font(Font, FontStyle.Regular);
-        var textLeft = GetTextLeft(parsed.CountryCodes);
-        var installedBadgeSize = GetInstalledBadgeSize(bodyFont);
-        var textRight = _installed
-            ? Width - CardPadding - installedBadgeSize.Width - FlagToTextGap
-            : Width - CardPadding;
-        var textWidth = Math.Max(80, textRight - textLeft);
-        var textColor = Enabled ? UiTheme.PrimaryText : UiTheme.DisabledText;
-        var titleRect = new Rectangle(textLeft, 12, textWidth, Height - 16);
-        TextRenderer.DrawText(e.Graphics, parsed.Title, titleFont, titleRect, textColor,
-            TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-
-        var titleHeight = MeasureWrapped(parsed.Title, titleFont, textWidth).Height;
-        var y = 12 + titleHeight + 2;
+        var top = padding + UiTheme.Scale(this, 30);
+        var textWidth = Width - padding * 2;
+        using var titleFont = new Font(Font.FontFamily, 11F, FontStyle.Bold);
+        using var bodyFont = new Font(Font.FontFamily, 9F, FontStyle.Regular);
+        TextRenderer.DrawText(e.Graphics, parsed.Title, titleFont, new Rectangle(padding, top, textWidth, Height - top), Enabled ? UiTheme.PrimaryText : UiTheme.DisabledText, TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+        var y = top + Measure(parsed.Title, titleFont, textWidth).Height + UiTheme.Scale(this, 6);
         if (!string.IsNullOrWhiteSpace(Mode.Description))
         {
             var description = Mode.Description.Trim();
-            TextRenderer.DrawText(e.Graphics, description, bodyFont,
-                new Rectangle(textLeft, y, textWidth, Height - y),
-                Enabled ? UiTheme.SecondaryText : UiTheme.DisabledText,
-                TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-            y += MeasureWrapped(description, bodyFont, textWidth).Height + 2;
+            TextRenderer.DrawText(e.Graphics, description, bodyFont, new Rectangle(padding, y, textWidth, Height - y), Enabled ? UiTheme.SecondaryText : UiTheme.DisabledText, TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+            y += Measure(description, bodyFont, textWidth).Height + UiTheme.Scale(this, 6);
         }
-
-        var release = DynamicModePolicy.FormatReleaseLine(Mode);
-        if (!string.IsNullOrWhiteSpace(release))
-        {
-            TextRenderer.DrawText(e.Graphics, release, bodyFont,
-                new Rectangle(textLeft, y, textWidth, Height - y),
-                Enabled ? UiTheme.SecondaryText : UiTheme.DisabledText,
-                TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-        }
-
-        if (_installed)
-        {
-            var badge = new Rectangle(
-                Width - CardPadding - installedBadgeSize.Width,
-                Math.Max(8, (Height - installedBadgeSize.Height) / 2),
-                installedBadgeSize.Width,
-                installedBadgeSize.Height);
-            using var badgeBrush = new SolidBrush(Enabled ? UiTheme.InstalledBadgeSurface : UiTheme.DisabledSurface);
-            using var badgePen = new Pen(Enabled ? UiTheme.Success : UiTheme.DisabledBorder);
-            e.Graphics.FillRectangle(badgeBrush, badge);
-            e.Graphics.DrawRectangle(badgePen, badge);
-            var badgeTextBounds = new Rectangle(
-                badge.Left + BadgeHorizontalPadding,
-                badge.Top + BadgeVerticalPadding,
-                badge.Width - BadgeHorizontalPadding * 2,
-                badge.Height - BadgeVerticalPadding * 2);
-            TextRenderer.DrawText(e.Graphics, InstalledBadgeText, bodyFont, badgeTextBounds,
-                Enabled ? UiTheme.Success : UiTheme.DisabledText,
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
-        }
-
+        TextRenderer.DrawText(e.Graphics, DynamicModePolicy.FormatReleaseLine(Mode), bodyFont, new Rectangle(padding, y, textWidth, Height - y), UiTheme.SecondaryText, TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
         if (Focused)
         {
-            var focusInset = _selected ? 6 : 4;
-            var focusBounds = Rectangle.Inflate(bounds, -focusInset, -focusInset);
-            var focusColor = _selected ? UiTheme.SecondaryText : UiTheme.Accent;
-            using var focusPen = new Pen(focusColor, 1) { DashStyle = DashStyle.Dot };
-            e.Graphics.DrawRectangle(focusPen, focusBounds);
+            var focus = Rectangle.Inflate(bounds, -UiTheme.Scale(this, 5), -UiTheme.Scale(this, 5));
+            using var focusPen = new Pen(UiTheme.SecondaryText, 1) { DashStyle = DashStyle.Dot };
+            using var focusPath = Rounded(focus, UiTheme.Scale(this, 11)); e.Graphics.DrawPath(focusPen, focusPath);
         }
     }
 
-    private static Size MeasureWrapped(string text, Font font, int width) =>
-        TextRenderer.MeasureText(text, font, new Size(width, 0),
-            TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-
-    private static int GetFlagGroupWidth(IReadOnlyList<string> codes) =>
-        codes.Count == 0 ? 0 : codes.Count * FlagWidth + (codes.Count - 1) * FlagGap;
-
-    private static int GetTextLeft(IReadOnlyList<string> codes) =>
-        codes.Count == 0 ? CardPadding : CardPadding + GetFlagGroupWidth(codes) + FlagToTextGap;
-
-    private static Size GetInstalledBadgeSize(Font font)
+    private static Size Measure(string text, Font font, int width) => TextRenderer.MeasureText(text, font, new Size(Math.Max(1, width), 0), TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+    private static Color ToneSurface(ModeCardTone tone) => tone switch { ModeCardTone.Success => UiTheme.SuccessSurface, ModeCardTone.Warning => UiTheme.GoldSubtleSurface, ModeCardTone.Error => UiTheme.ErrorSurface, ModeCardTone.Busy => UiTheme.SurfaceHover, _ => UiTheme.SurfaceElevated };
+    private static Color ToneText(ModeCardTone tone) => tone switch { ModeCardTone.Success => UiTheme.Success, ModeCardTone.Warning => UiTheme.Accent, ModeCardTone.Error => UiTheme.Error, _ => UiTheme.SecondaryText };
+    private static GraphicsPath Rounded(Rectangle r, int radius) { var d = Math.Max(1, radius * 2); var path = new GraphicsPath(); path.AddArc(r.Left,r.Top,d,d,180,90); path.AddArc(r.Right-d,r.Top,d,d,270,90); path.AddArc(r.Right-d,r.Bottom-d,d,d,0,90); path.AddArc(r.Left,r.Bottom-d,d,d,90,90); path.CloseFigure(); return path; }
+    private static void DrawFlags(Graphics graphics, IReadOnlyList<string> codes, Point start, float scale)
     {
-        var textSize = TextRenderer.MeasureText(InstalledBadgeText, font,
-            new Size(int.MaxValue, int.MaxValue), TextFormatFlags.NoPrefix);
-        return new Size(
-            textSize.Width + BadgeHorizontalPadding * 2,
-            Math.Max(24, textSize.Height + BadgeVerticalPadding * 2));
-    }
-
-    private static void DrawFlags(Graphics graphics, IReadOnlyList<string> codes, Rectangle bounds, bool enabled)
-    {
-        if (codes.Count == 0) return;
-        var x = bounds.Left;
-        foreach (var code in codes)
+        var width=(int)Math.Round(30*scale); var height=(int)Math.Round(18*scale); var gap=(int)Math.Round(5*scale); var x=start.X;
+        foreach(var code in codes)
         {
-            var flag = new Rectangle(x, bounds.Top, FlagWidth, FlagHeight);
-            DrawFlag(graphics, code, flag, enabled);
-            x += FlagWidth + FlagGap;
-        }
-    }
-
-    private static void DrawFlag(Graphics graphics, string code, Rectangle bounds, bool enabled)
-    {
-        var outline = enabled ? UiTheme.Border : UiTheme.DisabledBorder;
-        using var pen = new Pen(outline);
-        if (code == "UA")
-        {
-            using var blue = new SolidBrush(Color.FromArgb(0, 91, 187));
-            using var yellow = new SolidBrush(Color.FromArgb(255, 213, 48));
-            var half = bounds.Height / 2;
-            graphics.FillRectangle(blue, bounds.Left, bounds.Top, bounds.Width, half);
-            graphics.FillRectangle(yellow, bounds.Left, bounds.Top + half, bounds.Width, bounds.Height - half);
-            graphics.DrawRectangle(pen, bounds);
-        }
-        else if (code == "GB")
-        {
-            using var blue = new SolidBrush(Color.FromArgb(1, 33, 105));
-            using var white = new Pen(Color.White, 5);
-            using var red = new Pen(Color.FromArgb(200, 16, 46), 2);
-            graphics.FillRectangle(blue, bounds);
-            graphics.DrawLine(white, bounds.Left, bounds.Top, bounds.Right, bounds.Bottom);
-            graphics.DrawLine(white, bounds.Right, bounds.Top, bounds.Left, bounds.Bottom);
-            graphics.DrawLine(red, bounds.Left, bounds.Top, bounds.Right, bounds.Bottom);
-            graphics.DrawLine(red, bounds.Right, bounds.Top, bounds.Left, bounds.Bottom);
-            graphics.DrawLine(white, bounds.Left + bounds.Width / 2, bounds.Top, bounds.Left + bounds.Width / 2, bounds.Bottom);
-            graphics.DrawLine(white, bounds.Left, bounds.Top + bounds.Height / 2, bounds.Right, bounds.Top + bounds.Height / 2);
-            graphics.DrawLine(red, bounds.Left + bounds.Width / 2, bounds.Top, bounds.Left + bounds.Width / 2, bounds.Bottom);
-            graphics.DrawLine(red, bounds.Left, bounds.Top + bounds.Height / 2, bounds.Right, bounds.Top + bounds.Height / 2);
-            graphics.DrawRectangle(pen, bounds);
-        }
-        else
-        {
-            using var brush = new SolidBrush(enabled ? UiTheme.ControlBackground : UiTheme.DisabledSurface);
-            graphics.FillRectangle(brush, bounds);
-            graphics.DrawRectangle(pen, bounds);
-            using var font = new Font("Segoe UI", 7F, FontStyle.Bold);
-            TextRenderer.DrawText(graphics, code, font, bounds,
-                enabled ? UiTheme.SecondaryText : UiTheme.DisabledText,
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+            var r=new Rectangle(x,start.Y,width,height); using var outline=new Pen(UiTheme.Border);
+            if(code=="UA") { using var blue=new SolidBrush(Color.FromArgb(0,91,187)); using var yellow=new SolidBrush(Color.FromArgb(255,213,48)); graphics.FillRectangle(blue,r.Left,r.Top,r.Width,r.Height/2); graphics.FillRectangle(yellow,r.Left,r.Top+r.Height/2,r.Width,r.Height-r.Height/2); }
+            else if(code=="GB") { using var blue=new SolidBrush(Color.FromArgb(1,33,105)); graphics.FillRectangle(blue,r); using var white=new Pen(Color.White,Math.Max(1,(int)(4*scale))); using var red=new Pen(Color.FromArgb(200,16,46),Math.Max(1,(int)(2*scale))); graphics.DrawLine(white,r.Left,r.Top,r.Right,r.Bottom);graphics.DrawLine(white,r.Right,r.Top,r.Left,r.Bottom);graphics.DrawLine(red,r.Left,r.Top,r.Right,r.Bottom);graphics.DrawLine(red,r.Right,r.Top,r.Left,r.Bottom);graphics.DrawLine(white,r.Left+r.Width/2,r.Top,r.Left+r.Width/2,r.Bottom);graphics.DrawLine(white,r.Left,r.Top+r.Height/2,r.Right,r.Top+r.Height/2);graphics.DrawLine(red,r.Left+r.Width/2,r.Top,r.Left+r.Width/2,r.Bottom);graphics.DrawLine(red,r.Left,r.Top+r.Height/2,r.Right,r.Top+r.Height/2); }
+            else { using var fill=new SolidBrush(UiTheme.ControlBackground); graphics.FillRectangle(fill,r); TextRenderer.DrawText(graphics,code,SystemFonts.DefaultFont,r,UiTheme.SecondaryText,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter); }
+            graphics.DrawRectangle(outline,r); x+=width+gap;
         }
     }
 }

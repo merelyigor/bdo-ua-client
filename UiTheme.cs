@@ -6,14 +6,19 @@ namespace BdoClient;
 
 internal static class UiTheme
 {
-    public static readonly Color Background = Color.FromArgb(18, 18, 18);
-    public static readonly Color PanelBackground = Color.FromArgb(28, 28, 28);
-    public static readonly Color ControlBackground = Color.FromArgb(45, 45, 45);
-    public static readonly Color Accent = Color.FromArgb(200, 164, 21);
-    public static readonly Color AccentHover = Color.FromArgb(220, 186, 43);
-    public static readonly Color PrimaryPressed = Color.FromArgb(169, 138, 18);
-    public static readonly Color PrimaryText = Color.FromArgb(240, 240, 240);
-    public static readonly Color SecondaryText = Color.FromArgb(160, 160, 160);
+    public static readonly Color Background = Color.FromArgb(11, 12, 14);
+    public static readonly Color BackgroundElevated = Color.FromArgb(16, 18, 20);
+    public static readonly Color Surface = Color.FromArgb(21, 23, 25);
+    public static readonly Color SurfaceElevated = Color.FromArgb(26, 29, 32);
+    public static readonly Color SurfaceHover = Color.FromArgb(32, 35, 39);
+    public static readonly Color PanelBackground = Surface;
+    public static readonly Color ControlBackground = Color.FromArgb(32, 35, 39);
+    public static readonly Color Accent = Color.FromArgb(208, 173, 52);
+    public static readonly Color AccentHover = Color.FromArgb(226, 194, 87);
+    public static readonly Color PrimaryPressed = Color.FromArgb(170, 138, 38);
+    public static readonly Color GoldSubtleSurface = Color.FromArgb(48, 42, 24);
+    public static readonly Color PrimaryText = Color.FromArgb(244, 241, 232);
+    public static readonly Color SecondaryText = Color.FromArgb(169, 173, 181);
     public static readonly Color AccentSecondarySurface = Color.FromArgb(35, 35, 35);
     public static readonly Color AccentSecondaryText = Color.FromArgb(214, 186, 73);
     public static readonly Color AccentSecondaryBorder = Color.FromArgb(117, 99, 28);
@@ -33,9 +38,12 @@ internal static class UiTheme
     public static readonly Color DisabledSurface = Color.FromArgb(41, 41, 41);
     public static readonly Color DisabledText = Color.FromArgb(133, 133, 133);
     public static readonly Color DisabledBorder = Color.FromArgb(56, 56, 56);
-    public static readonly Color Success = Color.FromArgb(0, 180, 0);
-    public static readonly Color Error = Color.FromArgb(255, 68, 68);
-    public static readonly Color Border = Color.FromArgb(61, 61, 61);
+    public static readonly Color Success = Color.FromArgb(141, 190, 123);
+    public static readonly Color SuccessSurface = Color.FromArgb(27, 41, 28);
+    public static readonly Color Error = Color.FromArgb(229, 116, 116);
+    public static readonly Color ErrorSurface = Color.FromArgb(50, 29, 29);
+    public static readonly Color Border = Color.FromArgb(48, 52, 58);
+    public static readonly Color BorderHover = Color.FromArgb(69, 74, 80);
     public static readonly Color ModeHoverSurface = Color.FromArgb(35, 35, 35);
     public static readonly Color ModeSelectedSurface = Color.FromArgb(44, 40, 24);
     public static readonly Color ModeSelectedHoverSurface = Color.FromArgb(55, 48, 25);
@@ -61,6 +69,17 @@ internal static class UiTheme
     {
         ConfigureButton(button, ButtonVisualRole.Destructive);
     }
+
+    public static void StyleCardActionButton(Button button, bool emphasized)
+    {
+        if (emphasized)
+            StylePrimaryButton(button);
+        else
+            StyleAccentSecondaryButton(button);
+    }
+
+    public static int Scale(Control control, int logicalPixels) =>
+        Math.Max(1, (int)Math.Round(logicalPixels * control.DeviceDpi / 96f));
 
     public static void RefreshButtonState(Button button)
     {

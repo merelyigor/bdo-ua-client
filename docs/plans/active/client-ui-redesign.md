@@ -14,6 +14,10 @@ Next action: Stage 4 — Release Candidate validation and regression closure
 
 Apply BDO dark theme (black + gold) to MainForm. Make the application visually appealing while preserving all existing functionality.
 
+### Superseding presentation revision
+
+The owner-approved compact launcher-oriented presentation revision removes the large persistent `СТАН` dashboard and global Install action from the idle composition. Persistent localization state and contextual `Встановити`/`Оновити` actions belong to their API-driven mode cards; temporary progress, cancellation, completion and critical diagnostics belong to a compact operation strip. This supersedes only older presentation requirements for the large status block/global button. Installer, storage, state resolution, networking, updater and cancellation contracts remain unchanged. The revised shell remains native .NET 8 WinForms with responsive mode-card grid, rounded dark surfaces, keyboard-accessible card actions, graphical flags and no third-party UI framework. The final local preview was visually reviewed and accepted; Stage 4 remains the release validation gate.
+
 ## Context
 
 - Current UI uses default Windows Forms styling (light theme, system colors)
@@ -37,7 +41,7 @@ Apply BDO dark theme (black + gold) to MainForm. Make the application visually a
 - Color palette application to all MainForm controls
 - Styling cards, Labels, Buttons, progress presentation, and TextBox
 - Updating dynamic API-driven localization mode cards
-- Updating status color helpers (SetGameFound, ApplyLocalizationStatePresentation, etc.)
+- Updating card state and action presentation while preserving service-owned state resolution
 - Presentation-only layout restructuring where required by the approved visual design
 - Presentation-only headers, cards, panels, labels, and other visual containers
 
@@ -89,7 +93,7 @@ The redesign is presentation/layout work only. These contracts must remain uncha
 3. Dynamic mode `Tag` remains the exact slug; `CheckedChanged`, `LastMode` persistence, feed-refresh selection restoration, and invalid-mode filtering remain intact.
 4. The installed marker requires exact `ModeSlug` plus exact current `PublicId` matching.
 5. All `LocalizationState` values and their current semantics remain intact.
-6. `InstallActionPolicy` and compatibility gating remain authoritative; one `Install` action covers install/change/update.
+6. `InstallActionPolicy` and compatibility gating remain authoritative; the single underlying install/update flow is exposed by contextual card actions: `Встановити` for install/switch and `Оновити` for a newer release of the same installed mode.
 7. Restore-original keeps its official-source-first and valid-snapshot fallback rules.
 8. Operation mutual exclusion, control locking, release-poller pause/blocking, and pending-feed application remain intact.
 9. `CancellationToken` cancellation and `FormClosing` safety remain intact.
@@ -202,20 +206,20 @@ RC preparation completed in this stage: contextual `Встановити`/`Он�
 
 ## Acceptance criteria
 
-- [ ] Form background is dark (#121212)
-- [ ] All text is readable (white on dark)
+- [x] Form background is dark (#121212)
+- [x] All text is readable (white on dark)
 - [x] Material-inspired dark card/surface layout replaces the visible classic GroupBox composition
-- [ ] Install button is gold (#C8A415)
-- [ ] Other buttons have dark background with visible borders
-- [ ] ProgressBar is gold
-- [ ] RadioButton text is readable in all modes
+- [x] Contextual card actions use the approved BDO gold/dark hierarchy
+- [x] Other buttons have dark background with visible borders
+- [x] ProgressBar preserves semantic BDO presentation
+- [x] Localization mode card text is readable in all modes
 - [x] Status relationship presentation distinguishes installed, selected, and update states
-- [ ] All existing functionality and behavioral contracts are preserved
-- [ ] Native WinForms remains the production UI technology
-- [ ] No ReaLTaiizor production dependency or `--prototype` launch mode is introduced
-- [ ] Release build and full solution tests pass for each implementation stage
-- [ ] Local preview is published after every meaningful visual stage
-- [ ] Owner visual review is recorded separately from automated validation
+- [x] All existing functionality and behavioral contracts are preserved
+- [x] Native WinForms remains the production UI technology
+- [x] No ReaLTaiizor production dependency or `--prototype` launch mode is introduced
+- [x] Release build and full solution tests pass for each implementation stage
+- [x] Local preview is published after every meaningful visual stage
+- [x] Owner visual review is recorded separately from automated validation
 - [ ] No layout, DPI, accessibility, or visual regression remains in final validation
 
 ## Non-goals

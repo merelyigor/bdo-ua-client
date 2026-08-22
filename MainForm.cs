@@ -41,6 +41,8 @@ public partial class MainForm : Form
     private volatile bool _operationInProgress;
     private volatile bool _closing;
     private LocalizationState _lastResolvedState;
+    private string? _lastInstalledModeSlug;
+    private string? _lastInstalledPublicId;
     private OperationState _operationState = OperationState.Idle;
     private CancellationTokenSource? _operationCts;
     private System.Windows.Forms.Timer? _startupTimer;
@@ -99,6 +101,7 @@ public partial class MainForm : Form
         ApplyTheme();
         WireEventHandlers();
         this.Shown += MainForm_Shown;
+        HandleCreated += (_, _) => WindowChromeHelper.ApplyDarkCaption(this);
     }
 
     private void ApplyTheme()
@@ -113,39 +116,21 @@ public partial class MainForm : Form
 
         gameGroupBox.BackColor = UiTheme.PanelBackground;
         gameGroupBox.ForeColor = UiTheme.PrimaryText;
-        modeGroupBox.BackColor = UiTheme.PanelBackground;
+        modeGroupBox.BackColor = UiTheme.Background;
         modeGroupBox.ForeColor = UiTheme.PrimaryText;
-        statusGroupBox.BackColor = UiTheme.PanelBackground;
-        statusGroupBox.ForeColor = UiTheme.PrimaryText;
         headerTitleLabel.ForeColor = UiTheme.PrimaryText;
         headerSubtitleLabel.ForeColor = UiTheme.SecondaryText;
         headerAccentLine.BackColor = UiTheme.Accent;
         gameSectionCaptionLabel.ForeColor = UiTheme.SecondaryText;
         modeSectionCaptionLabel.ForeColor = UiTheme.SecondaryText;
-        statusSectionCaptionLabel.ForeColor = UiTheme.SecondaryText;
-        installedCaptionLabel.ForeColor = UiTheme.SecondaryText;
-        installedModeLabel.ForeColor = UiTheme.PrimaryText;
-        installedMetaLabel.ForeColor = UiTheme.SecondaryText;
-        targetCaptionLabel.ForeColor = UiTheme.AccentSecondaryText;
-        targetModeLabel.ForeColor = UiTheme.PrimaryText;
-        targetMetaLabel.ForeColor = UiTheme.SecondaryText;
-
         modesFlowPanel.BackColor = Color.Transparent;
         gameStatusLabel.ForeColor = UiTheme.SecondaryText;
         gamePathLabel.ForeColor = UiTheme.SecondaryText;
-        localizationStateLabel.ForeColor = UiTheme.PrimaryText;
-        installedInfoLabel.ForeColor = UiTheme.SecondaryText;
-        detailsLabel.ForeColor = UiTheme.SecondaryText;
         progressLabel.ForeColor = UiTheme.SecondaryText;
         versionLabel.ForeColor = UiTheme.SecondaryText;
 
-        messageTextBox.BackColor = UiTheme.ControlBackground;
-        messageTextBox.ForeColor = UiTheme.PrimaryText;
-        messageTextBox.BorderStyle = BorderStyle.FixedSingle;
-
         UiTheme.StyleSecondaryButton(detectGameButton);
         UiTheme.StyleSecondaryButton(browseGameButton);
-        UiTheme.StylePrimaryButton(installButton);
         UiTheme.StyleAccentSecondaryButton(restoreOriginalButton);
         UiTheme.StyleDestructiveButton(cancelButton);
         UiTheme.StyleAccentSecondaryButton(updateButton);
@@ -218,7 +203,6 @@ public partial class MainForm : Form
     {
         detectGameButton.Click += DetectGameButton_Click;
         browseGameButton.Click += BrowseGameButton_Click;
-        installButton.Click += InstallButton_Click;
         restoreOriginalButton.Click += RestoreOriginalButton_Click;
         cancelButton.Click += CancelButton_Click;
         updateButton.Click += UpdateButton_Click;
@@ -386,6 +370,7 @@ public partial class MainForm : Form
         {
             var card = new LocalizationModeCard(mode);
             card.SelectionRequested += ModeCard_SelectionRequested;
+            card.ActionRequested += ModeCard_ActionRequested;
             modesFlowPanel.Controls.Add(card);
         }
         RefreshModeCardLayout();
@@ -395,13 +380,41 @@ public partial class MainForm : Form
     private void RefreshModeCardLayout()
     {
         if (modesFlowPanel == null) return;
-        var width = Math.Max(160, modesFlowPanel.ClientSize.Width - modesFlowPanel.Padding.Horizontal);
-        foreach (Control control in modesFlowPanel.Controls)
+        var availableWidth = modeGroupBox.ClientSize.Width - modesFlowPanel.Margin.Horizontal;
+        if (availableWidth <= 0)
+            availableWidth = ClientSize.Width - mainLayoutPanel.Padding.Horizontal;
+        modesFlowPanel.Width = Math.Max(UiTheme.Scale(modesFlowPanel, 240), availableWidth);
+        var width = Math.Max(UiTheme.Scale(modesFlowPanel, 240), modesFlowPanel.ClientSize.Width - modesFlowPanel.Padding.Horizontal);
+        var columns = width >= UiTheme.Scale(modesFlowPanel, 900) ? 3
+            : width >= UiTheme.Scale(modesFlowPanel, 620) ? 2 : 1;
+        var gap = UiTheme.Scale(modesFlowPanel, 16);
+        var cardWidth = Math.Max(UiTheme.Scale(modesFlowPanel, 240), (width - gap * (columns - 1)) / columns);
+        var cardHeight = UiTheme.Scale(modesFlowPanel, 220);
+        var cards = modesFlowPanel.Controls.OfType<LocalizationModeCard>().ToList();
+        foreach (var card in cards)
         {
-            if (control is not LocalizationModeCard card) continue;
-            card.Width = width;
-            card.Height = card.GetPreferredSize(new Size(width, 0)).Height;
+            card.Width = cardWidth;
+            card.Height = Math.Max(cardHeight, card.GetPreferredSize(new Size(cardWidth, 0)).Height);
+            cardHeight = Math.Max(cardHeight, card.Height);
         }
+        var cardCount = cards.Count;
+        var rows = Math.Max(1, (int)Math.Ceiling(cardCount / (double)columns));
+        for (var index = 0; index < cards.Count; index++)
+        {
+            var column = index % columns;
+            var row = index / columns;
+            cards[index].Bounds = new Rectangle(
+                modesFlowPanel.Padding.Left + column * (cardWidth + gap),
+                modesFlowPanel.Padding.Top + row * (cardHeight + gap),
+                cardWidth,
+                cardHeight);
+        }
+        modesFlowPanel.Height = cardCount == 0
+            ? modesFlowPanel.Padding.Top + UiTheme.Scale(modesFlowPanel, 56)
+            : modesFlowPanel.Padding.Top + rows * cardHeight + (rows - 1) * gap;
+        modeGroupBox.Height = modeSectionCaptionLabel.PreferredHeight
+            + modeSectionCaptionLabel.Margin.Vertical
+            + modesFlowPanel.Height;
         modesFlowPanel.PerformLayout();
     }
 
@@ -650,7 +663,7 @@ public partial class MainForm : Form
 
             if (configWarning != null)
             {
-                var existingMessage = messageTextBox.Text;
+                var existingMessage = operationMessageLabel.Text;
                 SetMessage(string.IsNullOrWhiteSpace(existingMessage)
                     ? configWarning
                     : $"{configWarning}{Environment.NewLine}{Environment.NewLine}{existingMessage}");
@@ -663,20 +676,40 @@ public partial class MainForm : Form
         }
     }
 
-    // --- Install action ---
-
-    private async void InstallButton_Click(object? sender, EventArgs e)
+    private async void ModeCard_ActionRequested(object? sender, EventArgs e)
     {
+        if (_initializing || _suppressModeChanged || _operationInProgress || sender is not LocalizationModeCard card)
+            return;
+
         try
         {
+            var previousSlug = GetSelectedModeSlug();
+            SelectModeBySlug(card.ModeSlug);
+            if (!string.Equals(previousSlug, card.ModeSlug, StringComparison.Ordinal))
+            {
+                try
+                {
+                    var configLoad = _configStore.Load();
+                    var config = configLoad.Value ?? new Config();
+                    config.LastMode = card.ModeSlug;
+                    await _configStore.SaveAsync(config);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warning($"Failed to save selected mode: {ex.Message}");
+                }
+                await RefreshStateAsync();
+            }
             await HandleInstallAsync();
         }
         catch (Exception ex)
         {
-            _logger.Error($"InstallButton_Click unexpected: {ex.Message}");
-            SetMessage($"Помилка: {ex.Message}");
+            _logger.Error($"Mode card action error: {ex.Message}");
+            SetMessage($"Помилка операції: {ex.Message}");
         }
     }
+
+    // --- Install action ---
 
     private async Task HandleInstallAsync()
     {
@@ -690,7 +723,7 @@ public partial class MainForm : Form
             _poller.Pause();
             _feedCoordinator.BlockUpdates();
             SetOperationState(OperationState.Idle);
-            SetActionsEnabled(false, false);
+            SetActionsEnabled(false);
             SetControlsDuringOperation(false);
 
             if (_gameRoot == null)
@@ -860,7 +893,7 @@ public partial class MainForm : Form
             _poller.Pause();
             _feedCoordinator.BlockUpdates();
             SetOperationState(OperationState.Idle);
-            SetActionsEnabled(false, false);
+            SetActionsEnabled(false);
             SetControlsDuringOperation(false);
 
             if (_gameRoot == null)
@@ -1010,6 +1043,8 @@ public partial class MainForm : Form
         browseGameButton.Enabled = enabled;
         foreach (var card in modesFlowPanel.Controls.OfType<LocalizationModeCard>())
             card.Enabled = enabled;
+        if (_apiLoadedSuccessfully)
+            ApplyModeCardPresentations(_lastResolvedState, _lastInstalledModeSlug, _lastInstalledPublicId);
         RefreshUpdateButtonPresentation();
     }
 
@@ -1113,7 +1148,7 @@ public partial class MainForm : Form
             _poller.Pause();
             _feedCoordinator.BlockUpdates();
             SetOperationState(OperationState.Idle);
-            SetActionsEnabled(false, false);
+            SetActionsEnabled(false);
             SetControlsDuringOperation(false);
 
             SetMessage($"Завантаження оновлення {_pendingUpdateCandidate.TagName}...");
@@ -1490,6 +1525,7 @@ public partial class MainForm : Form
     private void SetOperationState(OperationState state)
     {
         _operationState = state;
+        operationStrip.Visible = state != OperationState.Idle || !string.IsNullOrWhiteSpace(operationMessageLabel.Text);
         progressBar.IndicatorColor = state switch
         {
             OperationState.Completed => UiTheme.Success,
@@ -1525,6 +1561,7 @@ public partial class MainForm : Form
             progressBar.Style = ProgressBarStyle.Marquee;
             progressBar.MarqueeAnimationSpeed = 30;
         }
+
         else
         {
             progressBar.Style = ProgressBarStyle.Continuous;
@@ -1551,14 +1588,10 @@ public partial class MainForm : Form
 
     private async Task RefreshStateAsync()
     {
-        installButton.Text = InstallButtonLabelPolicy.InstallText;
-        SetActionsEnabled(false, false);
+        SetActionsEnabled(false);
 
         if (_gameRoot == null)
         {
-            SetLocalizationStateText("Не визначено");
-            ClearInstalledPresentation();
-            ClearTargetPresentation();
             _lastResolvedState = LocalizationState.NotInstalled;
             if (!_apiLoadedSuccessfully)
                 SetMessage(ApiErrorPresentation.GetUserMessage(_apiErrorKind, _apiErrorMessage));
@@ -1570,12 +1603,9 @@ public partial class MainForm : Form
 
         if (!_apiLoadedSuccessfully)
         {
-            SetLocalizationStateText("Не визначено");
-            ClearInstalledPresentation();
-            ClearTargetPresentation();
             _lastResolvedState = LocalizationState.NotInstalled;
             SetMessage(ApiErrorPresentation.GetUserMessage(_apiErrorKind, _apiErrorMessage));
-            SetActionsEnabled(false, !_operationInProgress);
+            SetActionsEnabled(!_operationInProgress);
             ScheduleContentFit();
             return;
         }
@@ -1584,7 +1614,6 @@ public partial class MainForm : Form
         var installedLoad = _stateStore.Load();
         string? installedModeSlug = null;
         string? installedPublicId = null;
-        string? installedModeDisplayName = null;
 
         if (installedLoad.Status == FileLoadStatus.Valid && installedLoad.Value?.Source == "api")
         {
@@ -1592,7 +1621,6 @@ public partial class MainForm : Form
             installedPublicId = installedLoad.Value.PublicId;
             var installedApiMode = _apiResponse?.Data?.Modes?
                 .FirstOrDefault(m => string.Equals(m.Slug, installedModeSlug, StringComparison.Ordinal));
-            installedModeDisplayName = installedApiMode?.PublicName ?? installedModeSlug;
         }
 
         // Factual LocalizationState uses INSTALLED mode's current
@@ -1607,8 +1635,8 @@ public partial class MainForm : Form
         var gameLocPath = Path.Combine(_gameRoot, "ads", "languagedata_en.loc");
         var stateResult = await _stateService.ResolveAsync(installedModeCurrent, gameLocPath, gameRoot: _gameRoot);
         _lastResolvedState = stateResult.State;
-        ApplyLocalizationStatePresentation(stateResult);
-
+        _lastInstalledModeSlug = installedModeSlug;
+        _lastInstalledPublicId = installedPublicId;
         var selectedMode = GetSelectedApiMode();
         var selectedCurrent = selectedMode?.Current;
 
@@ -1619,49 +1647,6 @@ public partial class MainForm : Form
         var sameInstalledModeSelected = hasInstalledApiState
             && selectedMode?.Slug != null
             && string.Equals(installedModeSlug, selectedMode.Slug, StringComparison.Ordinal);
-
-        ApplySelectionAwareHeadline(
-            stateResult,
-            hasInstalledApiState,
-            sameInstalledModeSelected,
-            exactSelectedTarget,
-            selectedMode,
-            selectedCurrent);
-
-        installButton.Text = InstallButtonLabelPolicy.GetText(
-            stateResult.State,
-            hasInstalledApiState,
-            sameInstalledModeSelected,
-            exactSelectedTarget);
-
-        if (hasInstalledApiState)
-        {
-            SetInstalledPresentation(
-                "ВСТАНОВЛЕНО ЗАРАЗ",
-                installedModeDisplayName ?? installedModeSlug ?? "Невідомо",
-                FormatInstalledMetadata(installedLoad.Value!));
-        }
-        else
-        {
-            ClearInstalledPresentation();
-        }
-
-        if (!exactSelectedTarget && selectedMode != null && selectedCurrent != null)
-        {
-            var targetCaption = !hasInstalledApiState
-                ? "ОБРАНО ДЛЯ ВСТАНОВЛЕННЯ"
-                : sameInstalledModeSelected
-                    ? "ДОСТУПНЕ ОНОВЛЕННЯ"
-                    : "ОБРАНО ДЛЯ ВСТАНОВЛЕННЯ";
-            SetTargetPresentation(
-                targetCaption,
-                DynamicModePolicy.GetDisplayName(selectedMode),
-                DynamicModePolicy.FormatReleaseLine(selectedMode));
-        }
-        else
-        {
-            ClearTargetPresentation();
-        }
 
         // Installed marker on the matching mode card
         UpdateInstalledMarkers(installedModeSlug, installedPublicId);
@@ -1692,14 +1677,19 @@ public partial class MainForm : Form
                     : "Натисніть «Встановити», щоб перейти на обраний режим.";
         }
 
-        SetMessage(diagnostic ?? "");
+        // Ordinary card states explain themselves. The compact strip is reserved for
+        // operations and important diagnostics that require global attention.
+        SetMessage(IsCriticalHeadlineState(stateResult) || !compatResult.IsAllowed
+            ? diagnostic ?? ""
+            : "");
 
         // Action availability
         var actionPolicy = InstallActionPolicy.Evaluate(
             stateResult.State, installedModeSlug, installedPublicId,
             selectedMode, selectedCurrent, compatResult, _operationInProgress);
 
-        SetActionsEnabled(actionPolicy.CanInstall, actionPolicy.CanRestoreOriginal);
+        SetActionsEnabled(actionPolicy.CanRestoreOriginal);
+        ApplyModeCardPresentations(stateResult.State, installedModeSlug, installedPublicId);
         ScheduleContentFit();
     }
 
@@ -1720,63 +1710,21 @@ public partial class MainForm : Form
         }
     }
 
-    // --- Presentation helpers ---
-
-    public void SetGamePathText(string text) => gamePathLabel.Text = text;
-
-    public void SetLocalizationStateText(string text)
+    private void ApplyModeCardPresentations(
+        LocalizationState factualState,
+        string? installedModeSlug,
+        string? installedPublicId)
     {
-        localizationStateLabel.Text = text;
-        localizationStateLabel.ForeColor = UiTheme.PrimaryText;
-    }
-
-    private void ApplyLocalizationStatePresentation(LocalizationStateResult result)
-    {
-        localizationStateLabel.Text = LocalizationStatePresentation.GetDisplayText(result);
-        localizationStateLabel.ForeColor = result.PatchTransition != LocalizationPatchTransition.None
-            ? UiTheme.Accent
-            : result.State switch
+        var selectedSlug = GetSelectedModeSlug();
+        foreach (var card in modesFlowPanel.Controls.OfType<LocalizationModeCard>())
         {
-            LocalizationState.UpToDate => UiTheme.Success,
-            LocalizationState.Corrupted => UiTheme.Error,
-            _ => UiTheme.PrimaryText
-        };
-    }
-
-    private void ApplySelectionAwareHeadline(
-        LocalizationStateResult factualResult,
-        bool hasInstalledApiState,
-        bool sameInstalledModeSelected,
-        bool exactSelectedTarget,
-        LocalizationMode? selectedMode,
-        CurrentRelease? selectedCurrent)
-    {
-        if (IsCriticalHeadlineState(factualResult))
-            return;
-
-        if (!hasInstalledApiState)
-            return;
-
-        if (exactSelectedTarget && factualResult.State == LocalizationState.UpToDate)
-        {
-            localizationStateLabel.Text = "✓ Обраний режим уже встановлено";
-            localizationStateLabel.ForeColor = UiTheme.Success;
-            return;
+            var compatibility = _compatService.Check(card.Mode.Current);
+            card.ApplyPresentation(ModeCardPresentationPolicy.Create(
+                factualState, installedModeSlug, installedPublicId, card.Mode, compatibility,
+                _operationInProgress,
+                _operationInProgress && string.Equals(selectedSlug, card.ModeSlug, StringComparison.Ordinal)));
         }
-
-        if (selectedMode == null || selectedCurrent == null)
-            return;
-
-        if (sameInstalledModeSelected)
-        {
-            localizationStateLabel.Text = "Доступне оновлення локалізації";
-            localizationStateLabel.ForeColor = UiTheme.Accent;
-        }
-        else
-        {
-            localizationStateLabel.Text = "Обрано інший режим локалізації";
-            localizationStateLabel.ForeColor = UiTheme.Accent;
-        }
+        RefreshModeCardLayout();
     }
 
     private static bool IsCriticalHeadlineState(LocalizationStateResult result)
@@ -1787,82 +1735,27 @@ public partial class MainForm : Form
                 or LocalizationState.InstalledVersionUnknown;
     }
 
-    public void SetInstalledInfo(string text)
-    {
-        installedModeLabel.Text = text;
-        installedModeLabel.Visible = !string.IsNullOrWhiteSpace(text);
-    }
-
-    public void SetSelectedInfo(string text)
-    {
-        targetModeLabel.Text = text;
-        targetModeLabel.Visible = !string.IsNullOrWhiteSpace(text);
-    }
-
-    private void SetInstalledPresentation(string caption, string mode, string metadata)
-    {
-        installedCaptionLabel.Text = caption;
-        installedModeLabel.Text = mode;
-        installedMetaLabel.Text = metadata;
-        installedCaptionLabel.Visible = true;
-        installedModeLabel.Visible = true;
-        installedMetaLabel.Visible = !string.IsNullOrWhiteSpace(metadata);
-    }
-
-    private void ClearInstalledPresentation()
-    {
-        installedCaptionLabel.Text = "";
-        installedModeLabel.Text = "";
-        installedMetaLabel.Text = "";
-        installedCaptionLabel.Visible = false;
-        installedModeLabel.Visible = false;
-        installedMetaLabel.Visible = false;
-    }
-
-    private void SetTargetPresentation(string caption, string mode, string metadata)
-    {
-        targetCaptionLabel.Text = caption;
-        targetModeLabel.Text = mode;
-        targetMetaLabel.Text = metadata;
-        targetCaptionLabel.Visible = true;
-        targetModeLabel.Visible = true;
-        targetMetaLabel.Visible = !string.IsNullOrWhiteSpace(metadata);
-    }
-
-    private void ClearTargetPresentation()
-    {
-        targetCaptionLabel.Text = "";
-        targetModeLabel.Text = "";
-        targetMetaLabel.Text = "";
-        targetCaptionLabel.Visible = false;
-        targetModeLabel.Visible = false;
-        targetMetaLabel.Visible = false;
-    }
-
-    private static string FormatInstalledMetadata(InstallationMetadata metadata)
-    {
-        var parts = new List<string>();
-        if (metadata.Version is > 0)
-            parts.Add($"v{metadata.Version.Value}");
-        if (metadata.GamePatch is > 0)
-            parts.Add($"патч {metadata.GamePatch.Value}");
-        if (metadata.InstalledAt != default)
-            parts.Add($"встановлено {metadata.InstalledAt.ToLocalTime():dd.MM.yyyy HH:mm}");
-        return string.Join(" · ", parts);
-    }
-
     public void SetProgress(int percent)
     {
         progressBar.Value = Math.Clamp(percent, 0, 100);
         progressLabel.Text = $"{progressBar.Value}%";
     }
 
-    public void SetMessage(string text) => messageTextBox.Text = text;
-
-    public void SetActionsEnabled(bool install, bool restoreOriginal)
+    public void SetMessage(string text)
     {
-        installButton.Enabled = install;
+        operationMessageLabel.Text = text;
+        operationStrip.Visible = _operationState != OperationState.Idle || !string.IsNullOrWhiteSpace(text);
+        operationStrip.SurfaceBorderColor = _operationState == OperationState.Failed ? UiTheme.Error
+            : _operationState == OperationState.Completed ? UiTheme.Success
+            : UiTheme.Border;
+        operationStrip.Invalidate();
+        ScheduleContentFit();
+    }
+
+    public void SetActionsEnabled(bool restoreOriginal)
+    {
         restoreOriginalButton.Enabled = restoreOriginal;
+        UiTheme.RefreshButtonState(restoreOriginalButton);
     }
 
     private static string MapInstallError(InstallError error) => error switch
