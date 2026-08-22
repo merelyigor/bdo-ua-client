@@ -5,8 +5,8 @@ Status: **ACTIVE**
 Backlog order: 1
 PRIMARY: **YES**
 Implementation authorization: **YES**
-Current phase: **Stage 2 completed / Stage 3 next**
-Next action: implement Stage 3 — UI completion
+Current phase: **Stage 3 completed / Stage 4 next**
+Next action: Stage 4 — Release Candidate validation and regression closure
 
 ---
 
@@ -35,8 +35,8 @@ Apply BDO dark theme (black + gold) to MainForm. Make the application visually a
 
 ### In scope
 - Color palette application to all MainForm controls
-- Styling GroupBoxes, Labels, Buttons, ProgressBar, TextBox, RadioButton
-- Updating dynamic controls (BuildDynamicModes radio buttons)
+- Styling cards, Labels, Buttons, progress presentation, and TextBox
+- Updating dynamic API-driven localization mode cards
 - Updating status color helpers (SetGameFound, ApplyLocalizationStatePresentation, etc.)
 - Presentation-only layout restructuring where required by the approved visual design
 - Presentation-only headers, cards, panels, labels, and other visual containers
@@ -76,7 +76,7 @@ Border:                 #3D3D3D  (61,61,61)
 - Stage 2 surface presentation: native dark card/panel containers replace the visible classic GroupBox composition while preserving functional control ownership and event wiring.
 - Install button: gold accent (stand out from other buttons)
 - RadioButton: white text on transparent background
-- ProgressBar: gold foreground, dark background
+- `BdoProgressBar`: gold active foreground, dark track, and semantic completion/error/cancelled colors
 
 **Do NOT change:** API/contracts, GameDetector internals, localization install/restore logic, backup/storage, compatibility policy, update selection/staging/replacement/rollback, release polling semantics, cancellation, operation mutual exclusion, file operations, or state ownership.
 
@@ -151,38 +151,39 @@ Validation completed: startup, resize, game found/not-found, default install/res
 
 ### Stage 3 — UI completion
 
-Combine the remaining visual responsibilities into one owner-reviewed implementation stage without changing business behavior, API contracts, storage, installation, cancellation, updater internals, or adding UI dependencies.
+**Status: COMPLETED — owner visual and runtime review ACCEPTED.**
+
+Delivered as a presentation/integration-only implementation without changing business behavior, API contracts, storage, installation, cancellation, updater internals, or dependencies:
 
 #### Localization mode presentation
 
-- Replace visible classic WinForms `RadioButton` controls with Material-inspired selectable mode cards.
-- Make the entire card clickable and support normal, hover, selected, selected+hover, installed, disabled/incompatible, and keyboard-focus states.
-- Use restrained BDO gold for selection; do not use a bright-yellow full-card surface.
-- Keep installed distinct from selected; exact installed state remains `ModeSlug + PublicId`.
-- Preserve API-driven creation, `ModeSlug` identity, `Tag`/equivalent identity, mutual exclusion, `CheckedChanged`-equivalent behavior, `LastMode`, installed-mode-first startup selection, feed-refresh selection restoration, invalid-mode filtering, fallback behavior, visible focus, Tab navigation, and Space/Enter activation.
+- Replaced visible classic WinForms `RadioButton` presentation with API-driven native WinForms selectable mode cards.
+- The entire card is clickable and supports normal, hover, selected, selected+hover, installed, disabled, and keyboard-focus states.
+- Selection uses restrained BDO gold; installed remains distinct from selected and exact installed state remains `ModeSlug + PublicId`.
+- Preserved `ModeSlug`/`Tag` identity, mutual exclusion, `LastMode`, installed-mode-first startup selection, feed-refresh restoration, invalid-mode filtering, fallback behavior, visible focus, Tab navigation, and Space/Enter activation.
 
 #### Graphical flags
 
-- Do not rely on native regional-indicator emoji rendering.
-- Render recognized leading country flags graphically, supporting current UA/GB combinations at minimum.
-- Unknown or unmapped flags must fail gracefully to readable text.
-- Do not add an external emoji framework or hardcode localization modes.
+- Leading regional-indicator sequences are parsed with Unicode-safe rune handling and rendered as native graphical flags.
+- UA and GB flags are supported; multiple flags use dynamic group layout with compact spacing; unknown valid country codes degrade to readable code badges.
+- No external emoji/UI dependency or hardcoded localization modes was introduced.
 
 #### Operation and progress presentation
 
-Theme the presentation of `LoadingApi`, `DetectingGame`, `Downloading`, `Verifying`, `BackingUp`, `Installing`, `Restoring`, `Completed`, `Failed`, and `Cancelled`, including determinate/indeterminate progress, Cancel presentation, and operation locking. Preserve all `OperationState` semantics and cooperative cancellation. A small focused native WinForms progress control may be considered only if the approved visual design requires it; no UI framework is authorized.
+- Added the focused native `BdoProgressBar` with dark track, determinate/indeterminate presentation, semantic active/success/error/cancelled colors, and disposed marquee timer.
+- Preserved every `OperationState`, cancellation, operation locking, diagnostics, and Cancel behavior.
+- Generic completion invariant is `Completed → determinate → Value = 100 → success green → Завершено`, including completion after indeterminate Restore Original.
 
 #### Application update visual consistency
 
-Theme `updateButton`, version/log utility presentation, update availability/busy states, and `UpdateApplyingForm` if required. Do not alter self-update selection, staging, replacement, rollback, helper protocol, or other updater internals.
+- Preserved update eligibility, version semantics, logs behavior, and updater protocol while keeping the utility action presentation consistent with the Stage 1 hierarchy.
+- The native `UpdateApplyingForm` now uses the dark BDO presentation while preserving TopMost, close blocking, async apply, ExitCode handling, automatic close, and helper protocol.
 
-#### Stage 3 validation
+Stage 3 validation completed with Release build, full solution tests, canonical local preview publish, and owner visual/runtime acceptance across startup, mode switching, install, restore, operation locking, completion, restart, feed polling, and resilient networking scenarios.
 
-Stage 3 requires Release build, full solution tests, local preview publish, and owner visual review. Validate all mode-card states, flags, operation/progress states, cancellation, and update UI states before owner acceptance.
+### Stage 4 — Release Candidate validation and regression closure
 
-### Stage 4 — Final UI validation and regression closure
-
-Validation-driven closure stage; do not introduce another broad redesign. Validate:
+**Status: NEXT — not started.** This is the final Release Candidate validation gate, not another broad redesign stage. Validate:
 
 - Windows scaling at 100%, 125%, 150%, and 200%.
 - Default, minimum, and larger resized window sizes.
@@ -192,8 +193,10 @@ Validation-driven closure stage; do not introduce another broad redesign. Valida
 - Disabled-state readability.
 - All localization relationship states, operation states, cancellation states, self-update UI states, and `UpdateApplyingForm` if themed.
 - No clipping, overlap, or functional regression.
+- Repeated startup/networking regression checks without redesigning the resilient connector unless a concrete blocker reproduces.
+- Self-update package/manifest flow, staged helper handoff, replacement/rollback compatibility, and themed `UpdateApplyingForm`.
 
-Fix only concrete defects found during this matrix. Stage 4 completion closes the UI redesign plan after owner acceptance and final automated validation.
+Automated RC validation requires a clean Release build, full tests, final publish, and RC package validation. Fix only concrete BLOCKER/IMPORTANT regressions found by this matrix; optional cosmetic refinements must not delay RC. Stage 4 completion closes the UI redesign plan after owner acceptance and final automated validation.
 
 ## Acceptance criteria
 
@@ -238,7 +241,7 @@ Fix only concrete defects found during this matrix. Stage 4 completion closes th
 - [x] Plan activated as PRIMARY; Stage 2 is complete and Stage 3 is next
 - [x] Stage 1 theme foundation implemented, locally previewed, and owner-approved
 - [x] Stage 2 — Static Material-inspired layout and information hierarchy implemented, locally previewed, and owner-approved
-- [ ] Stage 3 — UI completion
+- [x] Stage 3 — UI completion implemented, locally previewed, and owner-approved
 - [ ] Stage 4 — Final UI validation and regression closure
 
 ## Manual visual validation loop

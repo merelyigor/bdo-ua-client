@@ -36,6 +36,10 @@ internal static class UiTheme
     public static readonly Color Success = Color.FromArgb(0, 180, 0);
     public static readonly Color Error = Color.FromArgb(255, 68, 68);
     public static readonly Color Border = Color.FromArgb(61, 61, 61);
+    public static readonly Color ModeHoverSurface = Color.FromArgb(35, 35, 35);
+    public static readonly Color ModeSelectedSurface = Color.FromArgb(44, 40, 24);
+    public static readonly Color ModeSelectedHoverSurface = Color.FromArgb(55, 48, 25);
+    public static readonly Color InstalledBadgeSurface = Color.FromArgb(24, 52, 24);
 
     public static void StyleSecondaryButton(Button button)
     {

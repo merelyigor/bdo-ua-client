@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Windows.Forms;
 
 namespace BdoClient;
 
@@ -14,7 +15,7 @@ internal sealed class UpdateApplyingForm : Form
         _applyUpdate = applyUpdate ?? throw new ArgumentNullException(nameof(applyUpdate));
 
         Text = "BDO UA Client — оновлення";
-        ClientSize = new Size(460, 150);
+        ClientSize = new Size(480, 178);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         TopMost = true;
@@ -22,25 +23,32 @@ internal sealed class UpdateApplyingForm : Form
         MinimizeBox = false;
         ControlBox = false;
         ShowInTaskbar = true;
+        BackColor = UiTheme.Background;
+        ForeColor = UiTheme.PrimaryText;
+        Font = new Font("Segoe UI", 9F);
 
         var mainText = new Label
         {
             AutoSize = true,
-            Location = new Point(24, 20),
+            Location = new Point(24, 18),
             Text = "Застосування оновлення...",
-            Font = new Font(SystemFonts.MessageBoxFont ?? SystemFonts.DefaultFont, FontStyle.Bold)
+            ForeColor = UiTheme.PrimaryText,
+            Font = new Font("Segoe UI", 12F, FontStyle.Bold)
         };
         var secondaryText = new Label
         {
             AutoSize = false,
             Location = new Point(24, 52),
-            Size = new Size(412, 38),
+            Size = new Size(432, 48),
+            ForeColor = UiTheme.SecondaryText,
             Text = "Будь ласка, зачекайте.\nПрограма запуститься автоматично після завершення оновлення."
         };
-        var progressBar = new ProgressBar
+        var progressBar = new BdoProgressBar
         {
-            Location = new Point(24, 108),
-            Size = new Size(412, 18),
+            Location = new Point(24, 124),
+            Size = new Size(432, 20),
+            BackColor = UiTheme.ControlBackground,
+            ForeColor = UiTheme.Accent,
             Style = ProgressBarStyle.Marquee,
             MarqueeAnimationSpeed = 30
         };

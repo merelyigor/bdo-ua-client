@@ -153,6 +153,7 @@ public partial class MainForm : Form
 
         progressBar.BackColor = UiTheme.ControlBackground;
         progressBar.ForeColor = UiTheme.Accent;
+        RefreshModeCardLayout();
     }
 
     private static void ApplyContainerTheme(Control control)
@@ -222,7 +223,14 @@ public partial class MainForm : Form
         cancelButton.Click += CancelButton_Click;
         updateButton.Click += UpdateButton_Click;
         logsButton.Click += LogsButton_Click;
+        modesFlowPanel.Resize += ModesFlowPanel_Resize;
         this.FormClosing += MainForm_FormClosing;
+    }
+
+    private void ModesFlowPanel_Resize(object? sender, EventArgs e)
+    {
+        RefreshModeCardLayout();
+        ScheduleContentFit();
     }
 
     // --- Startup ---
@@ -349,7 +357,7 @@ public partial class MainForm : Form
 
     private void BuildDynamicModes()
     {
-        modesFlowPanel.Controls.Clear();
+        ClearModeControls();
 
         var allModes = _apiResponse?.Data?.Modes;
         var installable = DynamicModePolicy.GetInstallableModes(allModes);
@@ -376,27 +384,25 @@ public partial class MainForm : Form
 
         foreach (var mode in installable)
         {
-            var displayName = DynamicModePolicy.GetDisplayName(mode);
-            var releaseLine = DynamicModePolicy.FormatReleaseLine(mode);
-
-            var text = string.IsNullOrEmpty(releaseLine)
-                ? displayName
-                : $"{displayName}\n{releaseLine}";
-
-            var rb = new RadioButton
-            {
-                Text = text,
-                Tag = mode.Slug,
-                AutoSize = true,
-                ForeColor = UiTheme.PrimaryText,
-                BackColor = Color.Transparent,
-                MaximumSize = new Size(700, 0),
-                Margin = new Padding(0, 0, 0, 6)
-            };
-            rb.CheckedChanged += ModeRadioButton_CheckedChanged;
-            modesFlowPanel.Controls.Add(rb);
+            var card = new LocalizationModeCard(mode);
+            card.SelectionRequested += ModeCard_SelectionRequested;
+            modesFlowPanel.Controls.Add(card);
         }
+        RefreshModeCardLayout();
         ScheduleContentFit();
+    }
+
+    private void RefreshModeCardLayout()
+    {
+        if (modesFlowPanel == null) return;
+        var width = Math.Max(160, modesFlowPanel.ClientSize.Width - modesFlowPanel.Padding.Horizontal);
+        foreach (Control control in modesFlowPanel.Controls)
+        {
+            if (control is not LocalizationModeCard card) continue;
+            card.Width = width;
+            card.Height = card.GetPreferredSize(new Size(width, 0)).Height;
+        }
+        modesFlowPanel.PerformLayout();
     }
 
     private void RestoreInitialMode(Config config)
@@ -426,7 +432,7 @@ public partial class MainForm : Form
 
     private void ShowModeLoadingPlaceholder()
     {
-        modesFlowPanel.Controls.Clear();
+        ClearModeControls();
         var label = new Label
         {
             Text = "Завантаження доступних режимів...",
@@ -441,7 +447,7 @@ public partial class MainForm : Form
 
     private void ShowModeFailurePlaceholder()
     {
-        modesFlowPanel.Controls.Clear();
+        ClearModeControls();
         var label = new Label
         {
             Text = "Не вдалося завантажити режими.",
@@ -454,26 +460,21 @@ public partial class MainForm : Form
         ScheduleContentFit();
     }
 
+    private void ClearModeControls()
+    {
+        foreach (var card in modesFlowPanel.Controls.OfType<LocalizationModeCard>().ToList())
+            card.Dispose();
+        modesFlowPanel.Controls.Clear();
+    }
+
     private void SelectModeBySlug(string slug)
     {
-        foreach (Control c in modesFlowPanel.Controls)
-        {
-            if (c is RadioButton rb && rb.Tag is string tag && tag == slug)
-            {
-                rb.Checked = true;
-                return;
-            }
-        }
-
-        // Fallback: first available
-        foreach (Control c in modesFlowPanel.Controls)
-        {
-            if (c is RadioButton rb)
-            {
-                rb.Checked = true;
-                return;
-            }
-        }
+        var selected = modesFlowPanel.Controls
+            .OfType<LocalizationModeCard>()
+            .FirstOrDefault(card => string.Equals(card.ModeSlug, slug, StringComparison.Ordinal));
+        selected ??= modesFlowPanel.Controls.OfType<LocalizationModeCard>().FirstOrDefault();
+        foreach (var card in modesFlowPanel.Controls.OfType<LocalizationModeCard>())
+            card.IsSelected = ReferenceEquals(card, selected);
     }
 
     private string? GetSelectedModeSlug()
@@ -481,18 +482,18 @@ public partial class MainForm : Form
         string? found = null;
         int count = 0;
 
-        foreach (Control c in modesFlowPanel.Controls)
+        foreach (var card in modesFlowPanel.Controls.OfType<LocalizationModeCard>())
         {
-            if (c is RadioButton rb && rb.Checked)
+            if (card.IsSelected)
             {
-                found = rb.Tag as string;
+                found = card.ModeSlug;
                 count++;
             }
         }
 
         if (count > 1)
         {
-            _logger.Error($"Ambiguous mode selection: {count} RadioButtons checked");
+            _logger.Error($"Ambiguous mode selection: {count} mode cards selected");
             return null;
         }
 
@@ -617,15 +618,18 @@ public partial class MainForm : Form
 
     // --- Mode change ---
 
-    private async void ModeRadioButton_CheckedChanged(object? sender, EventArgs e)
+    private async void ModeCard_SelectionRequested(object? sender, EventArgs e)
     {
         if (_initializing) return;
         if (_suppressModeChanged) return;
-        if (sender is not RadioButton rb || !rb.Checked) return;
+        if (sender is not LocalizationModeCard card || !card.Enabled) return;
 
         try
         {
-            var slug = (string)rb.Tag!;
+            var previousSlug = GetSelectedModeSlug();
+            SelectModeBySlug(card.ModeSlug);
+            var slug = card.ModeSlug;
+            if (string.Equals(previousSlug, slug, StringComparison.Ordinal)) return;
             string? configWarning = null;
 
             try
@@ -1004,10 +1008,8 @@ public partial class MainForm : Form
     {
         detectGameButton.Enabled = enabled;
         browseGameButton.Enabled = enabled;
-        foreach (Control c in modesFlowPanel.Controls)
-        {
-            if (c is RadioButton rb) rb.Enabled = enabled;
-        }
+        foreach (var card in modesFlowPanel.Controls.OfType<LocalizationModeCard>())
+            card.Enabled = enabled;
         RefreshUpdateButtonPresentation();
     }
 
@@ -1488,6 +1490,13 @@ public partial class MainForm : Form
     private void SetOperationState(OperationState state)
     {
         _operationState = state;
+        progressBar.IndicatorColor = state switch
+        {
+            OperationState.Completed => UiTheme.Success,
+            OperationState.Failed => UiTheme.Error,
+            OperationState.Cancelled => UiTheme.SecondaryText,
+            _ => UiTheme.Accent
+        };
         progressLabel.Text = state switch
         {
             OperationState.Idle => "0%",
@@ -1520,7 +1529,9 @@ public partial class MainForm : Form
         {
             progressBar.Style = ProgressBarStyle.Continuous;
             progressBar.MarqueeAnimationSpeed = 0;
-            if (state == OperationState.Idle)
+            if (state == OperationState.Completed)
+                progressBar.Value = 100;
+            else if (state == OperationState.Idle)
                 progressBar.Value = 0;
         }
     }
@@ -1645,7 +1656,7 @@ public partial class MainForm : Form
             ClearTargetPresentation();
         }
 
-        // Installed marker on matching RadioButton
+        // Installed marker on the matching mode card
         UpdateInstalledMarkers(installedModeSlug, installedPublicId);
 
         // Diagnostics
@@ -1687,15 +1698,9 @@ public partial class MainForm : Form
 
     private void UpdateInstalledMarkers(string? installedModeSlug, string? installedPublicId)
     {
-        foreach (Control c in modesFlowPanel.Controls)
+        foreach (var card in modesFlowPanel.Controls.OfType<LocalizationModeCard>())
         {
-            if (c is not RadioButton rb) continue;
-
-            var slug = rb.Tag as string;
-
-            // Find the API mode for this RadioButton
-            var mode = _apiResponse?.Data?.Modes?
-                .FirstOrDefault(m => string.Equals(m.Slug, slug, StringComparison.Ordinal));
+            var mode = card.Mode;
 
             // Exact installed: same ModeSlug AND same PublicId of current release
             bool isExactInstalled = InstallActionPolicy.IsExactInstalledTarget(
@@ -1703,17 +1708,7 @@ public partial class MainForm : Form
 
             if (mode != null)
             {
-                var displayName = DynamicModePolicy.GetDisplayName(mode);
-                var releaseLine = DynamicModePolicy.FormatReleaseLine(mode);
-
-                var text = string.IsNullOrEmpty(releaseLine)
-                    ? displayName
-                    : $"{displayName}\n{releaseLine}";
-
-                if (isExactInstalled)
-                    text += "\n✓ Встановлено";
-
-                rb.Text = text;
+                card.IsInstalled = isExactInstalled;
             }
         }
     }

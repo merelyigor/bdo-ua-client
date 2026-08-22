@@ -34,7 +34,7 @@ partial class MainForm
     private Label targetMetaLabel = null!;
     private Label installedInfoLabel = null!;
     private Label detailsLabel = null!;
-    private ProgressBar progressBar = null!;
+    private BdoProgressBar progressBar = null!;
     private Label progressLabel = null!;
     private TextBox messageTextBox = null!;
 
@@ -245,7 +245,9 @@ partial class MainForm
         gameGroupBox.Controls.Add(gameSectionCaptionLabel);
 
         modeGroupBox = CreateCard();
+        modeGroupBox.Padding = new Padding(16);
         modeSectionCaptionLabel = CreateSectionCaption("ЛОКАЛІЗАЦІЯ");
+        modeSectionCaptionLabel.Margin = new Padding(0, 0, 0, 10);
         modesFlowPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
@@ -290,11 +292,9 @@ partial class MainForm
         };
         progressPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         progressPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        progressBar = new ProgressBar
+        progressBar = new BdoProgressBar
         {
             Dock = DockStyle.Fill,
-            Minimum = 0,
-            Maximum = 100,
             Value = 0,
             Height = 20,
             Margin = new Padding(0, 0, 8, 0)
