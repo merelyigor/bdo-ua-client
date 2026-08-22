@@ -146,14 +146,16 @@ public class DynamicModePolicyTests
     // --- FormatReleaseLine ---
 
     [Fact]
-    public void FormatReleaseLine_ValidRelease_ContainsVersionAndPatch()
+    public void FormatReleaseLine_ValidRelease_UsesUkrainianCompactMetadata()
     {
-        var mode = MakeMode("test", current: MakeCurrent(version: 5, patch: 397));
+        var mode = MakeMode("test", current: MakeCurrent(
+            version: 5, patch: 397, publishedAt: "2026-08-21T10:00:00Z"));
 
         var result = DynamicModePolicy.FormatReleaseLine(mode);
 
-        Assert.Contains("v5", result);
-        Assert.Contains("patch 397", result);
+        Assert.Matches(@"^v5 · патч 397 · \d{2}\.\d{2}\.\d{4}$", result);
+        Assert.DoesNotContain("patch", result);
+        Assert.DoesNotContain("реліз", result);
     }
 
     // --- ResolveInitialSelection ---
@@ -168,6 +170,80 @@ public class DynamicModePolicyTests
         };
 
         var result = DynamicModePolicy.ResolveInitialSelection("english-items", modes);
+
+        Assert.Equal("english-items", result);
+    }
+
+    [Fact]
+    public void ResolveInitialSelection_InstalledModeWinsOverSavedMode()
+    {
+        var modes = new List<LocalizationMode>
+        {
+            MakeMode("full-ukrainian"),
+            MakeMode("english-items")
+        };
+
+        var result = DynamicModePolicy.ResolveInitialSelection(
+            "english-items", "full-ukrainian", modes);
+
+        Assert.Equal("english-items", result);
+    }
+
+    [Fact]
+    public void ResolveInitialSelection_InstalledModeWinsWithoutRequiringReleaseIdMatch()
+    {
+        var modes = new List<LocalizationMode>
+        {
+            MakeMode("english-items", current: MakeCurrent(publicId: "new-release"))
+        };
+
+        var result = DynamicModePolicy.ResolveInitialSelection(
+            "english-items", "full-ukrainian", modes);
+
+        Assert.Equal("english-items", result);
+    }
+
+    [Fact]
+    public void ResolveInitialSelection_UnavailableInstalledModeFallsBackToSavedMode()
+    {
+        var modes = new List<LocalizationMode>
+        {
+            MakeMode("full-ukrainian"),
+            MakeMode("english-items")
+        };
+
+        var result = DynamicModePolicy.ResolveInitialSelection(
+            "removed-mode", "full-ukrainian", modes);
+
+        Assert.Equal("full-ukrainian", result);
+    }
+
+    [Fact]
+    public void ResolveInitialSelection_UnavailableInstalledAndSavedModesFallsBackToFirst()
+    {
+        var modes = new List<LocalizationMode>
+        {
+            MakeMode("full-ukrainian"),
+            MakeMode("english-items")
+        };
+
+        var result = DynamicModePolicy.ResolveInitialSelection(
+            "removed-mode", "also-removed", modes);
+
+        Assert.Equal("full-ukrainian", result);
+    }
+
+    [Fact]
+    public void ResolveInitialSelection_NoInstalledModePreservesSavedModePriority()
+    {
+        var modes = new List<LocalizationMode>
+        {
+            MakeMode("full-ukrainian"),
+            MakeMode("english-items")
+        };
+
+        var result = DynamicModePolicy.ResolveInitialSelection(
+            null, "english-items", modes);
 
         Assert.Equal("english-items", result);
     }

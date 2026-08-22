@@ -51,6 +51,8 @@ public partial class MainForm : Form
     private UpdateCandidate? _pendingUpdateCandidate;
     private UpdateSession? _stagedUpdateSession;
     private volatile bool _updateHandoffInProgress;
+    private bool _contentFitScheduled;
+    private bool _contentFitInProgress;
 
     public MainForm(
         ConfigStore configStore,
@@ -93,6 +95,7 @@ public partial class MainForm : Form
         _poller.OnPollFailed += OnReleasePollFailed;
 
         InitializeComponent();
+        rootScrollPanel.Resize += RootScrollPanel_Resize;
         ApplyTheme();
         WireEventHandlers();
         this.Shown += MainForm_Shown;
@@ -100,6 +103,7 @@ public partial class MainForm : Form
 
     private void ApplyTheme()
     {
+        mainLayoutPanel.Width = Math.Max(0, rootScrollPanel.ClientSize.Width);
         BackColor = UiTheme.Background;
         ForeColor = UiTheme.PrimaryText;
         Font = new Font("Segoe UI", 9F);
@@ -113,6 +117,18 @@ public partial class MainForm : Form
         modeGroupBox.ForeColor = UiTheme.PrimaryText;
         statusGroupBox.BackColor = UiTheme.PanelBackground;
         statusGroupBox.ForeColor = UiTheme.PrimaryText;
+        headerTitleLabel.ForeColor = UiTheme.PrimaryText;
+        headerSubtitleLabel.ForeColor = UiTheme.SecondaryText;
+        headerAccentLine.BackColor = UiTheme.Accent;
+        gameSectionCaptionLabel.ForeColor = UiTheme.SecondaryText;
+        modeSectionCaptionLabel.ForeColor = UiTheme.SecondaryText;
+        statusSectionCaptionLabel.ForeColor = UiTheme.SecondaryText;
+        installedCaptionLabel.ForeColor = UiTheme.SecondaryText;
+        installedModeLabel.ForeColor = UiTheme.PrimaryText;
+        installedMetaLabel.ForeColor = UiTheme.SecondaryText;
+        targetCaptionLabel.ForeColor = UiTheme.AccentSecondaryText;
+        targetModeLabel.ForeColor = UiTheme.PrimaryText;
+        targetMetaLabel.ForeColor = UiTheme.SecondaryText;
 
         modesFlowPanel.BackColor = Color.Transparent;
         gameStatusLabel.ForeColor = UiTheme.SecondaryText;
@@ -146,6 +162,55 @@ public partial class MainForm : Form
 
         foreach (Control child in control.Controls)
             ApplyContainerTheme(child);
+    }
+
+    private void RootScrollPanel_Resize(object? sender, EventArgs e)
+    {
+        mainLayoutPanel.Width = Math.Max(0, rootScrollPanel.ClientSize.Width);
+        ScheduleContentFit();
+    }
+
+    private void ScheduleContentFit()
+    {
+        if (_contentFitScheduled || _closing || IsDisposed || !IsHandleCreated)
+            return;
+
+        _contentFitScheduled = true;
+        BeginInvoke(new Action(() =>
+        {
+            _contentFitScheduled = false;
+            EnsureContentFitsWindow();
+        }));
+    }
+
+    private void EnsureContentFitsWindow()
+    {
+        if (_contentFitInProgress || IsDisposed)
+            return;
+
+        _contentFitInProgress = true;
+        try
+        {
+            rootScrollPanel.PerformLayout();
+            mainLayoutPanel.PerformLayout();
+
+            var preferredHeight = mainLayoutPanel.GetPreferredSize(
+                new Size(rootScrollPanel.ClientSize.Width, 0)).Height;
+            var formChromeHeight = Height - ClientSize.Height;
+            var workingArea = Screen.FromControl(this).WorkingArea;
+            var safetyMargin = 16;
+            var maxClientHeight = Math.Max(
+                MinimumSize.Height,
+                workingArea.Height - formChromeHeight - safetyMargin);
+            var requiredClientHeight = Math.Min(maxClientHeight, preferredHeight);
+
+            if (ClientSize.Height < requiredClientHeight)
+                ClientSize = new Size(ClientSize.Width, requiredClientHeight);
+        }
+        finally
+        {
+            _contentFitInProgress = false;
+        }
     }
 
     private void WireEventHandlers()
@@ -216,7 +281,7 @@ public partial class MainForm : Form
                         _apiErrorMessage = null;
                         _apiErrorKind = ApiErrorKind.None;
                         BuildDynamicModes();
-                        RestoreLastMode(config);
+                        RestoreInitialMode(config);
                     }
                     else
                     {
@@ -305,6 +370,7 @@ public partial class MainForm : Form
                 Margin = new Padding(0)
             };
             modesFlowPanel.Controls.Add(label);
+            ScheduleContentFit();
             return;
         }
 
@@ -324,21 +390,38 @@ public partial class MainForm : Form
                 AutoSize = true,
                 ForeColor = UiTheme.PrimaryText,
                 BackColor = Color.Transparent,
+                MaximumSize = new Size(700, 0),
                 Margin = new Padding(0, 0, 0, 6)
             };
             rb.CheckedChanged += ModeRadioButton_CheckedChanged;
             modesFlowPanel.Controls.Add(rb);
         }
+        ScheduleContentFit();
     }
 
-    private void RestoreLastMode(Config config)
+    private void RestoreInitialMode(Config config)
     {
         var allModes = _apiResponse?.Data?.Modes;
         var installable = DynamicModePolicy.GetInstallableModes(allModes);
-        var selectedSlug = DynamicModePolicy.ResolveInitialSelection(config.LastMode, installable);
+        var installedModeSlug = GetInstalledModeSlugForInitialSelection();
+        var selectedSlug = DynamicModePolicy.ResolveInitialSelection(
+            installedModeSlug, config.LastMode, installable);
 
         if (selectedSlug != null)
             SelectModeBySlug(selectedSlug);
+    }
+
+    private string? GetInstalledModeSlugForInitialSelection()
+    {
+        var installedLoad = _stateStore.Load();
+        if (installedLoad.Status != FileLoadStatus.Valid
+            || installedLoad.Value?.Source != "api"
+            || string.IsNullOrWhiteSpace(installedLoad.Value.ModeSlug))
+        {
+            return null;
+        }
+
+        return installedLoad.Value.ModeSlug;
     }
 
     private void ShowModeLoadingPlaceholder()
@@ -353,6 +436,7 @@ public partial class MainForm : Form
             Margin = new Padding(0)
         };
         modesFlowPanel.Controls.Add(label);
+        ScheduleContentFit();
     }
 
     private void ShowModeFailurePlaceholder()
@@ -367,6 +451,7 @@ public partial class MainForm : Form
             Margin = new Padding(0)
         };
         modesFlowPanel.Controls.Add(label);
+        ScheduleContentFit();
     }
 
     private void SelectModeBySlug(string slug)
@@ -1379,6 +1464,7 @@ public partial class MainForm : Form
             : "✓ Гру знайдено";
         gameStatusLabel.ForeColor = UiTheme.Success;
         gamePathLabel.Text = path;
+        detectGameButton.Text = "Перевірити";
     }
 
     private void SetGameNotFound(string reason)
@@ -1386,6 +1472,7 @@ public partial class MainForm : Form
         gameStatusLabel.Text = reason;
         gameStatusLabel.ForeColor = UiTheme.SecondaryText;
         gamePathLabel.Text = "";
+        detectGameButton.Text = "Знайти автоматично";
     }
 
     private void SetGameSearching()
@@ -1393,6 +1480,7 @@ public partial class MainForm : Form
         gameStatusLabel.Text = "Пошук гри...";
         gameStatusLabel.ForeColor = UiTheme.SecondaryText;
         gamePathLabel.Text = "";
+        detectGameButton.Text = "Пошук...";
     }
 
     // --- Operation state ---
@@ -1457,24 +1545,26 @@ public partial class MainForm : Form
         if (_gameRoot == null)
         {
             SetLocalizationStateText("Не визначено");
-            SetInstalledInfo("");
-            SetSelectedInfo("");
+            ClearInstalledPresentation();
+            ClearTargetPresentation();
             _lastResolvedState = LocalizationState.NotInstalled;
             if (!_apiLoadedSuccessfully)
                 SetMessage(ApiErrorPresentation.GetUserMessage(_apiErrorKind, _apiErrorMessage));
             else
-                SetMessage("Гру не знайдено. Натисніть \"Знайти гру\" або оберіть папку вручну.");
+                SetMessage("Гру не знайдено. Натисніть \"Знайти автоматично\" або оберіть папку.");
+            ScheduleContentFit();
             return;
         }
 
         if (!_apiLoadedSuccessfully)
         {
             SetLocalizationStateText("Не визначено");
-            SetInstalledInfo("");
-            SetSelectedInfo("");
+            ClearInstalledPresentation();
+            ClearTargetPresentation();
             _lastResolvedState = LocalizationState.NotInstalled;
             SetMessage(ApiErrorPresentation.GetUserMessage(_apiErrorKind, _apiErrorMessage));
             SetActionsEnabled(false, !_operationInProgress);
+            ScheduleContentFit();
             return;
         }
 
@@ -1482,15 +1572,12 @@ public partial class MainForm : Form
         var installedLoad = _stateStore.Load();
         string? installedModeSlug = null;
         string? installedPublicId = null;
-        DateTimeOffset? installedAt = null;
         string? installedModeDisplayName = null;
 
         if (installedLoad.Status == FileLoadStatus.Valid && installedLoad.Value?.Source == "api")
         {
             installedModeSlug = installedLoad.Value.ModeSlug;
             installedPublicId = installedLoad.Value.PublicId;
-            installedAt = installedLoad.Value.InstalledAt;
-
             var installedApiMode = _apiResponse?.Data?.Modes?
                 .FirstOrDefault(m => string.Equals(m.Slug, installedModeSlug, StringComparison.Ordinal));
             installedModeDisplayName = installedApiMode?.PublicName ?? installedModeSlug;
@@ -1510,44 +1597,52 @@ public partial class MainForm : Form
         _lastResolvedState = stateResult.State;
         ApplyLocalizationStatePresentation(stateResult);
 
-        // Installed info display
-        if (installedLoad.Status == FileLoadStatus.Valid && installedLoad.Value?.Source == "api")
-        {
-            var dateStr = installedAt.HasValue
-                ? installedAt.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
-                : "";
-            var info = $"Встановлено: {installedModeDisplayName ?? "невідомо"}";
-            if (installedLoad.Value.Version > 0)
-                info += $" • v{installedLoad.Value.Version}";
-            if (dateStr != "")
-                info += $" • {dateStr}";
-            SetInstalledInfo(info);
-        }
-        else if (installedLoad.Status == FileLoadStatus.Missing
-            || (installedLoad.Status == FileLoadStatus.Valid && installedLoad.Value?.Source == "official"))
-        {
-            SetInstalledInfo("Локалізацію не встановлено");
-        }
-        else
-        {
-            SetInstalledInfo("");
-        }
-
-        // Selected mode details
         var selectedMode = GetSelectedApiMode();
         var selectedCurrent = selectedMode?.Current;
 
-        if (selectedCurrent != null)
+        var hasInstalledApiState = installedLoad.Status == FileLoadStatus.Valid
+            && installedLoad.Value?.Source == "api";
+        var exactSelectedTarget = hasInstalledApiState
+            && InstallActionPolicy.IsExactInstalledTarget(installedModeSlug, installedPublicId, selectedMode);
+        var sameInstalledModeSelected = hasInstalledApiState
+            && selectedMode?.Slug != null
+            && string.Equals(installedModeSlug, selectedMode.Slug, StringComparison.Ordinal);
+
+        ApplySelectionAwareHeadline(
+            stateResult,
+            hasInstalledApiState,
+            sameInstalledModeSelected,
+            exactSelectedTarget,
+            selectedMode,
+            selectedCurrent);
+
+        if (hasInstalledApiState)
         {
-            var selName = DynamicModePolicy.GetDisplayName(selectedMode!);
-            var selLine = DynamicModePolicy.FormatReleaseLine(selectedMode!);
-            SetSelectedInfo(string.IsNullOrEmpty(selLine)
-                ? $"Обрано: {selName}"
-                : $"Обрано: {selName} • {selLine}");
+            SetInstalledPresentation(
+                "ВСТАНОВЛЕНО ЗАРАЗ",
+                installedModeDisplayName ?? installedModeSlug ?? "Невідомо",
+                FormatInstalledMetadata(installedLoad.Value!));
         }
         else
         {
-            SetSelectedInfo("");
+            ClearInstalledPresentation();
+        }
+
+        if (!exactSelectedTarget && selectedMode != null && selectedCurrent != null)
+        {
+            var targetCaption = !hasInstalledApiState
+                ? "ОБРАНО ДЛЯ ВСТАНОВЛЕННЯ"
+                : sameInstalledModeSelected
+                    ? "ДОСТУПНЕ ОНОВЛЕННЯ"
+                    : "ОБРАНО ДЛЯ ВСТАНОВЛЕННЯ";
+            SetTargetPresentation(
+                targetCaption,
+                DynamicModePolicy.GetDisplayName(selectedMode),
+                DynamicModePolicy.FormatReleaseLine(selectedMode));
+        }
+        else
+        {
+            ClearTargetPresentation();
         }
 
         // Installed marker on matching RadioButton
@@ -1563,15 +1658,20 @@ public partial class MainForm : Form
         if (diagnostic == null && stateResult.State == LocalizationState.Corrupted)
             diagnostic = "Файл локалізації пошкоджено. Спробуйте встановити знову.";
 
-        // Exact-installed informational message
-        if (diagnostic == null)
+        if (diagnostic == null && !IsCriticalHeadlineState(stateResult))
         {
             var policy = InstallActionPolicy.Evaluate(
                 stateResult.State, installedModeSlug, installedPublicId,
                 selectedMode, selectedCurrent, compatResult, _operationInProgress);
 
-            if (policy.AlreadyInstalledExactTarget)
-                diagnostic = "Цей реліз уже встановлено.";
+            if (policy.AlreadyInstalledExactTarget && stateResult.State == LocalizationState.UpToDate)
+                diagnostic = "Встановлена остання доступна версія.";
+            else if (!hasInstalledApiState && selectedCurrent != null)
+                diagnostic = "Натисніть «Встановити», щоб встановити обраний режим.";
+            else if (hasInstalledApiState && selectedCurrent != null)
+                diagnostic = sameInstalledModeSelected
+                    ? "Натисніть «Встановити», щоб оновити локалізацію."
+                    : "Натисніть «Встановити», щоб перейти на обраний режим.";
         }
 
         SetMessage(diagnostic ?? "");
@@ -1582,6 +1682,7 @@ public partial class MainForm : Form
             selectedMode, selectedCurrent, compatResult, _operationInProgress);
 
         SetActionsEnabled(actionPolicy.CanInstall, actionPolicy.CanRestoreOriginal);
+        ScheduleContentFit();
     }
 
     private void UpdateInstalledMarkers(string? installedModeSlug, string? installedPublicId)
@@ -1640,9 +1741,113 @@ public partial class MainForm : Form
         };
     }
 
-    public void SetInstalledInfo(string text) => installedInfoLabel.Text = text;
+    private void ApplySelectionAwareHeadline(
+        LocalizationStateResult factualResult,
+        bool hasInstalledApiState,
+        bool sameInstalledModeSelected,
+        bool exactSelectedTarget,
+        LocalizationMode? selectedMode,
+        CurrentRelease? selectedCurrent)
+    {
+        if (IsCriticalHeadlineState(factualResult))
+            return;
 
-    public void SetSelectedInfo(string text) => detailsLabel.Text = text;
+        if (!hasInstalledApiState)
+            return;
+
+        if (exactSelectedTarget && factualResult.State == LocalizationState.UpToDate)
+        {
+            localizationStateLabel.Text = "✓ Обраний режим уже встановлено";
+            localizationStateLabel.ForeColor = UiTheme.Success;
+            return;
+        }
+
+        if (selectedMode == null || selectedCurrent == null)
+            return;
+
+        if (sameInstalledModeSelected)
+        {
+            localizationStateLabel.Text = "Доступне оновлення локалізації";
+            localizationStateLabel.ForeColor = UiTheme.Accent;
+        }
+        else
+        {
+            localizationStateLabel.Text = "Обрано інший режим локалізації";
+            localizationStateLabel.ForeColor = UiTheme.Accent;
+        }
+    }
+
+    private static bool IsCriticalHeadlineState(LocalizationStateResult result)
+    {
+        return result.PatchTransition != LocalizationPatchTransition.None
+            || result.State is LocalizationState.Corrupted
+                or LocalizationState.WaitingForRelease
+                or LocalizationState.InstalledVersionUnknown;
+    }
+
+    public void SetInstalledInfo(string text)
+    {
+        installedModeLabel.Text = text;
+        installedModeLabel.Visible = !string.IsNullOrWhiteSpace(text);
+    }
+
+    public void SetSelectedInfo(string text)
+    {
+        targetModeLabel.Text = text;
+        targetModeLabel.Visible = !string.IsNullOrWhiteSpace(text);
+    }
+
+    private void SetInstalledPresentation(string caption, string mode, string metadata)
+    {
+        installedCaptionLabel.Text = caption;
+        installedModeLabel.Text = mode;
+        installedMetaLabel.Text = metadata;
+        installedCaptionLabel.Visible = true;
+        installedModeLabel.Visible = true;
+        installedMetaLabel.Visible = !string.IsNullOrWhiteSpace(metadata);
+    }
+
+    private void ClearInstalledPresentation()
+    {
+        installedCaptionLabel.Text = "";
+        installedModeLabel.Text = "";
+        installedMetaLabel.Text = "";
+        installedCaptionLabel.Visible = false;
+        installedModeLabel.Visible = false;
+        installedMetaLabel.Visible = false;
+    }
+
+    private void SetTargetPresentation(string caption, string mode, string metadata)
+    {
+        targetCaptionLabel.Text = caption;
+        targetModeLabel.Text = mode;
+        targetMetaLabel.Text = metadata;
+        targetCaptionLabel.Visible = true;
+        targetModeLabel.Visible = true;
+        targetMetaLabel.Visible = !string.IsNullOrWhiteSpace(metadata);
+    }
+
+    private void ClearTargetPresentation()
+    {
+        targetCaptionLabel.Text = "";
+        targetModeLabel.Text = "";
+        targetMetaLabel.Text = "";
+        targetCaptionLabel.Visible = false;
+        targetModeLabel.Visible = false;
+        targetMetaLabel.Visible = false;
+    }
+
+    private static string FormatInstalledMetadata(InstallationMetadata metadata)
+    {
+        var parts = new List<string>();
+        if (metadata.Version is > 0)
+            parts.Add($"v{metadata.Version.Value}");
+        if (metadata.GamePatch is > 0)
+            parts.Add($"патч {metadata.GamePatch.Value}");
+        if (metadata.InstalledAt != default)
+            parts.Add($"встановлено {metadata.InstalledAt.ToLocalTime():dd.MM.yyyy HH:mm}");
+        return string.Join(" · ", parts);
+    }
 
     public void SetProgress(int percent)
     {

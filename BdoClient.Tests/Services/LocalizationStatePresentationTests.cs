@@ -14,7 +14,7 @@ public sealed class LocalizationStatePresentationTests
 
         var text = LocalizationStatePresentation.GetDisplayText(result);
 
-        Assert.Equal("Гра оновила файл локалізації", text);
+        Assert.Equal("Після оновлення гри файл локалізації було замінено", text);
         Assert.DoesNotContain("пошкоджено", text);
     }
 

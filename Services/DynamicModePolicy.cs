@@ -47,12 +47,12 @@ internal static class DynamicModePolicy
 
         var parts = new List<string>();
         if (c.Version > 0) parts.Add($"v{c.Version}");
-        if (c.Patch > 0) parts.Add($"patch {c.Patch}");
+        if (c.Patch > 0) parts.Add($"патч {c.Patch}");
 
         var dateStr = FormatPublishedDate(c.PublishedAt);
-        if (dateStr != null) parts.Add($"реліз {dateStr}");
+        if (dateStr != null) parts.Add(dateStr);
 
-        return string.Join(" • ", parts);
+        return string.Join(" · ", parts);
     }
 
     public static string? FormatPublishedDate(string? publishedAt)
@@ -66,7 +66,22 @@ internal static class DynamicModePolicy
     public static string? ResolveInitialSelection(
         string? savedLastMode, List<LocalizationMode> installableModes)
     {
+        return ResolveInitialSelection(null, savedLastMode, installableModes);
+    }
+
+    public static string? ResolveInitialSelection(
+        string? installedModeSlug,
+        string? savedLastMode,
+        List<LocalizationMode> installableModes)
+    {
         if (installableModes.Count == 0) return null;
+
+        if (!string.IsNullOrWhiteSpace(installedModeSlug))
+        {
+            var installedMatch = installableModes.FirstOrDefault(
+                m => string.Equals(m.Slug, installedModeSlug, StringComparison.Ordinal));
+            if (installedMatch != null) return installedMatch.Slug;
+        }
 
         if (savedLastMode != null)
         {

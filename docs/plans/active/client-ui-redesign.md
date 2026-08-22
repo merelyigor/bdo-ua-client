@@ -5,8 +5,8 @@ Status: **ACTIVE**
 Backlog order: 1
 PRIMARY: **YES**
 Implementation authorization: **YES**
-Current phase: **Stage 1 completed / Stage 2 next**
-Next action: implement Stage 2 — Static Material-inspired layout and information hierarchy
+Current phase: **Stage 2 completed / Stage 3 next**
+Next action: implement Stage 3 — Dynamic localization mode presentation
 
 ---
 
@@ -73,7 +73,7 @@ Border:                 #3D3D3D  (61,61,61)
 - Keep native `FolderBrowserDialog`, `MessageBox`, and ordinary Windows dialogs.
 - Prefer a small UI-only theme/palette helper when needed; do not add a theme framework, DI system, or factory hierarchy.
 - ReaLTaiizor is visual/reference-only and is not authorized as a production dependency.
-- GroupBox styling: dark background + white text (keep GroupBox structure)
+- Stage 2 surface presentation: native dark card/panel containers replace the visible classic GroupBox composition while preserving functional control ownership and event wiring.
 - Install button: gold accent (stand out from other buttons)
 - RadioButton: white text on transparent background
 - ProgressBar: gold foreground, dark background
@@ -121,16 +121,33 @@ Acceptance: Release build, full solution tests, local preview publish, and owner
 
 Apply the approved visual hierarchy to the header, game section, status section, diagnostic area, footer/actions, and version/log utility area while preserving control responsibilities and event behavior.
 
+**Status: COMPLETED — owner visual review ACCEPTED.**
+
+Delivered architecture:
+
+- Material-inspired BDO header and native WinForms card/surface composition for `Гра`, `Локалізація`, and `Стан`.
+- Responsive approximately `800×650` layout with approximately `700×500` minimum size, content-driven vertical sizing, working-area height cap, and root vertical scrolling fallback.
+- Dynamic localization modes remain API-driven and visible without changing their Stage 3 RadioButton presentation boundary.
+- Status relationship hierarchy distinguishes the exact installed target, a different selected mode, and a same-mode release update; persisted installed metadata remains authoritative for the installed block.
+- Action bar keeps `Install` as the left primary action and groups `Restore Original` and `Cancel` on the right.
+- Initial startup selection prioritizes the currently installed API mode when still installable, without rewriting `LastMode`.
+
+Final initial-selection invariant on startup:
+
+`installed API ModeSlug if still installable → Config.LastMode → first installable mode → none`
+
+This priority applies only to initial startup. User-driven selection continues to persist `LastMode`; background feed refresh preserves the current selection and does not force installed-mode selection. The exact installed marker remains `ModeSlug + PublicId`.
+
 Stage 2 information architecture requirements:
 
 - Preserve the three principal user concepts: `Гра`, `Локалізація`, and `Стан`.
 - Introduce a compact application header with the conceptual hierarchy `BDO UA Client` and `Українська локалізація Black Desert Online`; version and logs may remain in an unobtrusive header/footer utility area.
 - Prefer the clear Ukrainian section names `Гра`, `Локалізація`, and `Стан`; avoid technical wording such as `Режим локалізації` where `Локалізація` communicates the same concept.
 - Display release metadata in the form `v3 · патч 398 · 21.08.2026`, using Ukrainian `патч` and omitting a redundant `реліз` before a contextual date. API fields and semantics remain unchanged.
-- Avoid status duplication. When the selected mode equals the installed target, show one primary state such as `✓ Локалізація актуальна`, concise installed metadata once, and optionally `Встановлена остання доступна версія`; do not repeat an `Обрано` line or the same installed fact. When they differ, show `Зараз:` with the installed mode and `Буде встановлено:` with the selected mode. Business state and `InstallActionPolicy` remain authoritative.
+- Avoid status duplication and distinguish factual installation from the current selection. For an exact selected target, show `✓ Обраний режим уже встановлено` with one `ВСТАНОВЛЕНО ЗАРАЗ` block and no target block. For a different mode, show `Обрано інший режим локалізації`, `ВСТАНОВЛЕНО ЗАРАЗ`, and `ОБРАНО ДЛЯ ВСТАНОВЛЕННЯ`. For the same mode with another release, show `Доступне оновлення локалізації` and `ДОСТУПНЕ ОНОВЛЕННЯ`. Critical factual states retain priority; business state and `InstallActionPolicy` remain authoritative.
 - Prefer action-oriented plain Ukrainian, including `Обрати папку` instead of `Обрати вручну` where applicable. Label changes must not alter event semantics or introduce speculative behavior changes.
 
-Validation: startup, resize, game found/not-found, default install/restore/cancel states, long game path, local preview, and owner visual approval.
+Validation completed: startup, resize, game found/not-found, default install/restore/cancel states, long game path, dynamic content states, install/restore flows, restart selection, local preview, and owner visual approval.
 
 ### Stage 3 — Dynamic localization mode presentation
 
@@ -166,12 +183,12 @@ Fix only concrete defects discovered by validation.
 
 - [ ] Form background is dark (#121212)
 - [ ] All text is readable (white on dark)
-- [ ] GroupBoxes have dark background
+- [x] Material-inspired dark card/surface layout replaces the visible classic GroupBox composition
 - [ ] Install button is gold (#C8A415)
 - [ ] Other buttons have dark background with visible borders
 - [ ] ProgressBar is gold
 - [ ] RadioButton text is readable in all modes
-- [ ] Status colors work (green=OK, red=error, gray=unknown)
+- [x] Status relationship presentation distinguishes installed, selected, and update states
 - [ ] All existing functionality and behavioral contracts are preserved
 - [ ] Native WinForms remains the production UI technology
 - [ ] No ReaLTaiizor production dependency or `--prototype` launch mode is introduced
@@ -202,9 +219,10 @@ Fix only concrete defects discovered by validation.
 - [x] Read-only UI discovery completed
 - [x] Canonical architecture and visual direction defined
 - [x] Local preview validation policy defined
-- [x] Plan activated as PRIMARY; Stage 1 is next
+- [x] Plan activated as PRIMARY; Stage 2 is complete and Stage 3 is next
 - [x] Stage 1 theme foundation implemented, locally previewed, and owner-approved
-- [ ] Stage 2 — Static Material-inspired layout and information hierarchy
+- [x] Stage 2 — Static Material-inspired layout and information hierarchy implemented, locally previewed, and owner-approved
+- [ ] Stage 3 — Dynamic localization mode presentation
 
 ## Manual visual validation loop
 
