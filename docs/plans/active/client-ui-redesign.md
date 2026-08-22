@@ -6,7 +6,7 @@ Backlog order: 1
 PRIMARY: **YES**
 Implementation authorization: **YES**
 Current phase: **Stage 2 completed / Stage 3 next**
-Next action: implement Stage 3 — Dynamic localization mode presentation
+Next action: implement Stage 3 — UI completion
 
 ---
 
@@ -115,7 +115,7 @@ Likely scope: `MainForm` presentation code and an optional small UI-only theme/p
 
 Delivered: centralized BDO dark palette, static dark-theme readability, semantic Primary / Accent Secondary / Neutral / Destructive button roles with runtime enabled/disabled synchronization, and local development version display as `DEV`.
 
-Acceptance: Release build, full solution tests, local preview publish, and owner manual visual review completed. Stage 1 is **COMPLETED** and owner-approved. Stage 2 is next; no Stage 2 implementation has started.
+Acceptance: Release build, full solution tests, local preview publish, and owner manual visual review completed. Stage 1 is **COMPLETED** and owner-approved; Stage 2 was subsequently completed and owner-approved.
 
 ### Stage 2 — Static main-window layout and cards
 
@@ -149,35 +149,51 @@ Stage 2 information architecture requirements:
 
 Validation completed: startup, resize, game found/not-found, default install/restore/cancel states, long game path, dynamic content states, install/restore flows, restart selection, local preview, and owner visual approval.
 
-### Stage 3 — Dynamic localization mode presentation
+### Stage 3 — UI completion
 
-Redesign dynamically generated localization mode controls while preserving identifiers and behavior.
+Combine the remaining visual responsibilities into one owner-reviewed implementation stage without changing business behavior, API contracts, storage, installation, cancellation, updater internals, or adding UI dependencies.
 
-Stage 3 selectable mode card requirement: the final visible presentation must not expose classic WinForms `RadioButton` controls. Each API-driven localization mode must be presented as a Material-inspired selectable card with normal, hover, selected, selected+hover, installed, disabled/incompatible, and keyboard-focus states. The entire card must be clickable, with restrained BDO gold emphasis for selection rather than a bright yellow fill. Preserve one mutually exclusive selection, exact `ModeSlug` identity, `Tag`, `CheckedChanged`-equivalent behavior, `LastMode` persistence, feed-refresh restoration, exact `ModeSlug` + `PublicId` installed matching, fallback selection, invalid-mode filtering, and API-driven dynamic creation. Cards must retain visible focus, Tab navigation, keyboard activation, and readable disabled states; do not hardcode modes.
+#### Localization mode presentation
 
-Stage 3 flag-rendering requirement: do not rely on native `RadioButton` text rendering for regional-indicator country flags. Recognized leading flag tokens must be rendered as graphical presentation elements/icons, while preserving API-provided mode-name semantics and all existing slug, `Tag`, `CheckedChanged`, `LastMode`, exact `PublicId` matching, feed-refresh, invalid-mode filtering, and API-driven discovery behavior. Support at least the flags currently present in API mode names; ordinary text must remain readable when a flag cannot be mapped. Do not hardcode modes or add an external emoji framework/dependency solely for flags. This requirement is presentation-only and does not authorize implementing the cards or flag icons in Stage 1.
+- Replace visible classic WinForms `RadioButton` controls with Material-inspired selectable mode cards.
+- Make the entire card clickable and support normal, hover, selected, selected+hover, installed, disabled/incompatible, and keyboard-focus states.
+- Use restrained BDO gold for selection; do not use a bright-yellow full-card surface.
+- Keep installed distinct from selected; exact installed state remains `ModeSlug + PublicId`.
+- Preserve API-driven creation, `ModeSlug` identity, `Tag`/equivalent identity, mutual exclusion, `CheckedChanged`-equivalent behavior, `LastMode`, installed-mode-first startup selection, feed-refresh selection restoration, invalid-mode filtering, fallback behavior, visible focus, Tab navigation, and Space/Enter activation.
 
-Validation: multiple API modes, selection, exact installed match, update-available state, feed refresh, missing/invalid mode, long Ukrainian names, keyboard navigation, local preview, and owner approval.
+#### Graphical flags
 
-### Stage 4 — Operation/progress visual states
+- Do not rely on native regional-indicator emoji rendering.
+- Render recognized leading country flags graphically, supporting current UA/GB combinations at minimum.
+- Unknown or unmapped flags must fail gracefully to readable text.
+- Do not add an external emoji framework or hardcode localization modes.
 
-Theme all operation, progress, and cancel states without changing `OperationState` semantics or cooperative cancellation.
+#### Operation and progress presentation
 
-Validation: idle, loading, detecting, downloading percentage, verifying, backup, installing, restoring, completed, failed, cancelled, and close during active operation. Produce local preview and obtain owner approval.
+Theme the presentation of `LoadingApi`, `DetectingGame`, `Downloading`, `Verifying`, `BackingUp`, `Installing`, `Restoring`, `Completed`, `Failed`, and `Cancelled`, including determinate/indeterminate progress, Cancel presentation, and operation locking. Preserve all `OperationState` semantics and cooperative cancellation. A small focused native WinForms progress control may be considered only if the approved visual design requires it; no UI framework is authorized.
 
-If native WinForms `ProgressBar` cannot reliably achieve the approved design, a small focused UI-only progress control may be considered only in this stage after architecture review.
+#### Application update visual consistency
 
-### Stage 5 — Application self-update UI consistency
+Theme `updateButton`, version/log utility presentation, update availability/busy states, and `UpdateApplyingForm` if required. Do not alter self-update selection, staging, replacement, rollback, helper protocol, or other updater internals.
 
-Theme `updateButton`, version/log utility presentation, and optionally `UpdateApplyingForm`. Do not change updater internals.
+#### Stage 3 validation
 
-Validation: no update, eligible update, disabled/busy update, staging error, cancellation boundary, helper form, and handoff behavior. Produce local preview and obtain owner approval.
+Stage 3 requires Release build, full solution tests, local preview publish, and owner visual review. Validate all mode-card states, flags, operation/progress states, cancellation, and update UI states before owner acceptance.
 
-### Stage 6 — DPI, accessibility, and final UI regression
+### Stage 4 — Final UI validation and regression closure
 
-Validate 100%, 125%, 150%, and 200% Windows scaling; normal/minimum size; resizing; long Ukrainian text; long filesystem paths; tab order; visible focus; disabled controls; all localization states; all operation states; and update UI.
+Validation-driven closure stage; do not introduce another broad redesign. Validate:
 
-Fix only concrete defects discovered by validation.
+- Windows scaling at 100%, 125%, 150%, and 200%.
+- Default, minimum, and larger resized window sizes.
+- Dynamic vertical growth and scroll fallback.
+- Long Ukrainian text and long filesystem paths.
+- Tab order, visible keyboard focus, and Space/Enter activation of mode cards.
+- Disabled-state readability.
+- All localization relationship states, operation states, cancellation states, self-update UI states, and `UpdateApplyingForm` if themed.
+- No clipping, overlap, or functional regression.
+
+Fix only concrete defects found during this matrix. Stage 4 completion closes the UI redesign plan after owner acceptance and final automated validation.
 
 ## Acceptance criteria
 
@@ -222,7 +238,8 @@ Fix only concrete defects discovered by validation.
 - [x] Plan activated as PRIMARY; Stage 2 is complete and Stage 3 is next
 - [x] Stage 1 theme foundation implemented, locally previewed, and owner-approved
 - [x] Stage 2 — Static Material-inspired layout and information hierarchy implemented, locally previewed, and owner-approved
-- [ ] Stage 3 — Dynamic localization mode presentation
+- [ ] Stage 3 — UI completion
+- [ ] Stage 4 — Final UI validation and regression closure
 
 ## Manual visual validation loop
 

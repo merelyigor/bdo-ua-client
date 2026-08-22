@@ -31,16 +31,13 @@ public sealed class LocalizationInstaller
 
     public LocalizationInstaller(AppPaths appPaths, ILogger logger,
         int timeoutSeconds = DefaultTimeoutSeconds, int[]? retryDelaysMs = null)
-        : this(CreateDefaultHttpClient(), appPaths, logger, timeoutSeconds, retryDelaysMs) { }
+        : this(CreateDefaultHttpClient(logger), appPaths, logger, timeoutSeconds, retryDelaysMs) { }
 
-    private static HttpClient CreateDefaultHttpClient()
+    private static HttpClient CreateDefaultHttpClient(ILogger logger)
     {
-        var httpClient = new HttpClient(new HttpClientHandler
-        {
-            UseProxy = false
-        });
-        BdoUaHttpClientConfiguration.Configure(httpClient, BdoClient.Update.AppVersionInfo.Detect());
-        return httpClient;
+        return BdoUaHttpClientConfiguration.CreateHttpClient(
+            BdoClient.Update.AppVersionInfo.Detect(),
+            logger);
     }
 
     public async Task<DownloadResult> DownloadReleaseAsync(

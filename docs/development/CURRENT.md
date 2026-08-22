@@ -6,7 +6,7 @@
 
 BDO-UA Client — Windows .NET 8 WinForms застосунок для пошуку Black Desert Online, отримання українських локалізацій через `bdo-ua.com.ua`, безпечного встановлення, оновлення та відновлення файлів гри.
 
-Останній runtime-affecting baseline: `v14.2.3` — direct networking policy для application-owned HTTP clients. Активний PRIMARY implementation plan: `client-ui-redesign`, Stage 2 completed and owner-approved / Stage 3 next. `MainForm` now uses a Material-inspired BDO header/card layout with dynamic content-driven window sizing and vertical scroll fallback. Startup selection prioritizes the currently installed API `ModeSlug` when it remains installable, then `LastMode`. Stage 3 must replace visible RadioButtons with API-driven selectable mode cards and graphical flag presentation. Production remains native .NET 8 WinForms.
+Останній runtime-affecting baseline: `v14.2.3` — direct networking policy для application-owned HTTP clients. Активний PRIMARY implementation plan: `client-ui-redesign`, Stage 2 completed and owner-approved / Stage 3 next. `MainForm` now uses a Material-inspired BDO header/card layout with dynamic content-driven window sizing and vertical scroll fallback. Startup selection prioritizes the currently installed API `ModeSlug` when it remains installable, then `LastMode`. Shared BDO-UA/localization HTTP traffic uses `SocketsHttpHandler` with `UseProxy = false` and a DNS-based staggered multi-address TCP fallback; no hardcoded IPs are used, TLS remains standard .NET validation, and GitHub updater networking remains separate. Stage 3 must replace visible RadioButtons with API-driven selectable mode cards and graphical flag presentation. Production remains native .NET 8 WinForms.
 
 ## Architecture Summary
 
@@ -29,7 +29,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - `File.Replace` retry policy для Windows replacement зберігається з bounded 60-second retry window.
 - Session cleanup fail-closed: metadata видаляється останньою, unknown files не видаляються рекурсивно, lock failure залишає retryable metadata.
 - Restore-point retention: latest 3 valid points; original snapshot не бере участі в pruning.
-- Application-owned production HTTP clients використовують `HttpClientHandler.UseProxy = false`; це навмисний direct-networking trade-off без proxy UI/configuration.
+- Shared BDO-UA/localization production HTTP traffic uses `SocketsHttpHandler.UseProxy = false` with `ResilientConnectionConnector`: DNS candidates are interleaved where practical, connection attempts use a bounded stagger, and the first successful TCP stream wins. No server IP is hardcoded; standard .NET HTTPS/TLS/SNI and certificate validation remain in control of the handler. The GitHub updater keeps its separate HTTP client and networking policy.
 - Secrets, tokens і credentials не зберігаються в repository.
 
 ## Relevant Subsystems
@@ -54,11 +54,11 @@ Exact changes and validation are recorded in Git history and the monthly journal
 
 ## Active Work
 
-`client-ui-redesign` is the sole ACTIVE PRIMARY plan. Stage 2 — Static Material-inspired layout and information hierarchy — is complete and owner-approved. Stage 3 — Dynamic localization mode presentation — is next. Stage 3 will replace the visible RadioButtons with selectable cards and graphical flags while preserving API-driven selection contracts.
+`client-ui-redesign` is the sole ACTIVE PRIMARY plan. Stage 2 — Static Material-inspired layout and information hierarchy — is complete and owner-approved. Stage 3 — UI completion — is next and combines selectable localization cards, graphical flags, operation/progress presentation, and application-update visual consistency. Stage 4 will be final validation and regression closure.
 
 ## Known Issues / Unresolved Investigations
 
-- `docs/releases/v0.1.3.md` records historical intermittent API latency and backend cache delay. The current networking decision bypasses Windows WPAD/system proxy discovery, but no further unresolved production measurement is recorded here.
+- Historical intermittent cold-start connection stalls were mitigated by the DNS-based resilient connector after repeated owner runtime validation. The exact historical Cloudflare address responsible for each slow run is not asserted.
 - `docs/index.md` contains older historical test/stage text and is not the source of truth for current implementation status.
 
 ## Important Decisions
@@ -71,7 +71,7 @@ Exact changes and validation are recorded in Git history and the monthly journal
 
 ## Next Likely Work
 
-- Implement `client-ui-redesign` Stage 3 only after reviewing the canonical active plan and its local preview gate.
+- Implement `client-ui-redesign` Stage 3 only after reviewing the canonical active plan and its local preview gate. Stage 4 follows only after Stage 3 owner acceptance.
 - For any new meaningful implementation task, update this handoff if current context changes and append one concise entry to the current monthly journal in the same commit.
 
 ## Canonical References

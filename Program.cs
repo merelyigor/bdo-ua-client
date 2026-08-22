@@ -105,12 +105,10 @@ static class Program
         var configStore = new ConfigStore(appPaths, logger);
         var stateStore = new InstallationStateStore(appPaths, logger);
         var appVersionInfo = AppVersionInfo.Detect();
-        var httpClient = new HttpClient(new HttpClientHandler
-        {
-            UseProxy = false
-        });
-        httpClient.Timeout = TimeSpan.FromSeconds(30);
-        Api.BdoUaHttpClientConfiguration.Configure(httpClient, appVersionInfo);
+        var httpClient = Api.BdoUaHttpClientConfiguration.CreateHttpClient(
+            appVersionInfo,
+            logger,
+            TimeSpan.FromSeconds(30));
 
         var apiClient = new Api.BdoUaApiClient(httpClient, logger);
         var localizationInstaller = new LocalizationInstaller(httpClient, appPaths, logger);

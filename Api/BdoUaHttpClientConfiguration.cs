@@ -1,4 +1,5 @@
 using BdoClient.Update;
+using BdoClient.Logging;
 
 namespace BdoClient.Api;
 
@@ -25,5 +26,27 @@ internal static class BdoUaHttpClientConfiguration
 
         httpClient.DefaultRequestHeaders.UserAgent.Clear();
         httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(BuildUserAgent(versionInfo));
+    }
+
+    public static HttpClient CreateHttpClient(
+        AppVersionInfo versionInfo,
+        ILogger logger,
+        TimeSpan? timeout = null)
+    {
+        ArgumentNullException.ThrowIfNull(versionInfo);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        var connector = new ResilientConnectionConnector(logger);
+        var handler = new SocketsHttpHandler
+        {
+            UseProxy = false,
+            ConnectCallback = connector.ConnectAsync
+        };
+        var httpClient = new HttpClient(handler);
+        if (timeout.HasValue)
+            httpClient.Timeout = timeout.Value;
+
+        Configure(httpClient, versionInfo);
+        return httpClient;
     }
 }
