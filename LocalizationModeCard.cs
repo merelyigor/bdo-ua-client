@@ -232,8 +232,10 @@ internal sealed class LocalizationModeCard : Control
 
         if (Focused)
         {
-            var focusBounds = Rectangle.Inflate(bounds, -5, -5);
-            using var focusPen = new Pen(UiTheme.Accent, 1) { DashStyle = DashStyle.Dot };
+            var focusInset = _selected ? 6 : 4;
+            var focusBounds = Rectangle.Inflate(bounds, -focusInset, -focusInset);
+            var focusColor = _selected ? UiTheme.SecondaryText : UiTheme.Accent;
+            using var focusPen = new Pen(focusColor, 1) { DashStyle = DashStyle.Dot };
             e.Graphics.DrawRectangle(focusPen, focusBounds);
         }
     }

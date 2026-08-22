@@ -1551,6 +1551,7 @@ public partial class MainForm : Form
 
     private async Task RefreshStateAsync()
     {
+        installButton.Text = InstallButtonLabelPolicy.InstallText;
         SetActionsEnabled(false, false);
 
         if (_gameRoot == null)
@@ -1627,6 +1628,12 @@ public partial class MainForm : Form
             selectedMode,
             selectedCurrent);
 
+        installButton.Text = InstallButtonLabelPolicy.GetText(
+            stateResult.State,
+            hasInstalledApiState,
+            sameInstalledModeSelected,
+            exactSelectedTarget);
+
         if (hasInstalledApiState)
         {
             SetInstalledPresentation(
@@ -1681,7 +1688,7 @@ public partial class MainForm : Form
                 diagnostic = "Натисніть «Встановити», щоб встановити обраний режим.";
             else if (hasInstalledApiState && selectedCurrent != null)
                 diagnostic = sameInstalledModeSelected
-                    ? "Натисніть «Встановити», щоб оновити локалізацію."
+                    ? "Натисніть «Оновити», щоб оновити локалізацію."
                     : "Натисніть «Встановити», щоб перейти на обраний режим.";
         }
 

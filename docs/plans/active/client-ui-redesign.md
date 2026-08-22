@@ -183,7 +183,7 @@ Stage 3 validation completed with Release build, full solution tests, canonical 
 
 ### Stage 4 — Release Candidate validation and regression closure
 
-**Status: NEXT — not started.** This is the final Release Candidate validation gate, not another broad redesign stage. Validate:
+**Status: RC preparation completed; external validation NEXT.** This is the final Release Candidate validation gate, not another broad redesign stage. Validate:
 
 - Windows scaling at 100%, 125%, 150%, and 200%.
 - Default, minimum, and larger resized window sizes.
@@ -197,6 +197,8 @@ Stage 3 validation completed with Release build, full solution tests, canonical 
 - Self-update package/manifest flow, staged helper handoff, replacement/rollback compatibility, and themed `UpdateApplyingForm`.
 
 Automated RC validation requires a clean Release build, full tests, final publish, and RC package validation. Fix only concrete BLOCKER/IMPORTANT regressions found by this matrix; optional cosmetic refinements must not delay RC. Stage 4 completion closes the UI redesign plan after owner acceptance and final automated validation.
+
+RC preparation completed in this stage: contextual `Встановити`/`Оновити` labeling uses the factual state and selected-versus-installed relationship; user README instructions and current UI screenshots are aligned; Release build/tests and local preview validation are required before external RC workflow validation. Stable release completion is not claimed.
 
 ## Acceptance criteria
 

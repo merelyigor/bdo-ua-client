@@ -6,7 +6,7 @@
 
 BDO-UA Client — Windows .NET 8 WinForms застосунок для пошуку Black Desert Online, отримання українських локалізацій через `bdo-ua.com.ua`, безпечного встановлення, оновлення та відновлення файлів гри.
 
-Останній runtime-affecting baseline: `v14.2.3` — direct networking policy для application-owned HTTP clients. Активний PRIMARY implementation plan: `client-ui-redesign`, Stage 3 completed and owner-approved / Stage 4 next as the final Release Candidate validation gate. `MainForm` uses a Material-inspired BDO header/card layout with dynamic content-driven window sizing and vertical scroll fallback. API-driven localization modes are presented as selectable native WinForms cards with graphical UA/GB flags, dynamic multi-flag layout, and exact installed badges. `BdoProgressBar` preserves operation semantics and renders generic `Completed` as determinate 100% success; `UpdateApplyingForm` uses the dark BDO presentation while preserving helper behavior. Startup selection prioritizes the currently installed API `ModeSlug` when it remains installable, then `LastMode`. Shared BDO-UA/localization HTTP traffic uses `SocketsHttpHandler` with `UseProxy = false` and a DNS-based staggered multi-address TCP fallback; no hardcoded IPs are used, TLS remains standard .NET validation, and GitHub updater networking remains separate. Production remains native .NET 8 WinForms.
+Останній runtime-affecting baseline: `v14.2.3` — direct networking policy для application-owned HTTP clients. Активний PRIMARY implementation plan: `client-ui-redesign`, Stage 3 completed and owner-approved; Stage 4 RC preparation completed and external Release Candidate validation is next. `MainForm` uses a Material-inspired BDO header/card layout with dynamic content-driven window sizing and vertical scroll fallback. API-driven localization modes are presented as selectable native WinForms cards with graphical UA/GB flags, dynamic multi-flag layout, and exact installed badges. The primary action label is contextual: `Встановити` for installation/switching and `Оновити` for a newer release of the currently installed selected mode; exact installed remains disabled. `BdoProgressBar` preserves operation semantics and renders generic `Completed` as determinate 100% success; `UpdateApplyingForm` uses the dark BDO presentation while preserving helper behavior. Startup selection prioritizes the currently installed API `ModeSlug` when it remains installable, then `LastMode`. Shared BDO-UA/localization HTTP traffic uses `SocketsHttpHandler` with `UseProxy = false` and a DNS-based staggered multi-address TCP fallback; no hardcoded IPs are used, TLS remains standard .NET validation, and GitHub updater networking remains separate. Production remains native .NET 8 WinForms.
 
 ## Architecture Summary
 
@@ -54,7 +54,7 @@ Exact changes and validation are recorded in Git history and the monthly journal
 
 ## Active Work
 
-`client-ui-redesign` is the sole ACTIVE PRIMARY plan. Stage 3 — UI completion — is complete and owner-approved: selectable mode cards, graphical flags, operation/progress presentation, and application-update visual consistency are now implemented. Stage 4 — Release Candidate validation and regression closure — is next and is validation-driven, not another redesign stage.
+`client-ui-redesign` is the sole ACTIVE PRIMARY plan. Stage 3 — UI completion — is complete and owner-approved: selectable mode cards, graphical flags, operation/progress presentation, and application-update visual consistency are now implemented. Stage 4 RC preparation is complete; external Release Candidate validation and regression closure are next. Stage 4 remains validation-driven, not another redesign stage.
 
 ## Known Issues / Unresolved Investigations
 
@@ -71,7 +71,7 @@ Exact changes and validation are recorded in Git history and the monthly journal
 
 ## Next Likely Work
 
-- Execute `client-ui-redesign` Stage 4 only as the final Release Candidate validation/regression gate; do not begin another broad UI redesign.
+- Dispatch and externally validate the Release Candidate through the existing release workflow, then complete the Stage 4 regression matrix; do not begin another broad UI redesign.
 - For any new meaningful implementation task, update this handoff if current context changes and append one concise entry to the current monthly journal in the same commit.
 
 ## Canonical References

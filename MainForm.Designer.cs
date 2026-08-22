@@ -247,7 +247,7 @@ partial class MainForm
         modeGroupBox = CreateCard();
         modeGroupBox.Padding = new Padding(16);
         modeSectionCaptionLabel = CreateSectionCaption("ЛОКАЛІЗАЦІЯ");
-        modeSectionCaptionLabel.Margin = new Padding(0, 0, 0, 10);
+        modeSectionCaptionLabel.Margin = new Padding(0);
         modesFlowPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
@@ -257,7 +257,8 @@ partial class MainForm
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
             BackColor = Color.Transparent,
-            Margin = new Padding(0)
+            Margin = new Padding(0),
+            Padding = new Padding(0, 12, 0, 0)
         };
         modeGroupBox.Controls.Add(modesFlowPanel);
         modeGroupBox.Controls.Add(modeSectionCaptionLabel);
