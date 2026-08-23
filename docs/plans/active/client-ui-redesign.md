@@ -281,6 +281,10 @@ artifacts/local-preview/win-x64/BDO-UA-Client.exe
 
 Preview повинен відповідати exact implementation state, який передається owner для review.
 
+### Manual screenshot check
+
+Після запуску local preview у доступній Windows desktop session агент повинен захопити screenshot головного вікна та перевірити його разом із runtime preview. Перевірити clipping, DPI/масштабування, читабельність тексту, spacing, alignment і стани контролів. Screenshot є тимчасовим review artifact поза repository; його не stage-ити та не commit-ити. Якщо desktop session або screenshot недоступні, owner виконує цей manual check самостійно.
+
 ### Artifact policy
 
 `artifacts/local-preview/` — тимчасовий local output. Він повинен залишатися untracked, ніколи не stage-итися або commit-итися, не потрапляти до persistent development journal як binary content і бути безпечно перезаписуваним на наступному UI stage. `artifacts/` уже ігнорується; `.gitignore` не змінювати.
