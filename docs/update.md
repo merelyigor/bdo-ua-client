@@ -1,0 +1,91 @@
+# Self-update клієнта (Stage 13)
+
+Механізм оновлення самого застосунку. Джерело — публічні GitHub Releases репозиторію `merelyigor/bdo-ua-client`. Без custom backend, без GitHub token, без HTTP (тільки HTTPS).
+
+## Принципи (AGENTS §41)
+
+- Автоматична перевірка оновлень у background при startup; максимум один запит за session; не блокує UI.
+- Встановлення — лише після explicit натискання «Оновити до vX.Y.Z». Ніякого silent/forced update.
+- Порівняння версій — тільки numeric (`AppVersion`: 0.1.9 < 0.1.10), ніколи lexicographic.
+- Channel policy: якщо current release prerelease → дозволені newer prerelease + stable; інакше — тільки newer stable.
+- Current EXE ніколи не змінюється, доки verified candidate не готовий.
+- Backup перед replace, rollback при будь-якій помилці. Ніколи «old deleted, new not installed».
+- Application update та localization операції взаємовиключні.
+
+## Транспорт: canonical ZIP
+
+Єдиний release asset — GitHub-generated ZIP `BDO-UA-Client-vX.Y.Z-win-x64.zip`, всередині якого чотири flat-файли:
+
+| Файл | Призначення |
+|---|---|
+| `BDO-UA-Client.exe` | Застосунок |
+| `release-manifest.json` | Schema-2 manifest (internal) |
+| `SHA256SUMS.txt` | Суми файлів |
+| `RELEASE_NOTES-vX.Y.Z.md` | Нотатки релізу |
+
+Немає project-created nested ZIP, немає `.7z`/`.tar` тощо. GitHub asset digest валідує зовнішній ZIP; updater валідує внутрішній EXE SHA-256 та version metadata.
+
+## Компоненти (Update/)
+
+| Клас | Відповідальність |
+|---|---|
+| `ApplicationCommandLine` | Парсинг `--apply-update <session-id>`, exit codes аргументів |
+| `AppVersion` / `AppVersionInfo` | Numeric semantic версія + детекція версії поточного EXE |
+| `GitHubUpdateClient` / `GitHubRelease` / `GitHubResult` | Запит до GitHub Releases API (окремий HttpClient, `UseProxy=false`, без токена) |
+| `UpdateSelectionPolicy` | Вибір candidate: numeric comparison + channel policy |
+| `UpdateManifestValidator` | Валідація schema-2 manifest (schema_version, version, sha256, asset_name) |
+| `ExecutableVersionValidator` | Перевірка FileVersion/ProductVersion staged EXE проти manifest |
+| `UpdatePackageService` / `UpdatePackageResult` | Завантаження та розпакування ZIP, валідація вмісту |
+| `ReplacementWorkspace` | Staging-директорія для candidate EXE |
+| `PreparedAttemptCleanup` | Очищення незавершених сесій підготовки |
+| `UpdateSession` / `UpdateSessionStore` | Стан сесії у `%LocalAppData%\BDO-UA-Client\updates\<GUID>\update-session.json` |
+| `SelfUpdatePreparationService` | Повний цикл підготовки: download → validate → stage → session |
+| `SelfUpdateApplier` | Helper mode: заміна EXE + restart + rollback, exit codes |
+| `StartupUpdateLifecycleCoordinator` | Startup maintenance: cleanup незавершених сесій (`RunStartupMaintenance()`) |
+| `UpdateLifecycleService` | Координація check → prepare → apply |
+| `UpdateButtonState` | Обчислення стану кнопки «Оновити до vX.Y.Z» |
+| `ForegroundWindowHelper` | Допоміжна робота з фокусом вікон |
+
+## Lifecycle
+
+```
+Startup
+├── StartupUpdateLifecycleCoordinator.RunStartupMaintenance()
+│     └── cleanup незавершених prepared sessions
+├── Background check (один раз за session)
+│     └── GitHubUpdateClient → UpdateSelectionPolicy → candidate?
+├── Користувач натискає «Оновити до vX.Y.Z»
+│     └── SelfUpdatePreparationService:
+│           download ZIP → validate manifest → extract EXE →
+│           SHA-256 + version verification → stage у updates/<GUID>/ → session saved
+└── Handoff
+      └── запуск staged EXE з --apply-update <session-id>,
+          завершення поточного процесу
+```
+
+### Helper mode (`--apply-update <session-id>`)
+
+Staged EXE запускається як helper. `SelfUpdateApplier.RunAsync(sessionId)`:
+1. Читає session з `updates/<GUID>/`
+2. Чекає завершення батьківського процесу (timeout → rollback)
+3. Backup current EXE → заміна → верифікація SHA-256/version
+4. Restart нової версії; при невдачі — rollback до backup
+
+UI — `UpdateApplyingForm`.
+
+### Exit codes (`SelfUpdateApplier`)
+
+| Код | Значення |
+|---|---|
+| `ExitCodeSuccess` | Оновлення застосовано |
+| `ExitCodeRestartFailedRecovered` | Помилка, попередню версію відновлено і запущено |
+| `ExitCodeParentTimeout` | Батьківський процес не завершився вчасно; версію не змінено |
+| `ExitCodeVerificationFailed` | Перевірка цілісності не пройдена |
+| `ExitCodeReplaceFailed` | Помилка заміни файлу |
+| `ExitCodeRestartFailed` | Не вдалося перезапустити автоматично |
+
+## Обмеження
+
+- Ніякого UAC elevation (Stage 13).
+- Ніякого permanent Updater.exe, PowerShell/BAT updater, Windows Service — тільки internal helper mode.
+- TLS verification ніколи не вимикається.

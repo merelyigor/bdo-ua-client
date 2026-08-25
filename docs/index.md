@@ -11,7 +11,10 @@
 | [ui.md](ui.md) | Користувацький інтерфейс |
 | [states.md](states.md) | Моделі станів: LocalizationState, OperationState |
 | [testing.md](testing.md) | Тестування |
-| [build.md](build.md) | Збірка та пакування |
+| [update.md](update.md) | Self-update клієнта (GitHub Releases, Stage 13) |
+| [build.md](build.md) | Збірка, CI та реліз |
+| [Релізи](releases/README.md) | Процедура релізу та архів реліз-нотаток |
+| [Дизайн](design/BDO_THEME_PLAN.md) | BDO-тема UI (план та кольори) |
 | [Плани](plans/README.md) | Плани реалізації |
 | [Development context](development/README.md) | Поточний engineering handoff та monthly journal |
 
@@ -19,8 +22,9 @@
 
 - **Платформа:** Windows x64, .NET 8, WinForms
 - **Пакування:** self-contained single-file (BDO-UA-Client.exe)
-- **Тести:** 313 automated tests
-- **Статус:** Stage 12 — Real Windows E2E stabilization
+- **Оновлення клієнта:** GitHub Releases `merelyigor/bdo-ua-client`, canonical ZIP transport (schema-2 manifest)
+- **Тести:** ~800 автоматизованих тестів (точна кількість — результат `dotnet test`, див. [testing.md](testing.md))
+- **Статус:** Stage 13 (self-update) завершено та заархівовано; активний план — `client-ui-redesign`
 
 ## Пов'язані документи
 

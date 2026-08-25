@@ -331,7 +331,14 @@ internal static class DynamicModePolicy
 
 ### `ResolveInitialSelection`
 
-Збіг з `savedLastMode` (ordinal) → перший зі списку → `null` якщо порожній.
+Два перевантаження:
+
+```csharp
+ResolveInitialSelection(string? savedLastMode, List<LocalizationMode> installableModes);
+ResolveInitialSelection(string? installedModeSlug, string? savedLastMode, List<LocalizationMode> installableModes);
+```
+
+Пріоритет вибору: `installedModeSlug` (exact ordinal збіг) → `savedLastMode` (ordinal збіг) → перший елемент списку. Перше перевантаження делегує друге з `installedModeSlug = null`. Повертає `null` якщо список порожній.
 
 ---
 
@@ -395,9 +402,12 @@ public sealed class LocalizationStateService
     public async Task<LocalizationStateResult> ResolveAsync(
         CurrentRelease? current,
         string gameLocFilePath,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? gameRoot = null);
 }
 ```
+
+`gameRoot` — опціональний корінь гри; якщо переданий, сервіс читає локальний патч через `AdsFilesPatchReader.TryReadPatch(gameRoot)` для визначення patch transition.
 
 ### Логіка `ResolveAsync`
 
@@ -407,11 +417,18 @@ public sealed class LocalizationStateService
 | 2 | `installation.json` invalid | `InstalledVersionUnknown` |
 | 3 | `metadata.Source == "official"` | `NotInstalled` |
 | 4 | Game file missing | `Corrupted` |
-| 5 | SHA-256 mismatch | `Corrupted` |
+| 5 | SHA-256 mismatch АБО локальний патч (`ads_files`) новіший за `metadata.GamePatch` | Patch transition (див. нижче), зазвичай НЕ `Corrupted` |
 | 6 | `current == null` | `WaitingForRelease` |
 | 7 | `current.PublicId` empty/null/whitespace | `WaitingForRelease` + Warning |
 | 8 | `metadata.PublicId == current.PublicId` (ordinal) | `UpToDate` |
 | 9 | Інше | `UpdateAvailable` |
+
+### Patch transition
+
+`LocalizationPatchTransition { None, ExistingLocalizationOutdated, GameFileReplacedAfterPatch }`.
+
+- **Hash mismatch** при фактичному `ads_files` patch, новішому за `InstallationMetadata.GamePatch`, — нормальна transition-подія після оновлення гри, а не `Corrupted`. Результат: `GameFileReplacedAfterPatch`.
+- **Локальний patch новіший за встановлений** (`localPatch > installedPatch`, без hash mismatch) — `ExistingLocalizationOutdated`; фінальний стан зазвичай `UpdateAvailable` або `WaitingForRelease`.
 
 ### LocalizationStateResult
 
@@ -420,9 +437,13 @@ public sealed class LocalizationStateResult
 {
     public LocalizationState State { get; }
     public string? Error { get; }
+    public int? InstalledGamePatch { get; }
+    public int? LocalGamePatch { get; }
+    public LocalizationPatchTransition PatchTransition { get; }
 
     public static LocalizationStateResult Success(LocalizationState state);
     public static LocalizationStateResult WithWarning(LocalizationState state, string error);
+    public static LocalizationStateResult WithPatchTransition(..., LocalizationPatchTransition transition, ...);
 }
 ```
 
@@ -476,10 +497,13 @@ internal static class HashHelper
     public static async Task<string> ComputeFileSha256Async(string filePath, CancellationToken cancellationToken = default);
     public static string ComputeSha256(byte[] data);
     public static async Task CopyFileAsync(string sourcePath, string destinationPath, CancellationToken cancellationToken = default);
+    public static async Task CopyFileCreateNewAsync(string sourcePath, string destinationPath, CancellationToken cancellationToken = default);
 }
 ```
 
 SHA-256 повертається у форматі lowercase hex string.
+
+`CopyFileCreateNewAsync` — копіювання з забороною перезапису: якщо destination існує, операція завершується помилкою. Використовується для створення backup-копій, щоб захистити existing original snapshot від перезапису модифікованим файлом (AGENTS §14.2).
 
 ---
 
@@ -498,6 +522,21 @@ internal sealed class StartupCoordinatorResult
     public ReleasesResponse? ApiResponse { get; }
     public ApiErrorKind ApiErrorKind { get; }
     public string? ApiErrorMessage { get; }
+}
+
+internal sealed class StartupGameResult
+{
+    public bool IsFound { get; }
+    public string? GamePath { get; }
+    public DetectionSource? Source { get; }
+}
+
+internal sealed class StartupApiResult
+{
+    public bool Success { get; }
+    public ReleasesResponse? Response { get; }
+    public ApiErrorKind ErrorKind { get; }
+    public string? ErrorMessage { get; }
 }
 
 internal sealed class StartupCoordinator
@@ -547,9 +586,11 @@ internal sealed class StartupCoordinator
 ```csharp
 internal static class ApiErrorPresentation
 {
-    public static string GetUserMessage(ApiErrorKind errorKind, string? rawMessage = null);
+    public static string GetUserMessage(ApiErrorKind errorKind, string? technicalMessage = null);
 }
 ```
+
+`technicalMessage` не впливає на текст повідомлення — усі тексти статичні; параметр залишено для сумісності сигнатур.
 
 ### Маппінг
 
@@ -562,3 +603,87 @@ internal static class ApiErrorPresentation
 | `Cancelled` | Запит скасовано. |
 | `Unexpected` | Неочікувана помилка при зверненні до сервера. |
 | `None` | Не вдалося завантажити режими локалізації. |
+
+---
+
+## 13. ReleaseFeedPoller
+
+Background-полінг `GET /releases` для оновлення даних між операціями. `public sealed class`, `IDisposable`.
+
+```csharp
+public sealed class ReleaseFeedPoller : IDisposable
+{
+    public ReleaseFeedPoller(BdoUaApiClient apiClient, ILogger logger, TimeSpan? pollInterval = null);
+
+    public event Action<ReleasesResponse>? OnFeedCandidate;
+    public event Action<string>? OnPollFailed;
+
+    public bool IsRunning { get; }
+    public void Start(ReleasesResponse? acceptedFeed);
+    public void Stop();
+    public void Pause();
+    public void Resume();
+    public void AcceptFeed(ReleasesResponse feed);
+    public ReleasesResponse? GetAcceptedFeed();
+}
+```
+
+Інтервал за замовчуванням — 15 секунд. Полінг призупиняється під час операцій (`Pause`/`Resume` з боку MainForm/FeedApplicationCoordinator).
+
+## 14. FeedChangeDetector
+
+`public static class`. Семантичне порівняння двох feed-відповідей:
+
+```csharp
+public static bool HasSemanticChange(ReleasesResponse? oldFeed, ReleasesResponse? newFeed);
+```
+
+Порівнює: `OfficialPatch`, `OfficialSourceUrl`, порядок режимів та per-mode поля (`Slug`, `PublicName`, `Description`, `Audience`, усі поля `current`). Ігнорує `GeneratedAt` (технічне поле). Використовується, щоб не застосовувати feed без фактичних змін.
+
+## 15. FeedApplicationCoordinator
+
+Серіалізація застосування feed-кандидатів у UI-стан.
+
+```csharp
+public sealed class FeedApplicationCoordinator
+{
+    public FeedApplicationCoordinator(
+        Func<ReleasesResponse, Task<bool>> applyFeed,
+        ReleaseFeedPoller poller,
+        ILogger logger);
+
+    public bool IsApplying { get; }
+    public bool IsBlocked { get; }
+    public bool HasPendingFeed { get; }
+
+    public void BlockUpdates();   // на час localization-операцій
+    public void UnblockUpdates();
+
+    public Task OnCandidateAsync(ReleasesResponse candidate);   // від poller event
+    public Task ApplyPendingIfAnyAsync();                       // після завершення операції
+}
+```
+
+Логіка:
+- Кандидат, що прийшов під час `blocked` або `applying`, зберігається як **pending**.
+- `ApplyPendingIfAnyAsync` застосовує останній pending кандидат після завершення операції; при невдачі кандидат повертається у чергу (requeue), щоб уникнути регресії (`ClearStalePending` проти застарілих pending).
+
+## 16. AdsFilesPatchReader
+
+`public static class`. Читає файл `{gameRoot}\ads_files` та витягує версію патчу гри з рядка `languagedata_en.loc <patch>`.
+
+```csharp
+public static int? TryReadPatch(string? gameRoot);
+```
+
+Повертає `null` при: відсутньому/некореневому `gameRoot`, відсутньому `ads_files`, неоднозначному вмісті (записів `languagedata_en.loc` != 1) або помилках IO/access. Використовується `LocalizationStateService` для patch transition.
+
+## 17. LocalizationStatePresentation
+
+`public static class`. Перетворює `LocalizationStateResult` на український UI-текст.
+
+```csharp
+public static string GetDisplayText(LocalizationStateResult result);
+```
+
+Пріоритет: patch transition тексти ("Встановлена локалізація застаріла", "Після оновлення гри файл локалізації було замінено") → текст стану. Детальніше — docs/states.md.

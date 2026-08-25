@@ -1,182 +1,148 @@
-# UI — MainForm
+# UI — MainForm та BDO-тема
 
-Один вікно (`MainForm`), розмір 640×560 (мінімум 620×480), стартова позиція — центр екрана.
+Один головний вікно (`MainForm`) з кастомною BDO-темою.
 
-## Структура
+## Вікно
 
-Вікно містить 4 блоки, розташовані вертикально через `TableLayoutPanel`:
+- **ClientSize:** 1040×720, **MinimumSize:** 760×560
+- Стартова позиція — центр екрана
+- Контент-driven висота: форма динамічно підганяє висоту під вміст; якщо контент не вміщується — вертикальний скрол (`rootScrollPanel`, `AutoScroll = true`)
+- Custom window chrome через `WindowChromeHelper` (внутрішній static class)
 
-```
-┌─────────────────────────────┐
-│  [Гра]                      │  AutoSize
-├─────────────────────────────┤
-│  [Режим локалізації]        │  AutoSize
-├─────────────────────────────┤
-│  [Стан]                     │  Fill (займає решту)
-├─────────────────────────────┤
-│  [Встановити] [Відновити]…  │  AutoSize
-└─────────────────────────────┘
-```
+## Тема (UiTheme)
+
+`UiTheme` (internal static) — централізовані кольори (`PrimaryText`, `SecondaryText`, `Accent`, `Background`, `SurfaceElevated` тощо), шрифти та масштабування (`UiTheme.Scale`). Дизайн задокументований у [docs/design/](design/BDO_THEME_PLAN.md).
+
+Ключові кастомні компоненти:
+
+| Компонент | Призначення |
+|---|---|
+| `BdoSurfacePanel` | Панель-«картка» з піднятою поверхнею (`SurfaceColor`) |
+| `BdoProgressBar` | Кастомний progress bar із семантичними станами |
+| `LocalizationModeCard` | Клікабельна картка режиму локалізації (мінімум 240×220) |
 
 ---
 
-## 1. Блок «Гра» (`gameGroupBox`)
+## Структура форми
 
-GroupBox з заголовком **"Гра"**.
+Вертикальний стек через `TableLayoutPanel` (`mainLayoutPanel`), усередині `rootScrollPanel`:
+
+```
+┌──────────────────────────────────────────┐
+│  Header: назва + utility panel           │
+├──────────────────────────────────────────┤
+│  Блок «Гра» (gameGroupBox)                │
+├──────────────────────────────────────────┤
+│  Блок «Локалізація» (modeGroupBox)       │
+├──────────────────────────────────────────┤
+│  Operation strip (operationStrip)        │  Visible лише під час операції
+└──────────────────────────────────────────┘
+```
+
+## Header
+
+- **headerTitleLabel** — «BDO UA Client», Segoe UI 20pt Bold.
+- **headerSubtitleLabel** — підзаголовок проєкту українською.
+- **headerAccentLine** — акцентна лінія 2px.
+- **rightUtilityPanel** (праворуч):
+  - **updateButton** — «Оновити до vX.Y.Z». Прихований за замовчуванням; з'являється, коли знайдено candidate оновлення клієнта. Стани обчислюються через `UpdateButtonState.Compute(...)`; під час localization-операцій оновлення заблоковане (взаємовиключність, AGENTS §41.9).
+  - **versionLabel** — поточна версія застосунку.
+  - **logsButton** — іконка 32×32, tooltip «Відкрити папку журналів».
+
+---
+
+## 1. Блок «Гра» (`gameGroupBox`, BdoSurfacePanel)
+
+Секційний заголовок **"BLACK DESERT"** (`gameSectionCaptionLabel`).
 
 Елементи:
-- **`gameStatusLabel`** — текстовий Label, постійний індикатор стану пошуку гри. Зелений `"✓ Гру знайдено"` (або `"✓ Гру знайдено вручну"`) при успіху, сірий `"Гру не знайдено"` / `"Пошук гри..."` в інших випадках. Не зникає після успіху — залишається видимим.
-- **`gamePathLabel`** — показує знайдений шлях до гри з `AutoEllipsis`.
-- **`detectGameButton`** — кнопка **"Знайти гру"**, запускає автоматичний пошук через `GameDetector` (registry → Steam → API hints).
-- **`browseGameButton`** — кнопка **"Обрати вручну"**, відкриває `FolderBrowserDialog`.
-
-Layout: 2×2 `TableLayoutPanel`. Перший рядок — `gameStatusLabel` на всю ширину. Другий рядок — `gamePathLabel` зліва, кнопки праворуч (`FlowLayoutPanel`).
+- **`gameStatusLabel`** — Segoe UI 11pt Bold. Зелений «✓ Гру знайдено» при успіху, сірий статус у інших випадках. Не зникає після успіху.
+- **`gamePathLabel`** — шлях до гри, `AutoEllipsis`.
+- **`detectGameButton`** — автоматичний пошук. Динамічний текст: «Знайти автоматично» → «Пошук...» під час пошуку → «Перевірити» після успіху.
+- **`browseGameButton`** — **«Обрати папку»**, відкриває `FolderBrowserDialog`.
+- **`restoreOriginalButton`** — **«Відновити оригінал»**, розташований у блоці гри. Активний лише коли локалізація встановлена.
 
 ### Детекція гри: UX-поведінка
 
-**Стартовий пошук (MainForm_Shown → StartupCoordinator):**
+**Стартовий пошук (StartupCoordinator):**
 
-API запит та локальна детекція запускаються **паралельно** через `StartupCoordinator`:
-1. `gameStatusLabel` одразу показує `"Пошук гри..."`
+API запит та локальна детекція запускаються паралельно:
+1. `gameStatusLabel` одразу показує «Пошук гри...»
 2. Результати обробляються в порядку завершення (`Task.WhenAny`)
-3. Локальна детекція (SavedConfig/Registry/Steam) показує результат одразу при завершенні
-4. API результат обробляється одразу при завершенні (modes будуються незалежно від detection)
-5. Якщо локальна детекція не знайшла гру — показується `"Локально гру не знайдено. Очікування даних сервера..."`
+3. Локальна детекція (SavedConfig/Registry/Steam) показує результат одразу
+4. Modes будуються незалежно від detection
+5. Якщо локально не знайдено — «Локально гру не знайдено. Очікування даних сервера...»
 6. API fallback виконується тільки коли обидва факти відомі: local NotFound + API success with patterns
 
-**Автоматичний пошук (DetectGameButton_Click):**
+**Ручний вибір:**
 
-- **Успішний `DetectAsync`**: новий `GamePath` стає активним, `gameStatusLabel` = зелений `"✓ Гру знайдено"`.
-- **`DetectAsync` повертає нормальний NotFound**: `_gameRoot` очищається, `gameStatusLabel` = сірий `"Гру не знайдено"`, `gamePathLabel` очищається.
-- **`DetectAsync` викидає неочікуваний exception**: якщо попередній `_gameRoot` досі валідний (`ValidateGamePath` повертає `true`), попередній root відновлюється як активний з попереднім зеленим статусом. Повідомлення про помилку показується в `messageTextBox`. Якщо попереднього валідного root немає — `"Помилка пошуку гри"`.
-
-**Ручний вибір (BrowseGameButton_Click):**
-
-- **Невалідна/неоднозначна папка при наявності активного валідного `_gameRoot`**: статус гри та шлях не змінюються — показується лише тимчасове повідомлення про помилку в `messageTextBox`.
-- **Невалідна/неоднозначна папка без активного валідного `_gameRoot`**: `gameStatusLabel` = сірий `"Гру не знайдено"`.
-
-**Manual parent→child resolution**: якщо користувач обирає батьківську папку (наприклад, `C:\Games`), `GameDetector.ResolveManualGameRoot` шукає підпапку з грою:
-1. Сама обрана папка (exact root)
-2. Підпапки першого рівня (immediate children)
-3. Якщо знайдено кілька — `"Знайдено кілька папок з грою. Оберіть точну папку гри."`
-4. Глибоке рекурсивне сканування не виконується.
+- Невалідна/неоднозначна папка при наявності валідного `_gameRoot` — статус не змінюється, лише повідомлення.
+- Manual parent→child resolution: `GameDetector.ResolveManualGameRoot` шукає гру в самій папці або серед дітей першого рівня; кілька збігів → «Знайдено кілька папок з грою. Оберіть точну папку гри.» Глибоке рекурсивне сканування не виконується.
 
 ---
 
-## 2. Блок «Режим локалізації» (`modeGroupBox`)
+## 2. Блок «Локалізація» (`modeGroupBox`)
 
-GroupBox з заголовком **"Режим локалізації"**.
+Секційний заголовок **"Локалізація"** (`modeSectionCaptionLabel`).
 
-Елементи:
-- **`modesFlowPanel`** — `FlowLayoutPanel` з `FlowDirection.TopDown`, `WrapContents = false`. Містить динамічно створені `RadioButton`.
+### Картки режимів (`LocalizationModeCard`)
 
-### Динамічне побудова режимів
+Режими **не захардкоджені** — будуються з `_apiResponse.Data.Modes` через `DynamicModePolicy.GetInstallableModes()`. Для кожного режиму створюється картка `LocalizationModeCard(mode)` у `modesFlowPanel`.
 
-Режими **не захардкоджені**. Вони будуються з `_apiResponse.Data.Modes` через `DynamicModePolicy.GetInstallableModes()`. Режим вважається придатним для встановлення, якщо `Current != null` та структурно валідний.
+Картка містить:
+- Назву режиму + інформацію про реліз (`DynamicModePolicy.FormatReleaseLine`)
+- Графічні прапорці UA/GB через `LocalizationFlagParser`
+- Exact installed badge «✓ Встановлено» — лише при exact match (ModeSlug + PublicId), див. `ModeCardPresentationPolicy`
+- Всю площу картку клікабельна; вибір картки зберігає `LastMode` у `Config`
 
-Для кожного режиму створюється `RadioButton`:
-- **Text**: `"{PublicName}\n{releaseLine}"` (багаторядковий: назва + інформація про реліз)
-- **Tag**: `mode.Slug` (використовується для ідентифікації)
-- **AutoSize**: `true`
+Презентація та вибір карток централізовані в `ModeCardPresentationPolicy` (internal static).
 
-При зміні вибраного режиму (`CheckedChanged`) зберігається `LastMode` у `Config` та оновлюється стан.
+### Стан локалізації
 
-### Маркер встановленого режиму
-
-`UpdateInstalledMarkers()` проходить по всіх `RadioButton` у `modesFlowPanel`. Для кожного перевіряється: чи збігається `slug` з `installedModeSlug` **І** чи збігається `PublicId` поточного релізу цього режиму з `installedPublicId`. Якщо так — до тексту додається `"\n✓ Встановлено"`.
-
-Це **exact match**: потрібен збіг і ModeSlug, і PublicId. Якщо встановлено режим A з PublicId X, а в API режим A має вже інший current (PublicId Y) — маркер не показується.
+Текст стану формується через `LocalizationStatePresentation.GetDisplayText(LocalizationStateResult)` — включно з patch-transition текстами (див. docs/states.md).
 
 ---
 
-## 3. Блок «Стан» (`statusGroupBox`)
+## 3. Operation strip (`operationStrip`)
 
-GroupBox з заголовком **"Стан"**, `Dock = Fill` — займає весь доступний простір.
+`BdoSurfacePanel`, **прихований за замовчуванням**, з'являється лише під час активної операції. Елементи (рядок):
 
-Елементи (зверху вниз):
-- **`localizationStateLabel`** — **Segoe UI 10pt Bold**, колір `ControlText` (для `UpToDate` — зелений `SuccessGreen`, для `Corrupted` — `DarkRed`). Текст поточного стану локалізації: `"Локалізацію не встановлено"`, `"✓ Встановлена локалізація актуальна"`, `"Доступна новіша версія встановленої локалізації"` тощо. Відображає `LocalizationState` у зрозумілій формі.
-- **`installedInfoLabel`** — **Segoe UI 9.5pt**, колір `ControlText`. Формат: `"Встановлено: {назва режиму} • v{версія} • {дата}"` або `"Локалізацію не встановлено"`.
-- **`detailsLabel`** — **Segoe UI 9.5pt**, колір `ControlText`. Формат: `"Обрано: {назва режиму} • {інформація про реліз}"`. Порожній, якщо немає обраного режиму з current.
-- **spacer** — 8px порожній рядок.
-- **progressBar + progressLabel** — рядок з `ProgressBar` (0–100) та Label праворуч з текстом відсотка або статусу операції.
-- **`messageTextBox`** — багаторядковий `ReadOnly` TextBox з вертикальним скролом. Показує діагностичні повідомлення, помилки, підтвердження.
+- **operationMessageLabel** — опис операції (wrap до 720px).
+- **progressBar** (`BdoProgressBar`) — прогрес 0–100.
+- **progressLabel** — відсоток або текстовий статус операції.
+- **cancelButton** — «Скасувати»; активна лише під час операції, викликає `_operationCts.Cancel()`.
 
-### Відображення OperationState у progressLabel
+### OperationState → progressLabel
 
-| OperationState | Текст progressLabel |
-|---|---|
-| `Idle` | `0%` |
-| `DetectingGame` | `Пошук гри...` |
-| `LoadingApi` | `Завантаження даних...` |
-| `Downloading` | `Завантаження...` |
-| `Verifying` | `Перевірка...` |
-| `BackingUp` | `Створення резервної копії...` |
-| `Installing` | `Встановлення...` |
-| `Restoring` | `Відновлення...` |
-| `Completed` | `Завершено` |
-| `Failed` | `Помилка` |
-| `Cancelled` | `Скасовано` |
-
-Під час `Downloading` progressLabel також оновлюється відсотком через `OnDownloadProgress`.
+Див. таблицю в [states.md](states.md). Під час `Downloading` progressLabel оновлюється відсотком через `OnDownloadProgress`.
 
 ---
 
-## 4. Блок «Дії» (`actionsPanel`)
-
-`FlowLayoutPanel` зліва направо, `Dock = Bottom`.
-
-Кнопки:
-- **`installButton`** — **"Встановити"**. Єдина кнопка для першої установки, заміни режиму та оновлення. Окрема кнопка "Оновити" відсутня.
-- **`restoreOriginalButton`** — **"Відновити оригінал"**. Відновлює офіційний файл: спочатку завантаження з `official_source_url`, fallback на локальний original snapshot (якщо патч збігається).
-- **`cancelButton`** — **"Скасувати"**. Активна лише під час операції. Натискання викликає `_operationCts.Cancel()`.
-
-Кнопки **"Оновити"** та **"Відновити backup"** в UI відсутні.
-
-Початковий стан: всі три кнопки `Enabled = false`.
-
----
-
-## 5. Операційний flow
+## 4. Операційний flow
 
 ### Guard: `_operationInProgress`
 
-Булевий прапорець, що блокує паралельне виконання операцій. `HandleInstallAsync()` та `HandleRestoreOriginalAsync()` на вході перевіряють `if (_operationInProgress) return;`.
+Блокує паралельні операції. Install / Restore Original / Update client — взаємовиключні.
 
-### Блокування контролів під час операції
+### Під час операції
 
-`SetControlsDuringOperation(false)` вимикає:
-- `detectGameButton`
-- `browseGameButton`
-- Всі `RadioButton` у `modesFlowPanel`
-
-Кнопка `cancelButton` вмикається окремо після створення `CancellationTokenSource`.
+1. `BlockUpdates()` на feed-координаторі — feed-оновлення стають pending
+2. Кнопки блоків гри та картки режимів вимикаються
+3. `operationStrip` стає видимим, `cancelButton` активується
 
 ### Після завершення операції
 
-1. `cancelButton.Enabled = false`
-2. `_operationCts?.Dispose()` + `null`
-3. `_operationInProgress = false`
-4. `SetControlsDuringOperation(true)` — відновлення контролів
-5. `RefreshStateAsync()` — оновлення всього UI
-6. Вивід фінального повідомлення
+1. `cancelButton.Enabled = false`, CTS dispose
+2. `UnblockUpdates()` + `ApplyPendingIfAnyAsync()`
+3. Оновлення всього UI (стан, картки, кнопки)
+4. Фінальне повідомлення
 
 ### FormClosing safety
 
-Обробник `MainForm_FormClosing`:
-- Якщо операція **не** виконується — дозволяє закриття.
-- Якщо операція виконується — `e.Cancel = true`, запуск скасування через `_operationCts.Cancel()`. Повторне закриття після завершення операції.
+Якщо операція виконується — закриття скасовується (`e.Cancel = true`), запускається cancellation; повторне закриття можливе після завершення операції.
 
 ---
 
-## 6. Скасування операції
+## 5. Helper mode UI (`UpdateApplyingForm`)
 
-`CancelButton_Click`:
-1. Перевірка `_operationInProgress` та `_operationCts != null`.
-2. `cancelButton.Enabled = false` — запобігає повторному натисканню.
-3. `SetMessage("Скасування операції...")`.
-4. `_operationCts.Cancel()`.
-
-У `HandleInstallAsync` / `HandleRestoreOriginalAsync`:
-- `OperationCanceledException` перехоплюється окремим catch-блоком.
-- `SetOperationState(OperationState.Cancelled)`.
-- Повідомлення: "Встановлення скасовано." / "Відновлення оригіналу скасовано."
+Малий діалог 480×178, який показується під час застосування self-update (`--apply-update <session-id>`): індикатор прогресу + текст. Після завершення показує результат (успіх — без повідомлення, помилки — MessageBox з українським описом, див. docs/update.md).

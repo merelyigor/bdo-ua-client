@@ -4,15 +4,30 @@
 
 ```
 BDO-PROGRAM/
-├── Program.cs                  — Composition root: створення всіх залежностей, запуск MainForm
+├── Program.cs                  — Composition root: normal mode + --apply-update helper mode
 ├── MainForm.cs                 — UI логіка (WinForms), обробка подій, координація сервісів
 ├── MainForm.Designer.cs        — WinForms designer: контрольні елементи та layout
 ├── BdoClient.csproj            — Проектний файл (.NET 8.0-windows, WinForms)
 ├── BdoUaClient.sln             — Solution файл
 │
+│   ── UI-компоненти (корінь) ──
+├── BdoSurfacePanel.cs          — Кастомна панель поверх BDO-фону (тема)
+├── BdoProgressBar.cs           — Кастомний progress bar із семантичними станами
+├── LocalizationModeCard.cs     — Клікабельна картка режиму локалізації (замість RadioButton)
+├── ModeCardPresentation.cs     — Політика презентації карток режимів (ModeCardPresentationPolicy)
+├── UiTheme.cs                  — BDO-тема: кольори, шрифти, масштабування
+├── WindowChromeHelper.cs       — Custom title bar / window chrome
+├── UpdateApplyingForm.cs       — UI helper mode (--apply-update)
+├── InstallButtonLabelPolicy.cs — Контекстний текст кнопки («Встановити»/«Оновити»/«✓ Встановлено»)
+├── LocalizationFlagParser.cs   — Парсинг UA/GB прапорців для карток режимів
+├── ThemePrototype.cs.reference.txt — Історичний референс теми (не компілюється)
+│
 ├── Api/
 │   ├── ApiResult.cs            — Result pattern: ApiResult<T> Success/Error
-│   └── BdoUaApiClient.cs       — HTTP клієнт для GET /releases (base URL, timeout, error handling)
+│   ├── BdoUaApiClient.cs       — HTTP клієнт GET /releases + WarmupConnectionAsync
+│   ├── BdoUaHttpClientConfiguration.cs — Конфігурація HttpClient (User-Agent, proxy, handler)
+│   ├── NetworkDiagnostics.cs   — Форматування мережевих помилок для логів
+│   └── ResilientConnectionConnector.cs — Happy-eyeballs TCP connect (parallel DNS attempts)
 │
 ├── Models/
 │   ├── ReleasesResponse.cs     — Кореневий DTO відповіді API
@@ -46,7 +61,32 @@ BDO-PROGRAM/
 │   ├── InstallResult.cs        — Результат встановлення
 │   ├── InstallActionPolicy.cs  — Політика дій встановлення
 │   ├── DynamicModePolicy.cs    — Політика динамічних режимів
-│   └── HashHelper.cs           — SHA-256 хешування файлів
+│   └── HashHelper.cs           — SHA-256 хешування та захищене копіювання файлів
+│
+├── Update/                     — Self-update клієнта (Stage 13, див. docs/update.md)
+│   ├── ApplicationCommandLine.cs — Парсинг --apply-update <session-id>
+│   ├── AppVersion.cs / AppVersionInfo.cs — Numeric версія та детекція поточної версії EXE
+│   ├── GitHubRelease.cs / GitHubResult.cs / GitHubUpdateClient.cs — Клієнт GitHub Releases (без токена)
+│   ├── UpdateSelectionPolicy.cs — Вибір релізу: numeric comparison + channel policy
+│   ├── UpdateManifest.cs / UpdateManifestValidator.cs — Schema-2 manifest + валідація
+│   ├── ExecutableVersionValidator.cs — Перевірка версії staged EXE
+│   ├── UpdatePackageService.cs / UpdatePackageResult.cs — Завантаження та розпакування ZIP
+│   ├── ReplacementWorkspace.cs  — Staging-директорія для candidate EXE
+│   ├── PreparedAttemptCleanup.cs — Очищення незавершених сесій оновлення
+│   ├── UpdateSession.cs / UpdateSessionStore.cs — Сесійний стан у updates/<GUID>/
+│   ├── SelfUpdatePreparationService.cs — Підготовка сесії (download → validate → stage)
+│   ├── SelfUpdateApplier.cs     — Helper mode: заміна EXE + restart, exit codes
+│   ├── StartupUpdateLifecycleCoordinator.cs — Startup maintenance (cleanup)
+│   ├── UpdateLifecycleService.cs — Координація перевірки/підготовки оновлення
+│   ├── UpdateButtonState.cs     — Стани кнопки «Оновити до vX.Y.Z»
+│   └── ForegroundWindowHelper.cs — Допоміжний клас для фокусу вікон
+│   ├── LocalizationStatePresentation.cs — UI-тексти станів локалізації
+│   ├── ApiErrorPresentation.cs — ApiErrorKind → українські UI повідомлення
+│   ├── AdsFilesPatchReader.cs  — Читання патчу гри з ads_files
+│   ├── ReleaseFeedPoller.cs    — Background polling /releases (15 с)
+│   ├── FeedChangeDetector.cs   — Семантичне порівняння feed-кандидатів
+│   ├── FeedApplicationCoordinator.cs — Застосування feed-змін (pending черга)
+│   └── StartupCoordinator.cs   — Паралельний startup: API + local detection
 │
 ├── Storage/
 │   ├── AppPaths.cs             — Шляхи до %LocalAppData%\BDO-UA-Client\ (config, state, logs, cache, backups)
@@ -71,8 +111,13 @@ BDO-PROGRAM/
 
 Весь граф залежностей створюється в `Program.cs` (Manual DI). DI-контейнер не використовується.
 
+### Normal mode (`RunNormalMode`)
+
 ```
 Program.Main()
+│
+├─ ApplicationCommandLine.Parse(args)
+│   └─ --apply-update <session-id> → RunHelperMode() (див. docs/update.md)
 │
 ├─ AppPaths                    — базові шляхи (%LocalAppData%\BDO-UA-Client\)
 │   └─ EnsureDirectories()     — створення каталогів якщо відсутні
@@ -81,8 +126,9 @@ Program.Main()
 │
 ├─ ConfigStore(appPaths, logger)
 ├─ InstallationStateStore(appPaths, logger)
+├─ AppVersionInfo.Detect()     — версія поточного EXE
 │
-├─ HttpClient                  — ОДИН екземпляр, спільний для:
+├─ HttpClient                  — ОДИН екземпляр через BdoUaHttpClientConfiguration:
 │   ├─ BdoUaApiClient(httpClient, logger)
 │   └─ LocalizationInstaller(httpClient, appPaths, logger)
 │
@@ -90,10 +136,16 @@ Program.Main()
 ├─ LocalizationStateService(stateStore, logger)
 ├─ LocalizationCompatibilityService()   — stateless, не потребує залежностей
 │
+├─ GitHub HttpClient           — ОКРЕМИЙ HttpClient (UseProxy = false):
+│   └─ GitHubUpdateClient → UpdateSelectionPolicy
+│
 └─ MainForm(configStore, apiClient, gameDetector,
             stateService, compatService,
-            localizationInstaller, backupStore, stateStore, logger)
+            localizationInstaller, backupStore, stateStore, logger,
+            appVersionInfo, gitHubClient, selectionPolicy, appPaths)
 ```
+
+MainForm всередині себе додатково створює: `UpdateSessionStore`, `UpdateManifestValidator`, `UpdatePackageService`, `SelfUpdatePreparationService`, `UpdateLifecycleService`, feed-сервіси (`ReleaseFeedPoller`, `FeedApplicationCoordinator`) та `StartupCoordinator`.
 
 ---
 
@@ -101,21 +153,23 @@ Program.Main()
 
 ```
 MainForm
-├── ConfigStore ──────────── AppPaths, ILogger
-├── BdoUaApiClient ──────── HttpClient, ILogger
-├── GameDetector ─────────── ConfigStore, ILogger
+├── ConfigStore ─────────────── AppPaths, ILogger
+├── BdoUaApiClient ──────────── HttpClient, ILogger
+├── GameDetector ────────────── ConfigStore, ILogger
 ├── LocalizationStateService ── InstallationStateStore, ILogger
 ├── LocalizationCompatibilityService (stateless)
-├── LocalizationInstaller ── HttpClient, AppPaths, ILogger
-├── BackupStore ──────────── AppPaths, ILogger
-├── InstallationStateStore ── AppPaths, ILogger
+├── LocalizationInstaller ───── HttpClient, AppPaths, ILogger
+├── BackupStore ─────────────── AppPaths, ILogger
+├── InstallationStateStore ──── AppPaths, ILogger
+├── GitHubUpdateClient ──────── GitHub HttpClient, ILogger
+├── UpdateLifecycleService ──── GitHubUpdateClient, SelectionPolicy, PreparationService, ...
 └── ILogger (FileLogger)
 
 AppPaths ─── (no dependencies, reads %LocalAppData%)
 FileLogger ── AppPaths.LogsDir
 ```
 
-**Правило:** сервіси не залежать один від одного напряму. Координація відбувається в MainForm.
+**Правило:** сервіси localization-домену не залежать один від одного напряму. Self-update утворює власну ієрархію (`UpdateLifecycleService` координує preparation/applier). Координація відбувається в MainForm.
 
 ---
 
@@ -138,6 +192,10 @@ FileLogger ── AppPaths.LogsDir
         └── {public_id}/
             ├── languagedata_en.loc
             └── metadata.json
+└── updates/                          — self-update сесії (Stage 13)
+    └── {GUID}/                       — одна сесія оновлення
+        ├── update-session.json       — стан сесії (див. docs/update.md)
+        └── ...                       — staged candidate EXE та manifest
 ```
 
 **Примітки:**
@@ -145,22 +203,29 @@ FileLogger ── AppPaths.LogsDir
 - `installation.json` оновлюється ТІЛЬКИ після успішного встановлення (post-verify).
 - `backups/original/` створюється один раз і ніколи не перезаписується.
 - `backups/restore-points/` — попередні версії локалізації для rollback.
+- `updates/<GUID>/` — staged candidate нового EXE; current EXE не змінюється до повної верифікації.
 
 ---
 
-## 5. Shared HttpClient
+## 5. HttpClient instances
 
-Один екземпляр `HttpClient` створюється в `Program.cs` та передається в два сервіси:
+Створюються в `Program.cs`, два окремі екземпляри:
 
 ```
-HttpClient (singleton)
-├── BdoUaApiClient     — GET /releases (API запити, JSON)
-└── LocalizationInstaller — GET download_url (завантаження .loc файлів)
+HttpClient #1 (BdoUaHttpClientConfiguration.CreateHttpClient)
+│   SocketsHttpHandler + ResilientConnectionConnector (happy-eyeballs connect)
+│   User-Agent: BdoUaClient/<version> (+https://bdo-ua.com.ua), UseProxy = false
+├── BdoUaApiClient          — GET /releases (API запити, JSON)
+└── LocalizationInstaller   — GET download_url / official_source_url
+
+HttpClient #2 (GitHub updater)
+│   HttpClientHandler, UseProxy = false, без токена
+└── GitHubUpdateClient      — GitHub Releases API (self-update)
 ```
 
-**Переваги:**
+**Переваги спільного HttpClient #1:**
 - Переиспользование TCP-з'єднань (connection pooling).
 - Уникнення socket exhaustion.
 - Спільний timeout та default headers.
 
-**Примітка:** `HttpClient` не dispose-иться окремо — він живе весь час роботи застосунку.
+**Примітка:** `HttpClient` не dispose-иться окремо — живе весь час роботи застосунку.

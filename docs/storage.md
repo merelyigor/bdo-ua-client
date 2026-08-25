@@ -21,6 +21,7 @@
 | `BackupsDir` | `{root}\backups` | Базова директорія backup |
 | `OriginalBackupDir` | `{root}\backups\original` | Original snapshot |
 | `RestorePointsDir` | `{root}\backups\restore-points` | Restore points |
+| `UpdatesDir` | `{root}\updates` | Self-update сесії (staged candidate EXE, див. docs/update.md) |
 | `ConfigFile` | `{root}\config.json` | Конфігурація користувача |
 | `InstallationFile` | `{state}\installation.json` | Метадані встановленої локалізації |
 
@@ -35,7 +36,11 @@
 public void EnsureDirectories()
 ```
 
-Створює всі необхідні піддиректорії, якщо вони не існують: `StateDir`, `LogsDir`, `CacheDir`, `OriginalBackupDir`, `RestorePointsDir`. Викликається при запуску застосунку.
+Створює всі необхідні піддиректорії, якщо вони не існують: `StateDir`, `LogsDir`, `CacheDir`, `OriginalBackupDir`, `RestorePointsDir`, `UpdatesDir`. Викликається при запуску застосунку.
+
+### Updates directory (self-update)
+
+`UpdatesDir` використовується `UpdateSessionStore` (Update/ шар): кожна сесія оновлення — піддиректорія `{root}\updates\<GUID>\` з `update-session.json` та staged candidate EXE. Детальніше — [update.md](update.md).
 
 ---
 

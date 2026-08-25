@@ -8,7 +8,7 @@
 
 ## Кількість тестів
 
-**335** автоматизованих тестів.
+Точна кількість змінюється з кожним етапом — canonical source це результат `dotnet test BdoUaClient.sln` та CI (на момент останньої ревізії — ~800 тестів).
 
 ## Категорії тестів
 
@@ -18,6 +18,9 @@
 |------|-----------|
 | `Api/ApiResultTests.cs` | `ApiResult<T>` — success/failure створення, значення, помилки |
 | `Api/BdoUaApiClientTests.cs` | JSON deserialization, HTTP помилки (4xx, 5xx, timeout, DNS), null `current`, malformed JSON, порожня відповідь, cancellation |
+| `Api/BdoUaHttpClientConfigurationTests.cs` | User-Agent формат, конфігурація HttpClient |
+| `Api/NetworkDiagnosticsTests.cs` | Форматування мережевих помилок |
+| `Api/ResilientConnectionConnectorTests.cs` | Happy-eyeballs connect: parallel attempts, stagger, ordering |
 
 ### Model тести
 
@@ -29,17 +32,50 @@
 
 | Файл | Що тестує |
 |------|-----------|
-| `Services/GameDetectorTests.cs` | Path validation, Steam `libraryfolders.vdf` parsing, manual resolution (`ResolveManualGameRoot`), registry fallback, Unicode/пробіли |
+| `Services/GameDetectorTests.cs` | Path validation, Steam parsing, manual resolution, registry fallback, Unicode/пробіли |
 | `Services/LocalizationInstallerTests.cs` | Download, SHA-256 перевірка, retry з backoff, progress reporting, cancellation |
-| `Services/LocalizationInstallServiceTests.cs` | Transactional install (atomic workflow), rollback при помилці, cancellation mid-operation |
-| `Services/LocalizationStateServiceTests.cs` | State resolution: `NotInstalled`, `UpToDate`, `UpdateAvailable`, `WaitingForRelease`, `InstalledVersionUnknown`, `Corrupted` |
-| `Services/RestoreOriginalServiceTests.cs` | Restore через `official_source_url` (primary), local original snapshot (fallback), snapshot patch mismatch |
-| `Services/RestoreBackupServiceTests.cs` | Catalog restore points, create restore point, restore success/failure, cancellation |
-| `Services/DynamicModePolicyTests.cs` | Mode filtering (visibility, compatibility) |
-| `Services/InstallActionPolicyTests.cs` | Install policy (allowed/blocked actions), exact target resolution |
-| `Services/LocalizationCompatibilityServiceTests.cs` | Compatibility checks, `compatible_with_official_patch` |
-| `Services/StartupOrchestrationTests.cs` | Parallel startup orchestration: final game outcome (Found/NotFound), API-first/local-first ordering, fallback Found/NotFound, no-patterns, API failure, callback exception safety |
-| `Services/ApiErrorPresentationTests.cs` | `ApiErrorKind` → Ukrainian UI message mapping (all 6 kinds + None fallback) |
+| `Services/LocalizationInstallServiceTests.cs` | Transactional install, rollback при помилці, cancellation |
+| `Services/LocalizationStateServiceTests.cs` | State resolution: усі значення `LocalizationState` + patch transitions |
+| `Services/LocalizationStatePresentationTests.cs` | UI-тексти станів та patch transitions |
+| `Services/RestoreOriginalServiceTests.cs` | Restore через `official_source_url`, fallback snapshot, patch mismatch |
+| `Services/RestoreBackupServiceTests.cs` | Catalog restore points, create restore point, restore success/failure |
+| `Services/DynamicModePolicyTests.cs` | Mode filtering, `ResolveInitialSelection` (обидва перевантаження) |
+| `Services/InstallActionPolicyTests.cs` | Install policy, exact target resolution |
+| `Services/LocalizationCompatibilityServiceTests.cs` | Compatibility checks |
+| `Services/StartupOrchestrationTests.cs` | Parallel startup orchestration, fallback, callback safety |
+| `Services/ApiErrorPresentationTests.cs` | `ApiErrorKind` → Ukrainian message mapping |
+| `Services/AdsFilesPatchReaderTests.cs` | Читання патчу з `ads_files`, неоднозначний вміст, IO помилки |
+| `Services/ReleaseFeedPollerTests.cs` | Background polling, pause/resume, events, dispose |
+| `Services/FeedChangeDetectorTests.cs` | Семантичне порівняння feed'ів, ігнорування GeneratedAt |
+| `Services/FeedApplicationCoordinatorTests.cs` | Pending черга, block/unblock, requeue при невдачі |
+
+### Update тести (self-update)
+
+| Файл | Що тестує |
+|------|-----------|
+| `Update/ApplicationCommandLineTests.cs` | Парсинг `--apply-update`, exit codes аргументів |
+| `Update/AppVersionTests.cs` / `AppVersionInfoTests.cs` | Numeric version comparison, детекція версії EXE |
+| `Update/GitHubReleaseModelTests.cs` / `GitHubUpdateClientTests.cs` | GitHub Releases API клієнт |
+| `Update/UpdateSelectionPolicyTests.cs` | Вибір candidate, channel policy, numeric ordering |
+| `Update/UpdateManifestValidatorTests.cs` | Schema-2 manifest валідація |
+| `Update/ExecutableVersionValidatorTests.cs` | Перевірка версії staged EXE |
+| `Update/UpdatePackageServiceTests.cs` / `UpdateZipValidationTests.cs` | Завантаження/розпакування ZIP, валідація вмісту |
+| `Update/ReplacementWorkspaceTests.cs` | Staging директорія candidate EXE |
+| `Update/PreparedAttemptCleanupTests.cs` | Cleanup незавершених сесій |
+| `Update/UpdateSessionStoreTests.cs` | Сесійний стан у updates/<GUID>/ |
+| `Update/SelfUpdatePreparationServiceTests.cs` | Повний цикл підготовки оновлення |
+| `Update/SelfUpdateApplierTests.cs` / `SelfUpdateReplacementRetryTests.cs` | Helper mode заміна EXE, rollback, retry |
+| `Update/StartupUpdateLifecycleCoordinatorTests.cs` | Startup maintenance cleanup |
+| `Update/UpdateLifecycleServiceTests.cs` | Координація check → prepare → apply |
+| `Update/UpdateButtonStateTests.cs` | Стани кнопки оновлення |
+
+### Root UI-policy тести
+
+| Файл | Що тестує |
+|------|-----------|
+| `InstallButtonLabelPolicyTests.cs` | Контекстний текст кнопки («Встановити»/«Оновити»/exact target) |
+| `LocalizationFlagParserTests.cs` | Парсинг UA/GB прапорців |
+| `ModeCardPresentationPolicyTests.cs` | Презентація карток режимів, exact installed badge |
 
 ### Storage тести
 

@@ -33,14 +33,20 @@ BdoUaClient/<version> (+https://bdo-ua.com.ua)
 | Параметр | Значення |
 |---|---|
 | Base URL | `https://bdo-ua.com.ua/api/public/v1` |
-| Timeout | 30 секунд (за замовчуванням) |
+| Per-request timeout | 30 секунд (`GetReleasesAsync`) |
 | JSON | `PropertyNameCaseInsensitive = true` |
 
 ### Методи
 
 ```csharp
-Task<ApiResult<ReleasesResponse>> GetReleasesAsync(CancellationToken cancellationToken = default)
+Task<ApiResult<ReleasesResponse>> GetReleasesAsync(CancellationToken cancellationToken = default);
+
+Task WarmupConnectionAsync(CancellationToken cancellationToken = default);
 ```
+
+### WarmupConnectionAsync
+
+Lightweight HEAD-запит до `https://bdo-ua.com.ua/` для попереднього прогріву DNS/TLS з'єднання. Викликається fire-and-forget при startup, власний timeout 5 секунд, помилки не прокидаються (тільки Debug-лог). Не впливає на бізнес-логіку.
 
 ### Обробка помилок
 
@@ -55,6 +61,28 @@ Task<ApiResult<ReleasesResponse>> GetReleasesAsync(CancellationToken cancellatio
 | Скасовано | `Cancelled` |
 | Мережева помилка | `Network` |
 | Інше | `Unexpected` |
+
+При помилках клієнт логує correlation headers відповіді (`X-Request-ID`, `Server-Timing`, `CF-Ray`), а також structured timing-логи тривалості запиту — для діагностики з server-side логами.
+
+---
+
+## Конфігурація HttpClient
+
+Клас: `BdoClient.Api.BdoUaHttpClientConfiguration` (static)
+
+- `BuildUserAgent(AppVersionInfo)` — формує User-Agent (див. розділ «Ідентифікація desktop client»)
+- `Configure(...)` / `CreateHttpClient(...)` — створює `HttpClient` з:
+  - `SocketsHttpHandler` + `ResilientConnectionConnector` як `ConnectCallback`
+  - `UseProxy = false`
+  - User-Agent application-owned заголовком
+
+## ResilientConnectionConnector
+
+Internal helper: кастомний TCP connect через `SocketsHttpHandler.ConnectCallback`. Паралельно відкриває спроби з'єднання до всіх IP-адрес хоста (результатів DNS) зі stagger 250 мс та обирає перше успішне з'єднання (happy-eyeballs-подібна поведінка). Спроби впорядковуються за AddressFamily. Це зменшує затримку підключення при повільних/недоступних DNS-маршрутах.
+
+## NetworkDiagnostics
+
+Internal static helper: `FormatNetworkError(Exception)` — формує читабельний опис мережевої помилки (DNS failure, connection refused, timeout тощо) для структурованих логів.
 
 ---
 

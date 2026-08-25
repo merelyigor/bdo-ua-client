@@ -21,20 +21,29 @@
 | `UpdateAvailable` | Встановлений `PublicId` **не** збігається з `current.PublicId`. Доступна новіша версія. |
 | `WaitingForRelease` | Встановлено, hash збігається, але `current` відсутній у API (режим без актуального релізу). Або `current != null`, але `PublicId` null/empty/whitespace — теж `WaitingForRelease`, але result містить diagnostic Error. |
 | `InstalledVersionUnknown` | `installation.json` існує, але `InstallationStateStore.Load()` повертає Invalid (пошкоджений або нечитабельний файл стану). |
-| `Corrupted` | API metadata валідний, але фактичний файл гри відсутній, нечитабельний, або hash не збігається. |
+| `Corrupted` | API metadata валідний, але фактичний файл гри відсутній або нечитабельний. Hash mismatch **не завжди** означає `Corrupted`: якщо фактичний `ads_files` патч гри новіший за `metadata.GamePatch`, це нормальний patch transition (див. нижче). |
+
+### Patch transition
+
+Поряд з `LocalizationState` сервіс повертає `LocalizationPatchTransition { None, ExistingLocalizationOutdated, GameFileReplacedAfterPatch }`:
+
+- `ExistingLocalizationOutdated` — локальний патч новіший за встановлену версію локалізації (без hash mismatch).
+- `GameFileReplacedAfterPatch` — hash mismatch після оновлення гри (гра замінила `.loc`; не вважається пошкодженням).
 
 ### Відображення в UI
 
-`GetStateDisplayText()` перетворює стан на текст для `localizationStateLabel`:
+`LocalizationStatePresentation.GetDisplayText(LocalizationStateResult)` перетворює результат на текст для `localizationStateLabel`. Тексти patch transition мають пріоритет над текстами стану:
 
-| LocalizationState | Текст в UI |
+| Стан / transition | Текст в UI |
 |---|---|
-| `NotInstalled` | Не встановлено |
-| `UpToDate` | Актуальна |
-| `UpdateAvailable` | Доступна новіша версія |
-| `WaitingForRelease` | Очікується реліз |
-| `InstalledVersionUnknown` | Версію не вдалося визначити |
+| `NotInstalled` | Локалізацію не встановлено |
+| `UpToDate` | ✓ Локалізація актуальна |
+| `UpdateAvailable` | Доступне оновлення локалізації |
+| `WaitingForRelease` | Очікується актуальна версія локалізації |
+| `InstalledVersionUnknown` | Не вдалося визначити версію локалізації |
 | `Corrupted` | Файл локалізації пошкоджено |
+| `ExistingLocalizationOutdated` | Встановлена локалізація застаріла |
+| `GameFileReplacedAfterPatch` | Після оновлення гри файл локалізації було замінено |
 
 ### Ключовий принцип
 
