@@ -10,7 +10,7 @@ internal sealed class LocalizationModeCard : Control
     private bool _hovered;
     private bool _selected;
     private bool _installed;
-    private ModeCardPresentation _presentation = new("", ModeCardTone.Neutral, null, false, false, false, null);
+    private ModeCardPresentation _presentation = new(null, ModeCardTone.Neutral, null, false, false, false, null);
 
     public LocalizationMode Mode { get; }
     public string ModeSlug => Mode.Slug!;
@@ -43,9 +43,12 @@ internal sealed class LocalizationModeCard : Control
         _actionButton.Text = presentation.ActionText ?? "";
         _actionButton.Visible = !string.IsNullOrWhiteSpace(presentation.ActionText);
         _actionButton.Enabled = presentation.ActionEnabled;
-        _actionButton.AccessibleDescription = presentation.StateText;
+        _actionButton.AccessibleDescription = presentation.StateText ?? "";
         UiTheme.StyleCardActionButton(_actionButton, presentation.Tone == ModeCardTone.Warning);
-        AccessibleDescription = $"{AccessibleName}. {presentation.StateText}. {DynamicModePolicy.FormatReleaseLine(Mode)}";
+        var releaseLine = DynamicModePolicy.FormatReleaseLine(Mode);
+        AccessibleDescription = string.IsNullOrWhiteSpace(presentation.StateText)
+            ? $"{AccessibleName}. {releaseLine}"
+            : $"{AccessibleName}. {presentation.StateText}. {releaseLine}";
         PerformLayout();
         Invalidate();
     }
@@ -63,7 +66,8 @@ internal sealed class LocalizationModeCard : Control
         if (!string.IsNullOrWhiteSpace(Mode.Description))
             height += Measure(Mode.Description.Trim(), bodyFont, textWidth).Height + UiTheme.Scale(this, 8);
         height += Measure(DynamicModePolicy.FormatReleaseLine(Mode), bodyFont, textWidth).Height + UiTheme.Scale(this, 12);
-        height += _actionButton.Visible ? UiTheme.Scale(this, 32) + padding : Measure(_presentation.StateText, bodyFont, textWidth).Height + padding;
+        var stateText = _presentation.StateText;
+        height += _actionButton.Visible ? UiTheme.Scale(this, 32) + padding : string.IsNullOrWhiteSpace(stateText) ? padding : Measure(stateText, bodyFont, textWidth).Height + padding;
         return new Size(width, Math.Max(UiTheme.Scale(this, 208), height));
     }
 
@@ -117,14 +121,17 @@ internal sealed class LocalizationModeCard : Control
         var padding = UiTheme.Scale(this, 18);
         var parsed = LocalizationFlagParser.Parse(DynamicModePolicy.GetDisplayName(Mode));
         DrawFlags(e.Graphics, parsed.CountryCodes, new Point(padding, padding), DeviceDpi / 96f);
-        using var badgeFont = new Font(Font.FontFamily, 8.5F, FontStyle.Bold);
-        var badgeSize = TextRenderer.MeasureText(_presentation.StateText, badgeFont);
-        var badgeRect = new Rectangle(Width - padding - badgeSize.Width - UiTheme.Scale(this, 14), padding - UiTheme.Scale(this, 3), badgeSize.Width + UiTheme.Scale(this, 14), UiTheme.Scale(this, 24));
-        using var badgeFill = new SolidBrush(ToneSurface(_presentation.Tone));
-        using var badgeBorder = new Pen(borderColor);
-        using var badgePath = Rounded(badgeRect, UiTheme.Scale(this, 12));
-        e.Graphics.FillPath(badgeFill, badgePath); e.Graphics.DrawPath(badgeBorder, badgePath);
-        TextRenderer.DrawText(e.Graphics, _presentation.StateText, badgeFont, badgeRect, ToneText(_presentation.Tone), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+        if (!string.IsNullOrWhiteSpace(_presentation.StateText))
+        {
+            using var badgeFont = new Font(Font.FontFamily, 8.5F, FontStyle.Bold);
+            var badgeSize = TextRenderer.MeasureText(_presentation.StateText, badgeFont);
+            var badgeRect = new Rectangle(Width - padding - badgeSize.Width - UiTheme.Scale(this, 14), padding - UiTheme.Scale(this, 3), badgeSize.Width + UiTheme.Scale(this, 14), UiTheme.Scale(this, 24));
+            using var badgeFill = new SolidBrush(ToneSurface(_presentation.Tone));
+            using var badgeBorder = new Pen(borderColor);
+            using var badgePath = Rounded(badgeRect, UiTheme.Scale(this, 12));
+            e.Graphics.FillPath(badgeFill, badgePath); e.Graphics.DrawPath(badgeBorder, badgePath);
+            TextRenderer.DrawText(e.Graphics, _presentation.StateText, badgeFont, badgeRect, ToneText(_presentation.Tone), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+        }
 
         var top = padding + UiTheme.Scale(this, 30);
         var textWidth = Width - padding * 2;

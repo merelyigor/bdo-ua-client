@@ -255,7 +255,7 @@ public sealed class RestoreBackupService
         {
             if (File.Exists(tempPath))
             {
-                try { File.Delete(tempPath); } catch { }
+                try { File.Delete(tempPath); } catch (Exception ex) { _logger.Warning($"Failed to cleanup temporary file {Path.GetFileName(tempPath)}: {ex.Message}"); }
             }
         }
     }

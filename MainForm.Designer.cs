@@ -92,12 +92,12 @@ partial class MainForm
         modeGroupBox.Controls.Add(modesFlowPanel); modeGroupBox.Controls.Add(modeSectionCaptionLabel);
 
         operationStrip = new BdoSurfacePanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(16, 12, 16, 12), Margin = new Padding(0), Visible = false, SurfaceColor = UiTheme.SurfaceElevated };
-        operationMessageLabel = new Label { AutoSize = true, MaximumSize = new Size(720, 0), ForeColor = UiTheme.PrimaryText, Margin = new Padding(0, 0, 14, 0) };
-        progressBar = new BdoProgressBar { Width = 230, Height = 16, Margin = new Padding(0, 4, 8, 0) };
-        progressLabel = new Label { Text = "0%", AutoSize = true, ForeColor = UiTheme.SecondaryText, Margin = new Padding(0, 5, 14, 0) };
-        cancelButton = new Button { Text = "Скасувати", AutoSize = true, Enabled = false, Margin = new Padding(0) };
+        operationMessageLabel = new Label { AutoSize = true, MaximumSize = new Size(480, 0), ForeColor = UiTheme.PrimaryText, Margin = new Padding(0, 0, 14, 0), Anchor = AnchorStyles.Left };
+        progressBar = new BdoProgressBar { Dock = DockStyle.Fill, MinimumSize = new Size(160, 16), Height = 16, Margin = new Padding(0, 4, 8, 0), Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        progressLabel = new Label { Text = "0%", AutoSize = true, ForeColor = UiTheme.SecondaryText, Margin = new Padding(0, 5, 14, 0), Anchor = AnchorStyles.Left };
+        cancelButton = new Button { Text = "Скасувати", AutoSize = true, Enabled = false, Visible = false, Margin = new Padding(0), Anchor = AnchorStyles.Right };
         var operationLayout = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 4, RowCount = 1, BackColor = Color.Transparent };
-        operationLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F)); operationLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); operationLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); operationLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        operationLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); operationLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F)); operationLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize)); operationLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         operationLayout.Controls.Add(operationMessageLabel, 0, 0); operationLayout.Controls.Add(progressBar, 1, 0); operationLayout.Controls.Add(progressLabel, 2, 0); operationLayout.Controls.Add(cancelButton, 3, 0); operationStrip.Controls.Add(operationLayout);
 
         mainLayoutPanel.Controls.Add(headerPanel, 0, 0); mainLayoutPanel.Controls.Add(gameGroupBox, 0, 1); mainLayoutPanel.Controls.Add(modeGroupBox, 0, 2); mainLayoutPanel.Controls.Add(operationStrip, 0, 3);

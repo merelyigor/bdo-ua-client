@@ -6,7 +6,7 @@ namespace BdoClient;
 internal enum ModeCardTone { Neutral, Success, Warning, Error, Busy }
 
 internal sealed record ModeCardPresentation(
-    string StateText,
+    string? StateText,
     ModeCardTone Tone,
     string? ActionText,
     bool ActionEnabled,
@@ -57,12 +57,12 @@ internal static class ModeCardPresentationPolicy
                 factualState == LocalizationState.Corrupted ? ModeCardTone.Error : ModeCardTone.Warning,
                 policy.CanInstall ? InstallButtonLabelPolicy.InstallText : null, policy.CanInstall, false, false, null);
 
-        return new("Доступно", ModeCardTone.Neutral, InstallButtonLabelPolicy.InstallText,
+        return new(null, ModeCardTone.Neutral, InstallButtonLabelPolicy.InstallText,
             policy.CanInstall, false, false, null);
     }
 
-    private static string StateTextForExisting(bool exact, bool sameMode, LocalizationState state) =>
-        exact ? "✓ Встановлено" : sameMode && state == LocalizationState.UpdateAvailable ? "Доступне оновлення" : "Доступно";
+    private static string? StateTextForExisting(bool exact, bool sameMode, LocalizationState state) =>
+        exact ? "✓ Встановлено" : sameMode && state == LocalizationState.UpdateAvailable ? "Доступне оновлення" : null;
 
     private static string? ActionTextFor(bool sameMode, LocalizationState state) =>
         sameMode && state == LocalizationState.UpdateAvailable ? InstallButtonLabelPolicy.UpdateText : InstallButtonLabelPolicy.InstallText;

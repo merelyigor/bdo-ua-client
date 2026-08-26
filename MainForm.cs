@@ -94,7 +94,6 @@ public partial class MainForm : Form
         _poller = new ReleaseFeedPoller(_apiClient, _logger);
         _feedCoordinator = new FeedApplicationCoordinator(ApplyFeedPipelineAsync, _poller, _logger);
         _poller.OnFeedCandidate += OnReleaseFeedCandidate;
-        _poller.OnPollFailed += OnReleasePollFailed;
 
         InitializeComponent();
         rootScrollPanel.Resize += RootScrollPanel_Resize;
@@ -790,7 +789,9 @@ public partial class MainForm : Form
             SetOperationState(OperationState.Downloading);
 
             _operationCts = new CancellationTokenSource();
+            cancelButton.Visible = true;
             cancelButton.Enabled = true;
+            UpdateCancelButtonVisibility(_operationState);
 
             var service = new LocalizationInstallService(
                 _localizationInstaller, _backupStore, _stateStore, _logger, _gameRoot);
@@ -831,6 +832,7 @@ public partial class MainForm : Form
         }
         finally
         {
+            cancelButton.Visible = false;
             cancelButton.Enabled = false;
             _operationCts?.Dispose();
             _operationCts = null;
@@ -917,7 +919,9 @@ public partial class MainForm : Form
             SetOperationState(OperationState.Restoring);
 
             _operationCts = new CancellationTokenSource();
+            cancelButton.Visible = true;
             cancelButton.Enabled = true;
+            UpdateCancelButtonVisibility(_operationState);
 
             var service = new RestoreOriginalService(
                 _localizationInstaller, _backupStore, _stateStore, _logger,
@@ -956,6 +960,7 @@ public partial class MainForm : Form
         }
         finally
         {
+            cancelButton.Visible = false;
             cancelButton.Enabled = false;
             _operationCts?.Dispose();
             _operationCts = null;
@@ -1156,7 +1161,9 @@ public partial class MainForm : Form
             SetOperationState(OperationState.Downloading);
 
             _operationCts = new CancellationTokenSource();
+            cancelButton.Visible = true;
             cancelButton.Enabled = true;
+            UpdateCancelButtonVisibility(_operationState);
 
             var progress = new Progress<UpdateStageProgress>(stage =>
             {
@@ -1206,6 +1213,7 @@ public partial class MainForm : Form
                 }
 
                 // Disable cancel before handoff boundary
+                cancelButton.Visible = false;
                 cancelButton.Enabled = false;
 
                 // Launch helper
@@ -1275,6 +1283,7 @@ public partial class MainForm : Form
         }
         finally
         {
+            cancelButton.Visible = false;
             cancelButton.Enabled = false;
             _operationCts?.Dispose();
             _operationCts = null;
@@ -1439,11 +1448,6 @@ public partial class MainForm : Form
         }
     }
 
-    private void OnReleasePollFailed(string error)
-    {
-        // Keep last known good. Log only.
-    }
-
     /// <summary>
     /// Whole-pipeline feed application callback used by FeedApplicationCoordinator.
     /// Returns true only if all stages succeed (API update, mode rebuild, selection, state refresh).
@@ -1522,10 +1526,23 @@ public partial class MainForm : Form
 
     // --- Operation state ---
 
+    private static bool IsCancellableState(OperationState state) => state is OperationState.Downloading or OperationState.Verifying or OperationState.BackingUp or OperationState.Installing or OperationState.Restoring;
+
+    private void UpdateCancelButtonVisibility(OperationState state)
+    {
+        var canCancel = _operationInProgress && _operationCts != null && IsCancellableState(state);
+        // Keep visible but disabled while cancellation is being processed
+        if (_operationCts?.IsCancellationRequested == true && canCancel)
+            cancelButton.Visible = true;
+        else
+            cancelButton.Visible = canCancel;
+    }
+
     private void SetOperationState(OperationState state)
     {
         _operationState = state;
         operationStrip.Visible = state != OperationState.Idle || !string.IsNullOrWhiteSpace(operationMessageLabel.Text);
+        UpdateCancelButtonVisibility(state);
         progressBar.IndicatorColor = state switch
         {
             OperationState.Completed => UiTheme.Success,
@@ -1619,8 +1636,6 @@ public partial class MainForm : Form
         {
             installedModeSlug = installedLoad.Value.ModeSlug;
             installedPublicId = installedLoad.Value.PublicId;
-            var installedApiMode = _apiResponse?.Data?.Modes?
-                .FirstOrDefault(m => string.Equals(m.Slug, installedModeSlug, StringComparison.Ordinal));
         }
 
         // Factual LocalizationState uses INSTALLED mode's current
@@ -1642,8 +1657,6 @@ public partial class MainForm : Form
 
         var hasInstalledApiState = installedLoad.Status == FileLoadStatus.Valid
             && installedLoad.Value?.Source == "api";
-        var exactSelectedTarget = hasInstalledApiState
-            && InstallActionPolicy.IsExactInstalledTarget(installedModeSlug, installedPublicId, selectedMode);
         var sameInstalledModeSelected = hasInstalledApiState
             && selectedMode?.Slug != null
             && string.Equals(installedModeSlug, selectedMode.Slug, StringComparison.Ordinal);

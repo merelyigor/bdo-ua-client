@@ -11,6 +11,37 @@ public sealed class ModeCardPresentationPolicyTests
         var presentation = Create(LocalizationState.NotInstalled, null, null, Mode("full", "A"));
         Assert.Equal("Встановити", presentation.ActionText);
         Assert.True(presentation.ActionEnabled);
+        Assert.Null(presentation.StateText);
+        Assert.Equal(ModeCardTone.Neutral, presentation.Tone);
+    }
+
+    [Fact]
+    public void OrdinaryInstallable_HasNoBadge()
+    {
+        var presentation = Create(LocalizationState.NotInstalled, null, null, Mode("full", "A"));
+        Assert.Null(presentation.StateText);
+        Assert.Equal("Встановити", presentation.ActionText);
+        Assert.True(presentation.ActionEnabled);
+        Assert.False(presentation.IsInstalled);
+        Assert.False(presentation.IsBusy);
+    }
+
+    [Fact]
+    public void OrdinaryInstallable_DifferentMode_HasNoBadge()
+    {
+        var presentation = Create(LocalizationState.UpToDate, "full", "A", Mode("other", "B"));
+        Assert.Null(presentation.StateText);
+        Assert.Equal("Встановити", presentation.ActionText);
+        Assert.True(presentation.ActionEnabled);
+    }
+
+    [Fact]
+    public void Operation_NonTarget_Ordinary_HasNoBadge()
+    {
+        var presentation = Create(LocalizationState.NotInstalled, null, null, Mode("full", "A"), operation: true, activeTarget: false);
+        Assert.Null(presentation.StateText);
+        Assert.False(presentation.IsBusy);
+        Assert.False(presentation.ActionEnabled);
     }
 
     [Fact]

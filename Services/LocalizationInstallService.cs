@@ -464,7 +464,10 @@ public sealed class LocalizationInstallService
             if (File.Exists(path))
                 File.Delete(path);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.Warning($"Failed to cleanup temporary file {Path.GetFileName(path)}: {ex.Message}");
+        }
     }
 }
 

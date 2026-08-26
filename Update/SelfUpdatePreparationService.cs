@@ -228,9 +228,9 @@ public sealed class SelfUpdatePreparationService
         return SelfUpdatePreparationResult.Success(session, candidatePath, originalExeSha);
     }
 
-    private static void SafeDelete(string path)
+    private void SafeDelete(string path)
     {
-        try { if (File.Exists(path)) File.Delete(path); } catch { }
+        try { if (File.Exists(path)) File.Delete(path); } catch (Exception ex) { _logger.Warning($"Failed to cleanup temporary file {Path.GetFileName(path)}: {ex.Message}"); }
     }
 
     private static bool IsWriteDenied(Exception ex)
