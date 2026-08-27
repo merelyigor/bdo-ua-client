@@ -1,12 +1,12 @@
 # Client UI Redesign
 
 Plan ID: `client-ui-redesign`
-Status: **ACTIVE**
-Backlog order: 1
-PRIMARY: **YES**
-Implementation authorization: **YES**
-Current phase: **Stage 3 completed / Stage 4 next**
-Next action: Stage 4 — Release Candidate validation and regression closure
+Status: **ARCHIVED**
+Backlog order: —
+PRIMARY: **NO**
+Implementation authorization: **NO**
+Current phase: **Stage 4 completed**
+Next action: None — archived
 
 ---
 
@@ -248,7 +248,20 @@ RC preparation completed in this stage: contextual `Встановити`/`Он�
 - [x] Stage 1 theme foundation implemented, locally previewed, and owner-approved
 - [x] Stage 2 — Static Material-inspired layout and information hierarchy implemented, locally previewed, and owner-approved
 - [x] Stage 3 — UI completion implemented, locally previewed, and owner-approved
-- [ ] Stage 4 — Final UI validation and regression closure
+- [x] Stage 4 — Final UI validation and regression closure
+
+## Completion
+
+Stage 4 completed and plan archived.
+
+- Release build: PASS
+- Full automated tests: 797 passed, 0 failed
+- Stable release: v1.1.2 published as `BDO-UA-Client-v1.1.2-win-x64.zip`
+- Owner runtime and visual review: APPROVED
+- Windows scaling 100%, 125%, 150%, 200%: manually verified by owner — no clipping, no overlap, no visual blocker
+- No BLOCKER or IMPORTANT regression remained
+
+Plan archived after stable release and owner acceptance. `code-quality-ux-improvements` is the new ACTIVE PRIMARY plan.
 
 ## Manual visual validation loop
 

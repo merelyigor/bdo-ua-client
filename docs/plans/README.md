@@ -2,21 +2,19 @@
 
 ## Current focus
 
-**Primary:** `client-ui-redesign`
-**Current phase:** Stage 0 completed; Stage 1 next
-**Next:** implement the active UI redesign roadmap
+**Primary:** `code-quality-ux-improvements`
+**Current phase:** Stage A
+**Next:** A.1 GamePaths
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| 1 | `client-ui-redesign` | [active/client-ui-redesign.md](active/client-ui-redesign.md) | Stage 0 completed / Stage 1 next | Implement Stage 1 |
+| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | Stage A — Shared path/source primitives | A.1 GamePaths |
 
 ## Backlog
 
-| Order | ID | Plan | Summary |
-|---|---|---|---|
-| 1 | `code-quality-ux-improvements` | [backlog/code-quality-ux-improvements.md](backlog/code-quality-ux-improvements.md) | Спільні path/source примітиви, централізація raw installation-state операцій, фізична декомпозиція MainForm на partial files, responsiveness investigation |
+No backlog plans.
 
 ## Archive
 
@@ -24,6 +22,7 @@
 |---|---|---|
 | `initial-implementation` | [archive/initial-implementation-plan.md](archive/initial-implementation-plan.md) | Stage 1–12.2 |
 | `client-self-update` | [archive/client-self-update.md](archive/client-self-update.md) | v13.1.2–v14.0.1; ZIP self-update E2E completed |
+| `client-ui-redesign` | [archive/client-ui-redesign.md](archive/client-ui-redesign.md) | Completed native WinForms launcher redesign through Stage 4; stable v1.1.2 validation |
 
 ## Rules / lifecycle
 

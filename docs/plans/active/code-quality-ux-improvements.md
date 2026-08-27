@@ -1,12 +1,13 @@
 # Code quality improvements (refactor)
 
 Plan ID: `code-quality-ux-improvements`
-Status: BACKLOG
-Focus: —
-Backlog order: 1
-Current phase: Частково виконано (гігієна та UX завершені у v14.2.25; залишок — рефакторинг)
-Next action: Активувати план (BACKLOG → ACTIVE) після завершення `client-ui-redesign` або за окремим рішенням owner
-Dependencies: Бажано активувати після завершення `client-ui-redesign`, щоб уникнути конфліктів у MainForm.cs
+Status: ACTIVE
+Focus: PRIMARY
+Backlog order: —
+Implementation authorization: **YES**
+Current phase: Stage A — Shared path/source primitives
+Next action: A.1 GamePaths
+Dependencies: none (client-ui-redesign archived)
 
 ## Goal
 
@@ -152,4 +153,4 @@ Application self-update має materially different successful handoff path (Pro
 
 ## Current progress
 
-v14.2.25 завершив targeted hygiene та launcher-polish items (порожні catch, dead code, «Доступно» бейдж, responsive progress, Cancel visibility). Залишок backlog (Stages A–E) не розпочато. План у BACKLOG — не реалізувати автоматично (§39.3). `client-ui-redesign` лишається єдиним ACTIVE PRIMARY планом.
+v14.2.25 завершив targeted hygiene та launcher-polish items (порожні catch, dead code, «Доступно» бейдж, responsive progress, Cancel visibility). `client-ui-redesign` заархівовано після v1.1.2. План активовано як ACTIVE PRIMARY. Stage A є поточним; A.1 GamePaths — наступна implementation task.

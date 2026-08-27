@@ -1,12 +1,12 @@
 # Current Engineering Context
 
-Оновлено: 2026-08-22
+Оновлено: 2026-08-27
 
 ## Project Purpose / Status
 
 BDO-UA Client — Windows .NET 8 WinForms застосунок для пошуку Black Desert Online, отримання українських локалізацій через `bdo-ua.com.ua`, безпечного встановлення, оновлення та відновлення файлів гри.
 
-Останній runtime-affecting baseline: `v14.2.3` — direct networking policy для application-owned HTTP clients. Активний PRIMARY implementation plan: `client-ui-redesign`, Stage 3 completed and owner-approved; Stage 4 RC preparation completed and external Release Candidate validation is next. `MainForm` uses a Material-inspired BDO header/card layout with dynamic content-driven window sizing and vertical scroll fallback. API-driven localization modes are presented as selectable native WinForms cards with graphical UA/GB flags, dynamic multi-flag layout, and exact installed badges. The primary action label is contextual: `Встановити` for installation/switching and `Оновити` for a newer release of the currently installed selected mode; exact installed remains disabled. `BdoProgressBar` preserves operation semantics and renders generic `Completed` as determinate 100% success; `UpdateApplyingForm` uses the dark BDO presentation while preserving helper behavior. Startup selection prioritizes the currently installed API `ModeSlug` when it remains installable, then `LastMode`. Shared BDO-UA/localization HTTP traffic uses `SocketsHttpHandler` with `UseProxy = false` and a DNS-based staggered multi-address TCP fallback; no hardcoded IPs are used, TLS remains standard .NET validation, and GitHub updater networking remains separate. Production remains native .NET 8 WinForms.
+Стабільний реліз: v1.1.2. Останній runtime-affecting baseline включає v14.2.25 launcher polish. `client-ui-redesign` завершено та заархівовано. `code-quality-ux-improvements` — новий ACTIVE PRIMARY план; поточна фаза Stage A, наступна задача A.1 GamePaths. Production залишається native .NET 8 WinForms.
 
 ## Architecture Summary
 
@@ -43,18 +43,23 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 ## Recently Completed
 
-- v14.1.4 isolated replacement workspace and added foreground restart handoff.
-- v14.2 hardened session cleanup and bounded restore-point storage.
-- v14.2.1 preserved cleanup compatibility with legacy sessions that lack `package_file_name` and added owned-file SHA verification.
-- v14.2.2 reset stale progress-bar value when returning to `OperationState.Idle`.
-- v14.2.3 bypassed Windows system proxy/WPAD discovery for production HTTP clients.
-- Persistent development context and monthly engineering journal were established under `docs/development/`.
+- Native WinForms launcher redesign completed through Stage 4 (Stages 0–3 + final DPI/runtime validation).
+- v14.2.25 polished launcher operation feedback: removed neutral badges, responsive progress, Cancel visibility, cleanup logging.
+- v1.1.2 published as stable release; owner verified Windows scaling 100/125/150/200%.
+- `client-ui-redesign` archived.
+- Code-quality/UX backlog reconciled with v14.2.25 baseline; architecture decisions recorded (no generic transaction engine, no generic runner, physical MainForm decomposition only).
 
 Exact changes and validation are recorded in Git history and the monthly journal.
 
 ## Active Work
 
-`client-ui-redesign` is the sole ACTIVE PRIMARY plan. Stage 3, including the owner-approved native WinForms launcher-presentation revision, is complete: mode cards own persistent install/update state and direct contextual actions, while a compact operation strip owns transient progress, cancellation, completion and critical diagnostics. The former large persistent status dashboard and global Install action are no longer part of the idle composition. Stage 4 Release Candidate validation and regression closure is next.
+ACTIVE PRIMARY: `code-quality-ux-improvements`
+
+Current phase: Stage A — Shared path/source primitives
+
+Next: A.1 GamePaths — introduce canonical `GamePaths` primitive, centralize ads directory name and localization filename, replace duplicated path construction.
+
+Future: A.2 source markers, A.3 `AppPaths.InstallationFile` reuse, then Stage B raw installation-state operations.
 
 ## Known Issues / Unresolved Investigations
 
@@ -67,12 +72,17 @@ Exact changes and validation are recorded in Git history and the monthly journal
 - Production bundles are canonical GitHub-generated schema-2 ZIP artifacts with four flat files; the updater validates internal EXE metadata and SHA-256.
 - There is no permanent `Updater.exe`, PowerShell/BAT updater, Windows service, automatic UAC elevation, or silent forced update.
 - Direct networking intentionally prioritizes deterministic startup latency over environments that require a system HTTP proxy. Proxy selection is not a current UI/configuration feature.
+- No generic GameFileTransaction is planned; BackupStore already centralizes the destructive replace/recovery boundary.
+- No generic RunExclusiveOperationAsync is planned; self-update handoff is materially different.
+- MainForm decomposition is physical (partial files) only, not architectural.
 - `CURRENT.md` is a living snapshot and normally stays below approximately 400 lines. It is not append-only. Remove obsolete context only after it is present in the monthly journal or Git history.
 
 ## Next Likely Work
 
-- Dispatch and externally validate the Release Candidate through the existing release workflow, then complete the Stage 4 regression matrix; do not begin another broad UI redesign.
-- For any new meaningful implementation task, update this handoff if current context changes and append one concise entry to the current monthly journal in the same commit.
+1. Implement Stage A.1 GamePaths.
+2. Review and validate.
+3. Continue A.2 and A.3 as separate small tasks.
+4. Do not automatically start Stage B before Stage A review.
 
 ## Canonical References
 
