@@ -57,7 +57,9 @@ ACTIVE PRIMARY: `code-quality-ux-improvements`
 
 Current phase: Stage A — Shared path/source primitives
 
-Next: A.1 GamePaths — introduce canonical `GamePaths` primitive, centralize ads directory name and localization filename, replace duplicated path construction.
+**Hotfix completed and owner-accepted (2026-08-27):** managed localization hash-mismatch state resolution. When game/launcher replaces the localization file after BDO-UA Client installed it, the state was incorrectly classified as `Corrupted` (same patch, different SHA). Fix: new `ManagedFileChanged` transition resolves to `UpdateAvailable`/`WaitingForRelease` instead. Automated validation: 805/805 tests. Owner reproduced real launcher-restored-file scenario: preview showed "Доступне оновлення" / "Оновити", update completed, state returned UpToDate, restart remained UpToDate.
+
+Resume next: A.1 GamePaths — introduce canonical `GamePaths` primitive, centralize ads directory name and localization filename, replace duplicated path construction.
 
 Future: A.2 source markers, A.3 `AppPaths.InstallationFile` reuse, then Stage B raw installation-state operations.
 

@@ -154,3 +154,13 @@ Application self-update має materially different successful handoff path (Pro
 ## Current progress
 
 v14.2.25 завершив targeted hygiene та launcher-polish items (порожні catch, dead code, «Доступно» бейдж, responsive progress, Cancel visibility). `client-ui-redesign` заархівовано після v1.1.2. План активовано як ACTIVE PRIMARY. Stage A є поточним; A.1 GamePaths — наступна implementation task.
+
+### Hotfix interruption (2026-08-27)
+
+**Reason:** managed localization hash mismatch after game/launcher overwrite was misclassified as `Corrupted` when patch number did not advance. Production v1.1.2 reproduced: installed localization → game/launcher replaced file → same patch → `Corrupted` shown.
+
+**Fix:** added `LocalizationPatchTransition.ManagedFileChanged`; hash mismatch for valid API installation now resolves to `UpdateAvailable` (if current release available) or `WaitingForRelease` (if not), regardless of patch advancement. Higher-patch detection (`GameFileReplacedAfterPatch`) preserved.
+
+**Status:** COMPLETED/ACCEPTED. Owner reproduced real launcher-restored-file scenario (2026-08-27): preview showed "Доступне оновлення" / "Оновити", update completed, state returned UpToDate, restart remained UpToDate.
+
+**Resume next:** A.1 GamePaths (not affected by hotfix).

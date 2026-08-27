@@ -74,8 +74,9 @@ public sealed class LocalizationStateService
             {
                 return ResolveAfterPatchTransition(current, metadata, installedPatch.Value, localPatch.Value, LocalizationPatchTransition.GameFileReplacedAfterPatch);
             }
-            _logger.Error("State resolution: Corrupted (hash mismatch)");
-            return LocalizationStateResult.Success(LocalizationState.Corrupted);
+
+            _logger.Warning($"State resolution: managed localization file changed (installed_public_id={metadata.PublicId})");
+            return ResolveAfterManagedFileChanged(current, metadata.PublicId);
         }
 
         if (installedPatch.HasValue && localPatch.HasValue && localPatch > installedPatch)
@@ -131,6 +132,24 @@ public sealed class LocalizationStateService
 
         return LocalizationStateResult.WithPatchTransition(
             LocalizationState.UpdateAvailable, installedPatch, localPatch, transition, detail);
+    }
+
+    private static LocalizationStateResult ResolveAfterManagedFileChanged(
+        CurrentRelease? current,
+        string? installedPublicId)
+    {
+        const string detail = "Встановлена локалізація більше не активна. Файл локалізації було змінено або замінено після встановлення.";
+
+        if (current == null || string.IsNullOrWhiteSpace(current.PublicId))
+            return LocalizationStateResult.WithManagedFileChanged(
+                LocalizationState.WaitingForRelease,
+                LocalizationPatchTransition.ManagedFileChanged,
+                $"{detail} Актуальний українізатор ще не доступний. Перевірте оновлення пізніше.");
+
+        return LocalizationStateResult.WithManagedFileChanged(
+            LocalizationState.UpdateAvailable,
+            LocalizationPatchTransition.ManagedFileChanged,
+            detail);
     }
 
     private static string? DeriveGameRoot(string gameLocFilePath)

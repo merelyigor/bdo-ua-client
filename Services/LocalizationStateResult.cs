@@ -33,11 +33,18 @@ public sealed class LocalizationStateResult
         LocalizationPatchTransition transition,
         string? error = null) =>
         new(state, error, installedGamePatch, localGamePatch, transition);
+
+    public static LocalizationStateResult WithManagedFileChanged(
+        LocalizationState state,
+        LocalizationPatchTransition transition,
+        string? error = null) =>
+        new(state, error, patchTransition: transition);
 }
 
 public enum LocalizationPatchTransition
 {
     None,
     ExistingLocalizationOutdated,
-    GameFileReplacedAfterPatch
+    GameFileReplacedAfterPatch,
+    ManagedFileChanged
 }

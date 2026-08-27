@@ -176,7 +176,7 @@ public class LocalizationStateServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ValidApiMetadata_HashMismatch_ReturnsCorrupted()
+    public async Task ValidApiMetadata_HashMismatch_ManagedFileChanged()
     {
         var content = Encoding.UTF8.GetBytes("original content");
         var wrongSha = HashHelper.ComputeSha256(Encoding.UTF8.GetBytes("different content"));
@@ -186,23 +186,23 @@ public class LocalizationStateServiceTests : IDisposable
 
         var result = await service.ResolveAsync(CreateCurrent(), gamePath);
 
-        Assert.Equal(LocalizationState.Corrupted, result.State);
-        Assert.Null(result.Error);
+        Assert.Equal(LocalizationState.UpdateAvailable, result.State);
+        Assert.Equal(LocalizationPatchTransition.ManagedFileChanged, result.PatchTransition);
     }
 
     [Fact]
-    public async Task ValidApiMetadata_FileExistsButContentCorrupted_ReturnsCorrupted()
+    public async Task ValidApiMetadata_FileExistsButContentDifferent_ManagedFileChanged()
     {
         var content = Encoding.UTF8.GetBytes("original content");
         var sha = HashHelper.ComputeSha256(content);
         await SaveApiMetadataAsync("01ABCDEF1234567890ABCDEF", sha);
-        var gamePath = CreateGameFile(Encoding.UTF8.GetBytes("corrupted content"));
+        var gamePath = CreateGameFile(Encoding.UTF8.GetBytes("different content"));
         var service = CreateService();
 
         var result = await service.ResolveAsync(CreateCurrent(), gamePath);
 
-        Assert.Equal(LocalizationState.Corrupted, result.State);
-        Assert.Null(result.Error);
+        Assert.Equal(LocalizationState.UpdateAvailable, result.State);
+        Assert.Equal(LocalizationPatchTransition.ManagedFileChanged, result.PatchTransition);
     }
 
     [Fact]
@@ -238,7 +238,7 @@ public class LocalizationStateServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task MatchingGamePatch_HashMismatch_RemainsCorrupted()
+    public async Task MatchingGamePatch_HashMismatch_ManagedFileChanged_UpdateAvailable()
     {
         var content = Encoding.UTF8.GetBytes("installed patch 398");
         await SaveApiMetadataAsync("01ABCDEF1234567890ABCDEF", HashHelper.ComputeSha256(Encoding.UTF8.GetBytes("different")), gamePatch: 398);
@@ -247,8 +247,53 @@ public class LocalizationStateServiceTests : IDisposable
 
         var result = await CreateService().ResolveAsync(CreateCurrent(), gamePath, gameRoot: GameRoot);
 
-        Assert.Equal(LocalizationState.Corrupted, result.State);
-        Assert.Equal(LocalizationPatchTransition.None, result.PatchTransition);
+        Assert.Equal(LocalizationState.UpdateAvailable, result.State);
+        Assert.Equal(LocalizationPatchTransition.ManagedFileChanged, result.PatchTransition);
+        Assert.DoesNotContain("пошкоджено", result.Error ?? "");
+    }
+
+    [Fact]
+    public async Task NoAdsFilesPatch_HashMismatch_ManagedFileChanged_UpdateAvailable()
+    {
+        var content = Encoding.UTF8.GetBytes("installed content");
+        await SaveApiMetadataAsync("01ABCDEF1234567890ABCDEF", HashHelper.ComputeSha256(Encoding.UTF8.GetBytes("different")), gamePatch: 398);
+        var gamePath = CreateGameFile(content);
+
+        var result = await CreateService().ResolveAsync(CreateCurrent(), gamePath, gameRoot: GameRoot);
+
+        Assert.Equal(LocalizationState.UpdateAvailable, result.State);
+        Assert.Equal(LocalizationPatchTransition.ManagedFileChanged, result.PatchTransition);
+        Assert.DoesNotContain("пошкоджено", result.Error ?? "");
+    }
+
+    [Fact]
+    public async Task SamePublicId_HashMismatch_ManagedFileChanged_UpdateAvailable()
+    {
+        var publicId = "01ABCDEF1234567890ABCDEF";
+        var content = Encoding.UTF8.GetBytes("installed content");
+        await SaveApiMetadataAsync(publicId, HashHelper.ComputeSha256(Encoding.UTF8.GetBytes("different")), gamePatch: 398);
+        var gamePath = CreateGameFile(content);
+        WriteAdsFiles("languagedata_en.loc 398\n");
+
+        var result = await CreateService().ResolveAsync(CreateCurrent(publicId), gamePath, gameRoot: GameRoot);
+
+        Assert.Equal(LocalizationState.UpdateAvailable, result.State);
+        Assert.Equal(LocalizationPatchTransition.ManagedFileChanged, result.PatchTransition);
+    }
+
+    [Fact]
+    public async Task HashMismatch_CurrentNull_ManagedFileChanged_WaitingForRelease()
+    {
+        var content = Encoding.UTF8.GetBytes("installed content");
+        await SaveApiMetadataAsync("01ABCDEF1234567890ABCDEF", HashHelper.ComputeSha256(Encoding.UTF8.GetBytes("different")), gamePatch: 398);
+        var gamePath = CreateGameFile(content);
+        WriteAdsFiles("languagedata_en.loc 398\n");
+
+        var result = await CreateService().ResolveAsync(null, gamePath, gameRoot: GameRoot);
+
+        Assert.Equal(LocalizationState.WaitingForRelease, result.State);
+        Assert.Equal(LocalizationPatchTransition.ManagedFileChanged, result.PatchTransition);
+        Assert.Contains("більше не активна", result.Error ?? "");
     }
 
     [Fact]

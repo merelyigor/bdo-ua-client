@@ -6,6 +6,7 @@ public static class LocalizationStatePresentation
     {
         LocalizationPatchTransition.ExistingLocalizationOutdated => "Встановлена локалізація застаріла",
         LocalizationPatchTransition.GameFileReplacedAfterPatch => "Після оновлення гри файл локалізації було замінено",
+        LocalizationPatchTransition.ManagedFileChanged => "Встановлена локалізація більше не активна",
         _ => result.State switch
         {
             LocalizationState.NotInstalled => "Локалізацію не встановлено",

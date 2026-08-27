@@ -101,6 +101,25 @@ public sealed class ModeCardPresentationPolicyTests
     }
 
     [Fact]
+    public void SameMode_UpdateAvailable_ManagedFileChanged_OffersUpdate()
+    {
+        var presentation = Create(LocalizationState.UpdateAvailable, "full", "OLD", Mode("full", "NEW"));
+        Assert.Equal("Оновити", presentation.ActionText);
+        Assert.True(presentation.ActionEnabled);
+        Assert.Equal("Доступне оновлення", presentation.StateText);
+        Assert.Equal(ModeCardTone.Warning, presentation.Tone);
+    }
+
+    [Fact]
+    public void SameMode_SamePublicId_UpdateAvailable_OffersUpdate()
+    {
+        var publicId = "01ABC";
+        var presentation = Create(LocalizationState.UpdateAvailable, "full", publicId, Mode("full", publicId));
+        Assert.Equal("Оновити", presentation.ActionText);
+        Assert.True(presentation.ActionEnabled);
+    }
+
+    [Fact]
     public void Operation_DisablesActionsAndMarksTargetBusy()
     {
         var presentation = Create(LocalizationState.NotInstalled, null, null, Mode("full", "A"), operation: true, activeTarget: true);

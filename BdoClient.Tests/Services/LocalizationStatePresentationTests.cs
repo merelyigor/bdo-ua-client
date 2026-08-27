@@ -27,4 +27,33 @@ public sealed class LocalizationStatePresentationTests
 
         Assert.Equal("Встановлена локалізація застаріла", LocalizationStatePresentation.GetDisplayText(result));
     }
+
+    [Fact]
+    public void ManagedFileChanged_DoesNotSayCorrupted()
+    {
+        var result = LocalizationStateResult.WithManagedFileChanged(
+            LocalizationState.UpdateAvailable,
+            LocalizationPatchTransition.ManagedFileChanged,
+            "Встановлена локалізація більше не активна.");
+
+        var text = LocalizationStatePresentation.GetDisplayText(result);
+
+        Assert.Equal("Встановлена локалізація більше не активна", text);
+        Assert.DoesNotContain("пошкоджено", text);
+        Assert.DoesNotContain("оновлення гри", text);
+    }
+
+    [Fact]
+    public void ManagedFileChanged_WaitingForRelease_DoesNotSayCorrupted()
+    {
+        var result = LocalizationStateResult.WithManagedFileChanged(
+            LocalizationState.WaitingForRelease,
+            LocalizationPatchTransition.ManagedFileChanged,
+            "Встановлена локалізація більше не активна. Актуальний українізатор ще не доступний.");
+
+        var text = LocalizationStatePresentation.GetDisplayText(result);
+
+        Assert.Equal("Встановлена локалізація більше не активна", text);
+        Assert.DoesNotContain("пошкоджено", text);
+    }
 }

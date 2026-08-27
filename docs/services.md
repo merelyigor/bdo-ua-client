@@ -418,6 +418,7 @@ public sealed class LocalizationStateService
 | 3 | `metadata.Source == "official"` | `NotInstalled` |
 | 4 | Game file missing | `Corrupted` |
 | 5 | SHA-256 mismatch АБО локальний патч (`ads_files`) новіший за `metadata.GamePatch` | Patch transition (див. нижче), зазвичай НЕ `Corrupted` |
+| 5b | SHA-256 mismatch при тому самому або невідомому патчі | `ManagedFileChanged` transition, НЕ `Corrupted` |
 | 6 | `current == null` | `WaitingForRelease` |
 | 7 | `current.PublicId` empty/null/whitespace | `WaitingForRelease` + Warning |
 | 8 | `metadata.PublicId == current.PublicId` (ordinal) | `UpToDate` |
@@ -425,9 +426,10 @@ public sealed class LocalizationStateService
 
 ### Patch transition
 
-`LocalizationPatchTransition { None, ExistingLocalizationOutdated, GameFileReplacedAfterPatch }`.
+`LocalizationPatchTransition { None, ExistingLocalizationOutdated, GameFileReplacedAfterPatch, ManagedFileChanged }`.
 
 - **Hash mismatch** при фактичному `ads_files` patch, новішому за `InstallationMetadata.GamePatch`, — нормальна transition-подія після оновлення гри, а не `Corrupted`. Результат: `GameFileReplacedAfterPatch`.
+- **Hash mismatch** при тому самому або невідомому `ads_files` patch — файл замінено грою/лаунчером після встановлення, а не `Corrupted`. Результат: `ManagedFileChanged`.
 - **Локальний patch новіший за встановлений** (`localPatch > installedPatch`, без hash mismatch) — `ExistingLocalizationOutdated`; фінальний стан зазвичай `UpdateAvailable` або `WaitingForRelease`.
 
 ### LocalizationStateResult

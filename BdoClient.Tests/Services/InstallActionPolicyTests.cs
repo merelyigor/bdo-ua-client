@@ -71,6 +71,21 @@ public class InstallActionPolicyTests
     }
 
     [Fact]
+    public void SameMode_SamePublicId_UpdateAvailable_CanInstall()
+    {
+        var publicId = "01ABC";
+        var selectedMode = MakeMode("full-ukrainian", current: MakeCurrent(publicId: publicId));
+        var selectedCurrent = MakeCurrent(publicId: publicId);
+
+        var policy = InstallActionPolicy.Evaluate(
+            LocalizationState.UpdateAvailable, "full-ukrainian", publicId,
+            selectedMode, selectedCurrent, CompatibilityResult.Allowed(), false);
+
+        Assert.True(policy.CanInstall);
+        Assert.False(policy.AlreadyInstalledExactTarget);
+    }
+
+    [Fact]
     public void DifferentInstalledMode_CanInstall()
     {
         var selectedMode = MakeMode("full-ukrainian", current: MakeCurrent());
