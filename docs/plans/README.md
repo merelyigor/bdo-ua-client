@@ -14,7 +14,9 @@
 
 ## Backlog
 
-No backlog plans.
+| Order | ID | Plan | Summary |
+|---|---|---|---|
+| 1 | `code-quality-ux-improvements` | [backlog/code-quality-ux-improvements.md](backlog/code-quality-ux-improvements.md) | Спільні path/source примітиви, централізація raw installation-state операцій, фізична декомпозиція MainForm на partial files, responsiveness investigation |
 
 ## Archive
 
