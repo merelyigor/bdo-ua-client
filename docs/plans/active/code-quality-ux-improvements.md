@@ -6,7 +6,7 @@ Focus: PRIMARY
 Backlog order: —
 Implementation authorization: **YES**
 Current phase: Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED
-Next action: T1 read-only tray lifetime inspection / mapping (background-tray-notifications ACTIVE; Stage B deferred until tray complete)
+Next action: T1.1 — Autostart / background startup (background-tray-notifications ACTIVE; T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED; Stage B deferred until tray complete)
 Dependencies: none (client-ui-redesign archived)
 
 ## Goal
@@ -102,7 +102,7 @@ Application self-update має materially different successful handoff path (Pro
 
 **Stage C → background-tray-notifications → Stage B → Stage D → Stage E**
 
-- `background-tray-notifications` — окремий BACKLOG-план (див. `docs/plans/backlog/background-tray-notifications.md`), виконується після Stage C і до Stage B.
+- `background-tray-notifications` — окремий ACTIVE-план (див. `docs/plans/active/background-tray-notifications.md`), T1 COMPLETED / REVIEWED / OWNER ACCEPTED; наступна технічна дія — T1.1 Autostart / background startup. виконується після Stage C і до Stage B.
 - Stage B (raw installation-state centralization) є safety-critical і **навмисно відкладено** до реалізації tray/background-функції: воно не розблоковує tray і несе ризик доцільно брати лише після вищопріоритетного tray-функціоналу.
 - Stage C залишається Stage C, Stage B залишається Stage B — ідентифікатори не перейменовуються під алфавітний порядок.
 
@@ -187,7 +187,7 @@ Application self-update має materially different successful handoff path (Pro
 
 ## Current progress
 
-v14.2.25 завершив targeted hygiene та launcher-polish items (порожні catch, dead code, «Доступно» бейдж, responsive progress, Cancel visibility). `client-ui-redesign` заархівовано після v1.1.2. План активовано як ACTIVE PRIMARY. **Stage A COMPLETED / REVIEWED / ACCEPTED:** A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED. Поточний етап: **Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED**; фінальний архітектурний review/lifecycle handoff завершено. Owner явно активував `background-tray-notifications` (тепер ACTIVE); наступна технічна дія — T1 read-only tray lifetime inspection / mapping. Після tray виконується Stage B (raw installation-state centralization, навмисно відкладено через safety-critical ризик).
+v14.2.25 завершив targeted hygiene та launcher-polish items (порожні catch, dead code, «Доступно» бейдж, responsive progress, Cancel visibility). `client-ui-redesign` заархівовано після v1.1.2. План активовано як ACTIVE PRIMARY. **Stage A COMPLETED / REVIEWED / ACCEPTED:** A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED. Поточний етап: **Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED**; фінальний архітектурний review/lifecycle handoff завершено. Owner явно активував `background-tray-notifications` (ACTIVE); **T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED** (runtime + документація прийняті власником). Наступна технічна дія — **T1.1 — Autostart / background startup**. Після tray виконується Stage B (raw installation-state centralization, навмисно відкладено через safety-critical ризик).
 
 ### Hotfix interruption (2026-08-27)
 

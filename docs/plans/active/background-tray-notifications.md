@@ -6,7 +6,7 @@ Focus: NONE (secondary feature, not PRIMARY)
 Implementation authorization: **YES**
 Depends on: completed Stage C — MainForm physical decomposition (COMPLETED / REVIEWED / ACCEPTED)
 Lifecycle: BACKLOG → (explicit owner decision) → ACTIVE → (completed/superseded) → ARCHIVE
-Next action: T1 read-only tray lifetime inspection / mapping
+Next action: T1.1 — Autostart / background startup
 
 ## Goal
 
@@ -154,7 +154,6 @@ Tray-код спостерігає за розв'язаним станом. Ві
 
 - без Windows Service;
 - без Scheduled Task;
-- без автоматичного Windows startup у першій версії;
 - без тихого встановлення/оновлення локалізації;
 - без примусового self-update застосунку;
 - без процесу поза нормальним lifetime застосунку;
@@ -170,13 +169,66 @@ Tray-код спостерігає за розв'язаним станом. Ві
 
 ### T1 — Tray lifetime shell
 
-- NotifyIcon
-- ContextMenuStrip
-- X ховає вікно
-- Open відновлює
-- double-click відновлює
-- явний Exit
-- збережено bypass self-update exit
+Status: **COMPLETED / REVIEWED / OWNER ACCEPTED**
+
+Реалізовано та прийнято власником (результат E2E: `T1 PASS, layout defect fixed`).
+
+Прийнята поведінка:
+
+- нативний WinForms `NotifyIcon` + `ContextMenuStrip`, створені програмно у `MainForm.Tray.cs` (partial `MainForm`);
+- звичайне закриття вікна (X / Alt+F4) ховає `MainForm` у трей, прибирає кнопку з панелі задач;
+- іконка трея видима лише доки `MainForm` приховано;
+- меню трея: `Відкрити`, `Вихід`;
+- `Відкрити` та подвійний клік по іконці відновлюють `MainForm`;
+- відновлення з `Minimized` нормалізує лише `Minimized`, зберігаючи `Maximized`;
+- явний Exit у треї виконує реальне завершення, коли процес простоює;
+- звичайне X під час активної Install/Update/Restore ховає вікно без скасування операції;
+- явний Exit трея під час активної операції зберігає поточну безпечну семантику скасування/очікування (без hard-kill);
+- `_explicitExitRequested` скидається, якщо спроба Exit скасована через активну операцію;
+- `_updateHandoffInProgress` лишається першою гілкою безпеки у `MainForm_FormClosing`;
+- self-update `Application.Exit()` лишається реальним виходом (не перетворюється на hide-to-tray);
+- Windows shutdown не перетворюється на hide-to-tray;
+- каденція/життєвий цикл poller не змінюються через hide/restore;
+- іконка трея видобувається з асоційованого exe (`Icon.ExtractAssociatedIcon`) із безпечним fallback `SystemIcons.Application`;
+- власна видобута іконка має явне володіння та disposed лише при реальному завершенні;
+- спільна системна іконка `SystemIcons.Application` ніколи не dispose;
+- виправлено дефект геометрії після відновлення: завершення операції, доки вікно приховано, більше не кліпає картки/кнопки — відновлення виконує відкладений post-show relayout (`RefreshModeCardLayout()` + `ScheduleContentFit()`).
+
+Валідація:
+
+- Release build: 0 errors / 0 warnings;
+- tests: 807 passed / 0 failed;
+- owner manual E2E: прийнято;
+- власник відтворив і підтвердив виправлення регресії кліпання після завершення операції у прихованому стані.
+
+### T1.1 — Autostart / background startup
+
+Status: **NEXT / NOT IMPLEMENTED**
+
+Власник явно схвалив додавання автозапуску/background-старту як наступного підзавдання трея.
+
+Дизайн (схвалено власником):
+
+- після ручного нормального X -> трей, якщо автозапуск Windows не ввімкнено і власник раніше не відхиляв підказку, показати одноразовий opt-in приблизно:
+  `Запускати BDO UA Client разом із Windows?`
+  Пояснити, що застосунок стартуватиме автоматично в області сповіщень/фоні.
+- варіанти:
+  - `Так` — увімкнути per-user автозапуск Windows;
+  - `Ні` — не вмикати і запам'ятати, що підказку відхилено (не показувати щоразу).
+- підказка не спамить при кожному хованні.
+- майбутній пункт меню трея (checkable): `Запускати разом із Windows` — увімкнення/вимкнення пізніше; джерело істини — реальний стан Windows.
+- механізм: per-user реєстр `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (без UAC/адміністратора). Не використовувати Windows Service, Scheduled Task, Startup folder shortcut, зовнішні залежності.
+- значення концептуально запускає поточний exe з `--background`:
+  `"<current-executable-path>" --background` (без хардкоду шляху встановлення).
+- командний рядок: новий точний флаг `--background`:
+  - `BdoClient.exe` — нормальний видимий `MainForm`;
+  - `BdoClient.exe --background` — нормальний startup, але одразу приховано в трей;
+  - `--apply-update <session-id>` лишається суворо ізольованим.
+- джерело істини автозапуску — реєстр, а не конфіг; конфіг зберігає лише UX-стан підказки (`autostart_prompt_dismissed`).
+- `--background` використовує нормальні сервіси/startup, не створює другого процесу.
+- майбутні тести: парсинг командного рядка, сумісність з `--apply-update`, roundtrip відхилення підказки, тестована логіка побудови реєстрового значення без запису в реальний реєстр користувача.
+
+Не реалізовано в цьому коміті.
 
 ### T2 — Operation / shutdown semantics
 

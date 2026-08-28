@@ -96,6 +96,7 @@ public partial class MainForm : Form
         _poller.OnFeedCandidate += OnReleaseFeedCandidate;
 
         InitializeComponent();
+        InitializeTray();
         rootScrollPanel.Resize += RootScrollPanel_Resize;
         ApplyTheme();
         WireEventHandlers();
@@ -130,21 +131,37 @@ public partial class MainForm : Form
     {
         if (_updateHandoffInProgress)
         {
-            // Updater handoff in progress — allow close, stop background tasks
+            // Updater handoff in progress — allow close, stop background tasks.
+            // Never convert self-update into hide-to-tray.
+            PrepareTrayForShutdown();
             _updateCheckCts?.Cancel();
             _poller.Stop();
+            return;
+        }
+
+        // Normal user close (X / Alt+F4) when not an explicit tray Exit → hide to tray.
+        // Must occur before active-operation cancellation logic so an ongoing
+        // localization operation is NOT cancelled by simply closing the window.
+        if (e.CloseReason == CloseReason.UserClosing && !_explicitExitRequested)
+        {
+            e.Cancel = true;
+            HideToTray();
             return;
         }
 
         if (!_operationInProgress)
         {
             _closing = true;
+            PrepareTrayForShutdown();
             _updateCheckCts?.Cancel();
             _poller.Stop();
             return;
         }
 
+        // Operation active: do not allow close, preserve cancellation/wait safety.
+        // An explicit tray Exit that lands here must not stay sticky.
         e.Cancel = true;
+        _explicitExitRequested = false;
 
         if (_operationCts != null && !_operationCts.IsCancellationRequested)
         {

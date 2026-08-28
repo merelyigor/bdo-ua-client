@@ -3,15 +3,15 @@
 ## Current focus
 
 **Primary:** `code-quality-ux-improvements`
-**Current phase:** background-tray-notifications — ACTIVE (Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED)
-**Next:** T1 read-only tray lifetime inspection / mapping
+**Current phase:** background-tray-notifications — ACTIVE (T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED)
+**Next:** T1.1 — Autostart / background startup
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED | T1 read-only tray lifetime inspection / mapping (tray now ACTIVE; Stage B deferred until tray complete) |
-| 2 | `background-tray-notifications` | [active/background-tray-notifications.md](active/background-tray-notifications.md) | ACTIVE | T1 read-only tray lifetime inspection / mapping |
+| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED | T1.1 — Autostart / background startup (tray T1 COMPLETED / OWNER ACCEPTED; Stage B deferred until tray complete) |
+| 2 | `background-tray-notifications` | [active/background-tray-notifications.md](active/background-tray-notifications.md) | ACTIVE | T1.1 — Autostart / background startup (T1 COMPLETED / REVIEWED / OWNER ACCEPTED) |
 
 ## Backlog
 
