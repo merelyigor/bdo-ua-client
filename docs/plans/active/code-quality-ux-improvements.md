@@ -6,7 +6,7 @@ Focus: PRIMARY
 Backlog order: —
 Implementation authorization: **YES**
 Current phase: Stage A — Shared path/source primitives
-Next action: A.3 AppPaths.InstallationFile reuse
+Next action: Stage A review / roadmap sequencing review
 Dependencies: none (client-ui-redesign archived)
 
 ## Goal
@@ -92,7 +92,7 @@ Application self-update має materially different successful handoff path (Pro
 
 - **A.1** `GamePaths` (static): константи `AdsDirName`, `LocalizationFileName` + `GetLocalizationFilePath(gameRoot)`. Замінити 5+ місць у MainForm/Services. `GameDetector`/`BackupStore` приватні константи → делегувати на `GamePaths`. — **COMPLETED**
 - **A.2** Source-маркери `"api"`/`"official"` → `InstallationSource` static-константи в Storage; замінити 9 місць. — **COMPLETED**
-- **A.3** Reuse `AppPaths.InstallationFile` замість ручного `Path.Combine(StateDir, "installation.json")` у `ReadRawInstallationState` та rollback-методах.
+- **A.3** Reuse `AppPaths.InstallationFile` замість ручного `Path.Combine(StateDir, "installation.json")` у `ReadRawInstallationState` та rollback-методах. — **COMPLETED**
 
 ### Stage B — Raw installation-state operations (low risk, correctness)
 
@@ -153,7 +153,7 @@ Application self-update має materially different successful handoff path (Pro
 
 ## Current progress
 
-v14.2.25 завершив targeted hygiene та launcher-polish items (порожні catch, dead code, «Доступно» бейдж, responsive progress, Cancel visibility). `client-ui-redesign` заархівовано після v1.1.2. План активовано як ACTIVE PRIMARY. Stage A є поточним; A.1 GamePaths — наступна implementation task.
+v14.2.25 завершив targeted hygiene та launcher-polish items (порожні catch, dead code, «Доступно» бейдж, responsive progress, Cancel visibility). `client-ui-redesign` заархівовано після v1.1.2. План активовано як ACTIVE PRIMARY. **Stage A implementation-complete:** A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED. Наступна дія: Stage A review / roadmap sequencing review (архітектурний огляд перед запуском Stage B).
 
 ### Hotfix interruption (2026-08-27)
 

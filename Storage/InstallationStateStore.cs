@@ -18,6 +18,7 @@ public sealed class InstallationStateStore
     internal Func<InstallationMetadata, CancellationToken, Task>? OnSaveAsync { get; set; }
 
     internal string StateDir => _paths.StateDir;
+    internal string InstallationFile => _paths.InstallationFile;
 
     public InstallationStateStore(AppPaths paths, ILogger logger)
     {

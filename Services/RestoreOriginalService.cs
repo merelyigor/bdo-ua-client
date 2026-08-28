@@ -249,7 +249,7 @@ public sealed class RestoreOriginalService
 
     private byte[]? ReadRawInstallationState()
     {
-        var path = Path.Combine(_stateStore.StateDir, "installation.json");
+        var path = _stateStore.InstallationFile;
         return File.Exists(path) ? File.ReadAllBytes(path) : null;
     }
 }

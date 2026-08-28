@@ -383,7 +383,7 @@ public sealed class LocalizationInstallService
 
     private async Task<bool> RollbackInstallationStateAsync(byte[]? preStateBytes)
     {
-        var stateRollbackPath = Path.Combine(_stateStore.StateDir, "installation.json");
+        var stateRollbackPath = _stateStore.InstallationFile;
 
         if (preStateBytes == null)
         {
@@ -439,7 +439,7 @@ public sealed class LocalizationInstallService
 
     private byte[]? ReadRawInstallationState()
     {
-        var path = Path.Combine(_stateStore.StateDir, "installation.json");
+        var path = _stateStore.InstallationFile;
         return File.Exists(path) ? File.ReadAllBytes(path) : null;
     }
 

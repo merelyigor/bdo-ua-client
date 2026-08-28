@@ -6,7 +6,7 @@
 
 BDO-UA Client — Windows .NET 8 WinForms застосунок для пошуку Black Desert Online, отримання українських локалізацій через `bdo-ua.com.ua`, безпечного встановлення, оновлення та відновлення файлів гри.
 
-Стабільний реліз: v1.1.3. Останній runtime-affecting baseline включає v14.2.25 launcher polish та accepted managed-localization-overwrite hotfix. `client-ui-redesign` завершено та заархівовано. `code-quality-ux-improvements` — ACTIVE PRIMARY план; поточна фаза Stage A, наступна задача A.3 AppPaths.InstallationFile reuse. Production залишається native .NET 8 WinForms.
+Стабільний реліз: v1.1.3. Останній runtime-affecting baseline включає v14.2.25 launcher polish та accepted managed-localization-overwrite hotfix. `client-ui-redesign` завершено та заархівовано. `code-quality-ux-improvements` — ACTIVE PRIMARY план; Stage A implementation-complete (A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED). Наступна дія: Stage A review / roadmap sequencing review. Production залишається native .NET 8 WinForms.
 
 ## Architecture Summary
 
@@ -63,9 +63,7 @@ Current phase: Stage A — Shared path/source primitives
 
 **A.2 InstallationSource completed (2026-08-28):** introduced canonical `BdoClient.Storage.InstallationSource` static constants (`Api = "api"`, `Official = "official"`). Replaced duplicated `"api"`/`"official"` source-marker literals in `InstallationMetadata`, `InstallationStateStore`, `LocalizationInstallService`, `LocalizationStateService`, `RestoreOriginalService`, `MainForm`. `Source` property stays `string`; persisted JSON values, casing, case-sensitivity, and unknown-source rejection are unchanged. Automated validation: 807/807 tests.
 
-Resume next: A.3 `AppPaths.InstallationFile` reuse — replace manual `Path.Combine(StateDir, "installation.json")` occurrences.
-
-Future: Stage B raw installation-state operations.
+**A.3 AppPaths.InstallationFile reuse completed (2026-08-28):** `InstallationStateStore` now exposes its canonical `InstallationFile` from `AppPaths`; install/restore services use `_stateStore.InstallationFile` instead of manually reconstructing `Path.Combine(_stateStore.StateDir, "installation.json")`. No path/schema/behavior change; restore-point `installation-state.json` and rollback temp naming untouched; `StateDir` retained for the rollback temp path. Stage A is now implementation-complete. Next action: Stage A review / roadmap sequencing review (architectural review before any later stage). Automated validation: 807/807 tests.
 
 ## Known Issues / Unresolved Investigations
 
@@ -85,9 +83,8 @@ Future: Stage B raw installation-state operations.
 
 ## Next Likely Work
 
-1. Implement Stage A.3 AppPaths.InstallationFile reuse.
-2. Review and validate.
-3. Do not automatically start Stage B before Stage A review.
+1. Stage A review / roadmap sequencing review (architectural review before any later stage).
+2. Do not automatically start Stage B before the review.
 
 ## Canonical References
 

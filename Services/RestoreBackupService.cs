@@ -107,7 +107,7 @@ public sealed class RestoreBackupService
 
             if (stateIsPresent && selectedStateBytes != null)
             {
-                var statePath = Path.Combine(_stateStore.StateDir, "installation.json");
+                var statePath = _stateStore.InstallationFile;
                 var tempStatePath = statePath + ".tmp";
 
                 await File.WriteAllBytesAsync(tempStatePath, selectedStateBytes, cancellationToken)
@@ -135,7 +135,7 @@ public sealed class RestoreBackupService
             }
             else
             {
-                var statePath = Path.Combine(_stateStore.StateDir, "installation.json");
+                var statePath = _stateStore.InstallationFile;
                 if (File.Exists(statePath))
                 {
                     File.Delete(statePath);
@@ -221,7 +221,7 @@ public sealed class RestoreBackupService
     private async Task<bool> RollbackStateAsync(
         byte[]? preOpStateBytes, bool preOpStateWasPresent, CancellationToken cancellationToken)
     {
-        var statePath = Path.Combine(_stateStore.StateDir, "installation.json");
+        var statePath = _stateStore.InstallationFile;
 
         if (!preOpStateWasPresent)
         {
@@ -262,7 +262,7 @@ public sealed class RestoreBackupService
 
     private byte[]? ReadRawInstallationState()
     {
-        var path = Path.Combine(_stateStore.StateDir, "installation.json");
+        var path = _stateStore.InstallationFile;
         return File.Exists(path) ? File.ReadAllBytes(path) : null;
     }
 }
