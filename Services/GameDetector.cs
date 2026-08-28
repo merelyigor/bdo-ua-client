@@ -8,8 +8,6 @@ namespace BdoClient.Services;
 
 public sealed class GameDetector
 {
-    private const string LocalizationFile = "languagedata_en.loc";
-    private const string AdsDir = "ads";
     private const string AppManifestFile = "appmanifest_582660.acf";
     private const string LibraryFoldersFile = "libraryfolders.vdf";
     private const string SteamAppsDir = "steamapps";
@@ -35,7 +33,7 @@ public sealed class GameDetector
         try
         {
             var fullPath = Path.GetFullPath(gamePath);
-            var locFile = Path.Combine(fullPath, AdsDir, LocalizationFile);
+            var locFile = GamePaths.GetLocalizationFilePath(fullPath);
             return File.Exists(locFile);
         }
         catch
@@ -123,7 +121,7 @@ public sealed class GameDetector
         {
             var fullPath = Path.GetFullPath(expandedPath);
 
-            if (fullPath.TrimEnd('\\', '/').EndsWith(AdsDir, StringComparison.OrdinalIgnoreCase))
+            if (fullPath.TrimEnd('\\', '/').EndsWith(GamePaths.AdsDirName, StringComparison.OrdinalIgnoreCase))
             {
                 var parent = Path.GetDirectoryName(fullPath.TrimEnd('\\', '/'));
                 if (!string.IsNullOrEmpty(parent))

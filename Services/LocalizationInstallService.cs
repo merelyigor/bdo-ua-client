@@ -35,7 +35,7 @@ public sealed class LocalizationInstallService
         _logger.Info($"Install transaction started: mode={modeSlug}, public_id={release.PublicId}");
 
         // --- Phase 1: Input validation ---
-        var gameLocFilePath = Path.Combine(_gameRoot, "ads", "languagedata_en.loc");
+        var gameLocFilePath = GamePaths.GetLocalizationFilePath(_gameRoot);
 
         if (!File.Exists(gameLocFilePath))
         {
@@ -330,7 +330,7 @@ public sealed class LocalizationInstallService
         var gameRestored = false;
         if (restorePointDir != null)
         {
-            var rpFile = Path.Combine(restorePointDir, "languagedata_en.loc");
+            var rpFile = Path.Combine(restorePointDir, GamePaths.LocalizationFileName);
             if (File.Exists(rpFile))
             {
                 try

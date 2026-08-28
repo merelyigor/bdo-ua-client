@@ -29,7 +29,7 @@ public sealed class RestoreOriginalService
         _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _gameRoot = gameRoot ?? throw new ArgumentNullException(nameof(gameRoot));
-        _gameLocFilePath = Path.Combine(gameRoot, "ads", "languagedata_en.loc");
+        _gameLocFilePath = GamePaths.GetLocalizationFilePath(gameRoot);
         _officialSourceUrl = officialSourceUrl ?? throw new ArgumentNullException(nameof(officialSourceUrl));
         _currentOfficialPatch = currentOfficialPatch;
     }

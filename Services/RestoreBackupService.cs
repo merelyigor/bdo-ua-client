@@ -29,7 +29,7 @@ public sealed class RestoreBackupService
     public async Task<RestoreResult> RestoreAsync(
         string restorePointId, CancellationToken cancellationToken = default)
     {
-        var gameLocFilePath = Path.Combine(_gameRoot, "ads", "languagedata_en.loc");
+        var gameLocFilePath = GamePaths.GetLocalizationFilePath(_gameRoot);
 
         if (!File.Exists(gameLocFilePath))
         {
@@ -49,7 +49,7 @@ public sealed class RestoreBackupService
                 $"Restore point not found or invalid: {restorePointId}");
         }
 
-        var selectedGameFile = Path.Combine(restorePointDir, "languagedata_en.loc");
+        var selectedGameFile = Path.Combine(restorePointDir, GamePaths.LocalizationFileName);
         var selectedStateFile = Path.Combine(restorePointDir, "installation-state.json");
         bool hasStateFile = File.Exists(selectedStateFile);
 

@@ -25,7 +25,7 @@ public static class AdsFilesPatchReader
             foreach (var line in File.ReadLines(path))
             {
                 var match = EntryLine.Match(line);
-                if (!match.Success || !string.Equals(match.Groups[1].Value, "languagedata_en.loc", StringComparison.Ordinal))
+                if (!match.Success || !string.Equals(match.Groups[1].Value, GamePaths.LocalizationFileName, StringComparison.Ordinal))
                     continue;
 
                 entryCount++;

@@ -768,7 +768,7 @@ public partial class MainForm : Form
                 installedModeCurrent = installedApiMode?.Current;
             }
 
-            var gameLocPath = Path.Combine(_gameRoot, "ads", "languagedata_en.loc");
+            var gameLocPath = GamePaths.GetLocalizationFilePath(_gameRoot);
             var factualState = await _stateService.ResolveAsync(installedModeCurrent, gameLocPath, gameRoot: _gameRoot);
 
             var policy = InstallActionPolicy.Evaluate(
@@ -1647,7 +1647,7 @@ public partial class MainForm : Form
             installedModeCurrent = installedApiMode?.Current;
         }
 
-        var gameLocPath = Path.Combine(_gameRoot, "ads", "languagedata_en.loc");
+        var gameLocPath = GamePaths.GetLocalizationFilePath(_gameRoot);
         var stateResult = await _stateService.ResolveAsync(installedModeCurrent, gameLocPath, gameRoot: _gameRoot);
         _lastResolvedState = stateResult.State;
         _lastInstalledModeSlug = installedModeSlug;

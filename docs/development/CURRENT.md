@@ -6,7 +6,7 @@
 
 BDO-UA Client — Windows .NET 8 WinForms застосунок для пошуку Black Desert Online, отримання українських локалізацій через `bdo-ua.com.ua`, безпечного встановлення, оновлення та відновлення файлів гри.
 
-Стабільний реліз: v1.1.2. Останній runtime-affecting baseline включає v14.2.25 launcher polish. `client-ui-redesign` завершено та заархівовано. `code-quality-ux-improvements` — новий ACTIVE PRIMARY план; поточна фаза Stage A, наступна задача A.1 GamePaths. Production залишається native .NET 8 WinForms.
+Стабільний реліз: v1.1.3. Останній runtime-affecting baseline включає v14.2.25 launcher polish та accepted managed-localization-overwrite hotfix. `client-ui-redesign` завершено та заархівовано. `code-quality-ux-improvements` — ACTIVE PRIMARY план; поточна фаза Stage A, наступна задача A.2 source markers. Production залишається native .NET 8 WinForms.
 
 ## Architecture Summary
 
@@ -59,9 +59,11 @@ Current phase: Stage A — Shared path/source primitives
 
 **Hotfix completed and owner-accepted (2026-08-27):** managed localization hash-mismatch state resolution. When game/launcher replaces the localization file after BDO-UA Client installed it, the state was incorrectly classified as `Corrupted` (same patch, different SHA). Fix: new `ManagedFileChanged` transition resolves to `UpdateAvailable`/`WaitingForRelease` instead. Automated validation: 805/805 tests. Owner reproduced real launcher-restored-file scenario: preview showed "Доступне оновлення" / "Оновити", update completed, state returned UpToDate, restart remained UpToDate.
 
-Resume next: A.1 GamePaths — introduce canonical `GamePaths` primitive, centralize ads directory name and localization filename, replace duplicated path construction.
+**A.1 GamePaths completed (2026-08-28):** introduced canonical `BdoClient.Services.GamePaths` primitive owning `AdsDirName` (`"ads"`), `LocalizationFileName` (`"languagedata_en.loc"`) and `GetLocalizationFilePath(gameRoot)`. Replaced duplicated literals/constants in `GameDetector`, `AdsFilesPatchReader`, `LocalizationInstallService`, `RestoreOriginalService`, `RestoreBackupService`, `BackupStore`, `MainForm`. Behavior unchanged; backup/restore-point layout unchanged (no extra `ads\` introduced). Automated validation: 807/807 tests.
 
-Future: A.2 source markers, A.3 `AppPaths.InstallationFile` reuse, then Stage B raw installation-state operations.
+Resume next: A.2 source markers — introduce `InstallationSource` constants and replace `"api"`/`"official"` literals.
+
+Future: A.3 `AppPaths.InstallationFile` reuse, then Stage B raw installation-state operations.
 
 ## Known Issues / Unresolved Investigations
 
@@ -81,9 +83,9 @@ Future: A.2 source markers, A.3 `AppPaths.InstallationFile` reuse, then Stage B 
 
 ## Next Likely Work
 
-1. Implement Stage A.1 GamePaths.
+1. Implement Stage A.2 source markers.
 2. Review and validate.
-3. Continue A.2 and A.3 as separate small tasks.
+3. Continue A.3 as a separate small task.
 4. Do not automatically start Stage B before Stage A review.
 
 ## Canonical References
