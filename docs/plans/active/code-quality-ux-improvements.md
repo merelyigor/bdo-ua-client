@@ -110,14 +110,34 @@ Application self-update має materially different successful handoff path (Pro
 
 Розділити `MainForm.cs` на coherent partial files без зміни runtime архітектури. Без контролерів, без DI redesign.
 
-Прикладний розподіл:
-- `MainForm.cs` — constructor, DI, fields
-- `MainForm.Startup.cs` — MainForm_Shown, startup lifecycle
-- `MainForm.Localization.cs` — mode cards, install, restore original
-- `MainForm.ApplicationUpdate.cs` — update check, staging, handoff
-- `MainForm.Presentation.cs` — SetOperationState, SetMessage, game status, error maps, BuildLogsIcon
+Архітектором затверджений точний порядок фізичної декомпозиції (execution sequence, не алфавітний):
 
-Безпосередня наступна дія — **read-only декомпозиційна інспекція / mapping** (архітектор оглядає поточні обов'язки MainForm і визначає точні межі partial-файлів до видачі кроків реалізації). Stage C не позначається як розпочатий/завершений понад статус поточного запланованого етапу.
+- **C.1 Presentation extraction** — `MainForm.Presentation.cs`: theme/shell layout, game-status presentation, operation/control presentation, mode-card presentation, public presentation helpers, designer-referenced visual helper. — **COMPLETED**
+- **C.2 Startup extraction** — `MainForm.Startup.cs`: `MainForm_Shown`, startup lifecycle maintenance.
+- **C.3 Localization extraction** — `MainForm.Localization.cs`: mode cards, install, restore original, `RefreshStateAsync`.
+- **C.4 Operations extraction** — `MainForm.Operations.cs`: операції install/restore (фізичний partial, НЕ абстракція/контролер).
+- **C.5 ApplicationUpdate extraction** — `MainForm.ApplicationUpdate.cs`: update check, staging, handoff.
+
+Обов'язкові обмеження Stage C (затверджено архітектором):
+- Усі fields та constructor залишаються у `MainForm.cs`.
+- `WireEventHandlers` залишається у `MainForm.cs`.
+- `MainForm_FormClosing` залишається у `MainForm.cs`.
+- `LogsButton_Click` залишається у `MainForm.cs`.
+- Файл `MainForm.Lifecycle.cs` у Stage C НЕ створюється.
+- `MainForm.Operations.cs` — лише фізичний partial, не абстракція/контролер.
+- `RefreshStateAsync` належить `MainForm.Localization.cs` (C.3), а не Presentation.
+- `RefreshModeCardLayout` залишається з localization/mode підсистемою (C.3).
+- Tray/background залишається BACKLOG — не реалізовувати у Stage C.
+
+Прикладний розподіл partial-файлів:
+- `MainForm.cs` — constructor, DI, fields, WireEventHandlers, MainForm_FormClosing, LogsButton_Click
+- `MainForm.Presentation.cs` — theme/shell layout, game-status, operation/control presentation, mode-card presentation, public helpers, BuildLogsIcon
+- `MainForm.Startup.cs` — MainForm_Shown, startup lifecycle
+- `MainForm.Localization.cs` — mode cards, install, restore original, RefreshStateAsync
+- `MainForm.Operations.cs` — install/restore operation methods
+- `MainForm.ApplicationUpdate.cs` — update check, staging, handoff
+
+Безпосередня наступна дія — **C.2 Startup extraction** (після review C.1). Stage C не позначається цілком завершеним, доки не виконано C.1–C.5.
 
 ### Stage B — Raw installation-state operations (low risk, correctness) — DEFERRED (після tray)
 

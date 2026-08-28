@@ -6,7 +6,7 @@
 
 BDO-UA Client — Windows .NET 8 WinForms застосунок для пошуку Black Desert Online, отримання українських локалізацій через `bdo-ua.com.ua`, безпечного встановлення, оновлення та відновлення файлів гри.
 
-Стабільний реліз: v1.1.3. Останній runtime-affecting baseline включає v14.2.25 launcher polish та accepted managed-localization-overwrite hotfix. `client-ui-redesign` завершено та заархівовано. `code-quality-ux-improvements` — ACTIVE PRIMARY план; **Stage A COMPLETED / REVIEWED / ACCEPTED** (A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED). Поточний етап: **Stage C — MainForm physical decomposition**; безпосередня наступна задача: **read-only декомпозиційна інспекція / mapping**. `background-tray-notifications` зареєстровано як BACKLOG order 1 (залежить від Stage C); Stage B залишається запланованим, але навмисно виконується після tray. Production залишається native .NET 8 WinForms.
+Стабільний реліз: v1.1.3. Останній runtime-affecting baseline включає v14.2.25 launcher polish та accepted managed-localization-overwrite hotfix. `client-ui-redesign` завершено та заархівовано. `code-quality-ux-improvements` — ACTIVE PRIMARY план; **Stage A COMPLETED / REVIEWED / ACCEPTED** (A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED). Поточний етап: **Stage C — MainForm physical decomposition**; затверджено точну послідовність фізичної декомпозиції (C.1 Presentation → C.2 Startup → C.3 Localization → C.4 Operations → C.5 ApplicationUpdate). **C.1 Presentation extraction COMPLETED** (21 метод перенесено у `MainForm.Presentation.cs`, без зміни runtime-поведінки). Наступна задача: **C.2 Startup extraction**. `background-tray-notifications` зареєстровано як BACKLOG order 1 (залежить від Stage C); Stage B залишається запланованим, але навмисно виконується після tray. Production залишається native .NET 8 WinForms.
 
 ## Architecture Summary
 
@@ -55,9 +55,11 @@ Exact changes and validation are recorded in Git history and the monthly journal
 
 ACTIVE PRIMARY: `code-quality-ux-improvements`
 
-Current phase: Stage C — MainForm physical decomposition
+Current phase: Stage C — MainForm physical decomposition (in progress; exact decomposition architecture approved)
 
 **Hotfix completed and owner-accepted (2026-08-27):** managed localization hash-mismatch state resolution. When game/launcher replaces the localization file after BDO-UA Client installed it, the state was incorrectly classified as `Corrupted` (same patch, different SHA). Fix: new `ManagedFileChanged` transition resolves to `UpdateAvailable`/`WaitingForRelease` instead. Automated validation: 805/805 tests. Owner reproduced real launcher-restored-file scenario: preview showed "Доступне оновлення" / "Оновити", update completed, state returned UpToDate, restart remained UpToDate.
+
+**C.1 Presentation extraction completed (2026-08-28):** 21 presentation/layout методів фізично перенесено з `MainForm.cs` у новий `MainForm.Presentation.cs` (partial `MainForm`): theme/shell layout, game-status presentation, operation/control presentation, mode-card presentation, public presentation helpers, `BuildLogsIcon`. Усі fields, constructor, `WireEventHandlers`, `MainForm_FormClosing`, `LogsButton_Click` залишилися у `MainForm.cs`. `RefreshStateAsync` та `RefreshModeCardLayout` залишилися поза Presentation (належать майбутньому C.3 Localization). Runtime-поведінка не змінена; build/tests без помилок (807/807). Наступна задача: C.2 Startup extraction. Tray залишається BACKLOG; Stage B відкладено.
 
 **A.1 GamePaths completed (2026-08-28):** introduced canonical `BdoClient.Services.GamePaths` primitive owning `AdsDirName` (`"ads"`), `LocalizationFileName` (`"languagedata_en.loc"`) and `GetLocalizationFilePath(gameRoot)`. Replaced duplicated literals/constants in `GameDetector`, `AdsFilesPatchReader`, `LocalizationInstallService`, `RestoreOriginalService`, `RestoreBackupService`, `BackupStore`, `MainForm`. Behavior unchanged; backup/restore-point layout unchanged (no extra `ads\` introduced). Automated validation: 807/807 tests.
 
@@ -83,7 +85,7 @@ Current phase: Stage C — MainForm physical decomposition
 
 ## Next Likely Work
 
-1. Stage C read-only MainForm decomposition inspection / mapping (architectural review of current MainForm responsibilities before implementation steps).
+1. C.2 Startup extraction — перенести `MainForm_Shown` та startup lifecycle maintenance у `MainForm.Startup.cs` (physical partial, без зміни поведінки).
 2. Do not automatically start Stage B before the tray/background feature and Stage C review.
 
 ## Canonical References
