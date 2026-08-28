@@ -5,8 +5,8 @@ Status: ACTIVE
 Focus: PRIMARY
 Backlog order: —
 Implementation authorization: **YES**
-Current phase: Stage C — MainForm physical decomposition
-Next action: Stage C final review / explicit lifecycle handoff before background-tray-notifications
+Current phase: Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED
+Next action: Owner decision: activate background-tray-notifications or select another task
 Dependencies: none (client-ui-redesign archived)
 
 ## Goal
@@ -106,7 +106,7 @@ Application self-update має materially different successful handoff path (Pro
 - Stage B (raw installation-state centralization) є safety-critical і **навмисно відкладено** до реалізації tray/background-функції: воно не розблоковує tray і несе ризик доцільно брати лише після вищопріоритетного tray-функціоналу.
 - Stage C залишається Stage C, Stage B залишається Stage B — ідентифікатори не перейменовуються під алфавітний порядок.
 
-### Stage C — MainForm physical decomposition (low risk) — CURRENT PHASE
+### Stage C — MainForm physical decomposition (low risk) — COMPLETED / REVIEWED / ACCEPTED
 
 Розділити `MainForm.cs` на coherent partial files без зміни runtime архітектури. Без контролерів, без DI redesign.
 
@@ -137,7 +137,7 @@ Application self-update має materially different successful handoff path (Pro
 - `MainForm.Operations.cs` — HandleInstallAsync, RestoreOriginalButton_Click, HandleRestoreOriginalAsync, CancelButton_Click, MapInstallError, MapRestoreError (фізичний partial, без нової абстракції)
 - `MainForm.ApplicationUpdate.cs` — update check, staging, handoff
 
-Безпосередня наступна дія — **Stage C final review / explicit lifecycle handoff** перед окремим BACKLOG `background-tray-notifications`. Stage C C.1–C.5 фізична декомпозиція повністю реалізована. Tray залишається BACKLOG — не реалізовано. Stage B залишається відкладеним (після tray).
+Безпосередня наступна дія — **Owner decision: activate background-tray-notifications or select another task**. Stage C C.1–C.5 фізична декомпозиція повністю реалізована та фінально переглянута архітектором (COMPLETED / REVIEWED / ACCEPTED): partial-власність, `MainForm_FormClosing` та self-update handoff прийняті без змін, `MainForm.Lifecycle.cs` не створено, жодного generic operation runner не додано. Tray залишається BACKLOG — не реалізовано, активація вимагає явного owner-рішення. Stage B залишається відкладеним (після tray).
 
 ### Stage B — Raw installation-state operations (low risk, correctness) — DEFERRED (після tray)
 
@@ -187,7 +187,7 @@ Application self-update має materially different successful handoff path (Pro
 
 ## Current progress
 
-v14.2.25 завершив targeted hygiene та launcher-polish items (порожні catch, dead code, «Доступно» бейдж, responsive progress, Cancel visibility). `client-ui-redesign` заархівовано після v1.1.2. План активовано як ACTIVE PRIMARY. **Stage A COMPLETED / REVIEWED / ACCEPTED:** A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED. Поточний етап: **Stage C — MainForm physical decomposition**; безпосередня наступна дія: **Stage C read-only decomposition inspection / mapping**. Після Stage C виконується BACKLOG `background-tray-notifications`, лише потім — Stage B (raw installation-state centralization, навмисно відкладено через safety-critical ризик).
+v14.2.25 завершив targeted hygiene та launcher-polish items (порожні catch, dead code, «Доступно» бейдж, responsive progress, Cancel visibility). `client-ui-redesign` заархівовано після v1.1.2. План активовано як ACTIVE PRIMARY. **Stage A COMPLETED / REVIEWED / ACCEPTED:** A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED. Поточний етап: **Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED**; фінальний архітектурний review/lifecycle handoff завершено. Наступна дія вимагає явного owner-рішення: активувати BACKLOG `background-tray-notifications` або обрати інше завдання. Після tray виконується Stage B (raw installation-state centralization, навмисно відкладено через safety-critical ризик).
 
 ### Hotfix interruption (2026-08-27)
 

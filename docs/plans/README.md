@@ -3,14 +3,14 @@
 ## Current focus
 
 **Primary:** `code-quality-ux-improvements`
-**Current phase:** Stage C — MainForm physical decomposition
-**Next:** Stage C read-only decomposition inspection / mapping
+**Current phase:** Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED
+**Next:** Owner decision: activate background-tray-notifications or select another task
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | Stage C — MainForm physical decomposition | Stage C read-only decomposition inspection / mapping |
+| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED | Owner decision: activate background-tray-notifications or select another task |
 
 ## Backlog
 
