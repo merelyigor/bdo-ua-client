@@ -6,7 +6,7 @@
 
 BDO-UA Client — Windows .NET 8 WinForms застосунок для пошуку Black Desert Online, отримання українських локалізацій через `bdo-ua.com.ua`, безпечного встановлення, оновлення та відновлення файлів гри.
 
-Стабільний реліз: v1.1.3. Останній runtime-affecting baseline включає v14.2.25 launcher polish та accepted managed-localization-overwrite hotfix. `client-ui-redesign` завершено та заархівовано. `code-quality-ux-improvements` — ACTIVE PRIMARY план; Stage A implementation-complete (A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED). Наступна дія: Stage A review / roadmap sequencing review. Production залишається native .NET 8 WinForms.
+Стабільний реліз: v1.1.3. Останній runtime-affecting baseline включає v14.2.25 launcher polish та accepted managed-localization-overwrite hotfix. `client-ui-redesign` завершено та заархівовано. `code-quality-ux-improvements` — ACTIVE PRIMARY план; **Stage A COMPLETED / REVIEWED / ACCEPTED** (A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED). Поточний етап: **Stage C — MainForm physical decomposition**; безпосередня наступна задача: **read-only декомпозиційна інспекція / mapping**. `background-tray-notifications` зареєстровано як BACKLOG order 1 (залежить від Stage C); Stage B залишається запланованим, але навмисно виконується після tray. Production залишається native .NET 8 WinForms.
 
 ## Architecture Summary
 
@@ -55,7 +55,7 @@ Exact changes and validation are recorded in Git history and the monthly journal
 
 ACTIVE PRIMARY: `code-quality-ux-improvements`
 
-Current phase: Stage A — Shared path/source primitives
+Current phase: Stage C — MainForm physical decomposition
 
 **Hotfix completed and owner-accepted (2026-08-27):** managed localization hash-mismatch state resolution. When game/launcher replaces the localization file after BDO-UA Client installed it, the state was incorrectly classified as `Corrupted` (same patch, different SHA). Fix: new `ManagedFileChanged` transition resolves to `UpdateAvailable`/`WaitingForRelease` instead. Automated validation: 805/805 tests. Owner reproduced real launcher-restored-file scenario: preview showed "Доступне оновлення" / "Оновити", update completed, state returned UpToDate, restart remained UpToDate.
 
@@ -63,7 +63,7 @@ Current phase: Stage A — Shared path/source primitives
 
 **A.2 InstallationSource completed (2026-08-28):** introduced canonical `BdoClient.Storage.InstallationSource` static constants (`Api = "api"`, `Official = "official"`). Replaced duplicated `"api"`/`"official"` source-marker literals in `InstallationMetadata`, `InstallationStateStore`, `LocalizationInstallService`, `LocalizationStateService`, `RestoreOriginalService`, `MainForm`. `Source` property stays `string`; persisted JSON values, casing, case-sensitivity, and unknown-source rejection are unchanged. Automated validation: 807/807 tests.
 
-**A.3 AppPaths.InstallationFile reuse completed (2026-08-28):** `InstallationStateStore` now exposes its canonical `InstallationFile` from `AppPaths`; install/restore services use `_stateStore.InstallationFile` instead of manually reconstructing `Path.Combine(_stateStore.StateDir, "installation.json")`. No path/schema/behavior change; restore-point `installation-state.json` and rollback temp naming untouched; `StateDir` retained for the rollback temp path. Stage A is now implementation-complete. Next action: Stage A review / roadmap sequencing review (architectural review before any later stage). Automated validation: 807/807 tests.
+**A.3 AppPaths.InstallationFile reuse completed (2026-08-28):** `InstallationStateStore` now exposes its canonical `InstallationFile` from `AppPaths`; install/restore services use `_stateStore.InstallationFile` instead of manually reconstructing `Path.Combine(_stateStore.StateDir, "installation.json")`. No path/schema/behavior change; restore-point `installation-state.json` and rollback temp naming untouched; `StateDir` retained for the rollback temp path. Stage A is now implementation-complete, reviewed and accepted. Next task: Stage C read-only MainForm decomposition inspection/mapping. Automated validation: 807/807 tests.
 
 ## Known Issues / Unresolved Investigations
 
@@ -83,8 +83,8 @@ Current phase: Stage A — Shared path/source primitives
 
 ## Next Likely Work
 
-1. Stage A review / roadmap sequencing review (architectural review before any later stage).
-2. Do not automatically start Stage B before the review.
+1. Stage C read-only MainForm decomposition inspection / mapping (architectural review of current MainForm responsibilities before implementation steps).
+2. Do not automatically start Stage B before the tray/background feature and Stage C review.
 
 ## Canonical References
 

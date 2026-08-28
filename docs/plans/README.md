@@ -3,18 +3,20 @@
 ## Current focus
 
 **Primary:** `code-quality-ux-improvements`
-**Current phase:** Stage A
-**Next:** A.1 GamePaths
+**Current phase:** Stage C — MainForm physical decomposition
+**Next:** Stage C read-only decomposition inspection / mapping
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | Stage A — Shared path/source primitives | A.1 GamePaths |
+| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | Stage C — MainForm physical decomposition | Stage C read-only decomposition inspection / mapping |
 
 ## Backlog
 
-No backlog plans.
+| Order | ID | Plan | Depends on |
+|---|---|---|---|
+| 1 | `background-tray-notifications` | [backlog/background-tray-notifications.md](backlog/background-tray-notifications.md) | completed Stage C (MainForm physical decomposition) |
 
 ## Archive
 

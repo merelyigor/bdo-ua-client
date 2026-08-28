@@ -5,8 +5,8 @@ Status: ACTIVE
 Focus: PRIMARY
 Backlog order: —
 Implementation authorization: **YES**
-Current phase: Stage A — Shared path/source primitives
-Next action: Stage A review / roadmap sequencing review
+Current phase: Stage C — MainForm physical decomposition
+Next action: Stage C read-only decomposition inspection / mapping
 Dependencies: none (client-ui-redesign archived)
 
 ## Goal
@@ -19,11 +19,11 @@ Dependencies: none (client-ui-redesign archived)
 
 ### Актуальні проблеми (ще не вирішені)
 
-- **Дубльовані raw installation-state операції**: `ReadRawInstallationState` ×3, атомарний запис стану ×4 (разом з `InstallationStateStore.SaveAsync`), rollback-логіка розходиться (різні temp-імена, різна обробка CancellationToken).
-- **Магічні рядки**: `"ads"`/`"languagedata_en.loc"` у 5+ місцях, `"installation.json"` ×8 (при існуючому `AppPaths.InstallationFile`), `"api"`/`"official"` маркери ×9.
-- **MainForm.cs великий** (~1800+ рядків): self-update, localization, presentation, startup — все в одному файлі.
+- **Дубльовані raw installation-state операції**: `ReadRawInstallationState` ×3, атомарний запис стану ×4 (разом з `InstallationStateStore.SaveAsync`), rollback-логіка розходиться (різні temp-імена, різна обробка CancellationToken). — заплановано у Stage B.
+- **Магічні рядки**: `"ads"`/`"languagedata_en.loc"` у 5+ місцях, `"installation.json"` ×8 (при існуючому `AppPaths.InstallationFile`), `"api"`/`"official"` маркери ×9. — **ВИРІШЕНО у Stage A** (A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse).
+- **MainForm.cs великий** (~1800+ рядків): self-update, localization, presentation, startup — все в одному файлі. — заплановано у Stage C.
 - **Дубльований factual-state резолв** у `HandleInstallAsync` та `RefreshStateAsync`.
-- **Sync file IO на UI-потоку** (`_stateStore.Load()`, `AdsFilesPatchReader.TryReadPatch`, `GameDetector.ValidateGamePath`) — не підтверджено як реальний performance defect, потребує вимірювання.
+- **Sync file IO на UI-потоку** (`_stateStore.Load()`, `AdsFilesPatchReader.TryReadPatch`, `GameDetector.ValidateGamePath`) — не підтверджено як реальний performance defect, потребує вимірювання. — заплановано у Stage D.
 
 ## Completed before backlog execution (v14.2.25)
 
@@ -88,21 +88,25 @@ Application self-update має materially different successful handoff path (Pro
 
 ## Roadmap
 
-### Stage A — Shared path/source primitives (low risk)
+### Stage A — Shared path/source primitives (low risk) — COMPLETED / REVIEWED / ACCEPTED
+
+Немає жодної залишкової implementation-задачі Stage A. A.1/A.2/A.3 — усі завершені, переглянуті архітектором та прийняті.
 
 - **A.1** `GamePaths` (static): константи `AdsDirName`, `LocalizationFileName` + `GetLocalizationFilePath(gameRoot)`. Замінити 5+ місць у MainForm/Services. `GameDetector`/`BackupStore` приватні константи → делегувати на `GamePaths`. — **COMPLETED**
 - **A.2** Source-маркери `"api"`/`"official"` → `InstallationSource` static-константи в Storage; замінити 9 місць. — **COMPLETED**
 - **A.3** Reuse `AppPaths.InstallationFile` замість ручного `Path.Combine(StateDir, "installation.json")` у `ReadRawInstallationState` та rollback-методах. — **COMPLETED**
 
-### Stage B — Raw installation-state operations (low risk, correctness)
+### Execution order (intentional, not alphabetical)
 
-Централізувати дубльовані byte-level операції з installation state файлом. **Не** об'єднувати install/restore orchestration. **Не** вводити GameFileTransaction.
+Порядок виконання навмисно відрізняється від алфавітної нумерації етапів:
 
-- **B.1** Один canonical метод захоплення raw state (`ReadRawInstallationState` → на `InstallationStateStore` або поруч).
-- **B.2** Один canonical метод атомарного відновлення raw state (temp → Replace/Move → byte-verify → cleanup). Зберегти present/absent semantics, cancellation behavior, rollback safety.
-- **B.3** Замінити 3+ реалізації `ReadRawInstallationState` та 4 реалізації атомарного запису на спільні виклики.
+**Stage C → background-tray-notifications → Stage B → Stage D → Stage E**
 
-### Stage C — MainForm physical decomposition (low risk)
+- `background-tray-notifications` — окремий BACKLOG-план (див. `docs/plans/backlog/background-tray-notifications.md`), виконується після Stage C і до Stage B.
+- Stage B (raw installation-state centralization) є safety-critical і **навмисно відкладено** до реалізації tray/background-функції: воно не розблоковує tray і несе ризик доцільно брати лише після вищопріоритетного tray-функціоналу.
+- Stage C залишається Stage C, Stage B залишається Stage B — ідентифікатори не перейменовуються під алфавітний порядок.
+
+### Stage C — MainForm physical decomposition (low risk) — CURRENT PHASE
 
 Розділити `MainForm.cs` на coherent partial files без зміни runtime архітектури. Без контролерів, без DI redesign.
 
@@ -112,6 +116,16 @@ Application self-update має materially different successful handoff path (Pro
 - `MainForm.Localization.cs` — mode cards, install, restore original
 - `MainForm.ApplicationUpdate.cs` — update check, staging, handoff
 - `MainForm.Presentation.cs` — SetOperationState, SetMessage, game status, error maps, BuildLogsIcon
+
+Безпосередня наступна дія — **read-only декомпозиційна інспекція / mapping** (архітектор оглядає поточні обов'язки MainForm і визначає точні межі partial-файлів до видачі кроків реалізації). Stage C не позначається як розпочатий/завершений понад статус поточного запланованого етапу.
+
+### Stage B — Raw installation-state operations (low risk, correctness) — DEFERRED (після tray)
+
+Централізувати дубльовані byte-level операції з installation state файлом. **Не** об'єднувати install/restore orchestration. **Не** вводити GameFileTransaction. **Не розпочато.**
+
+- **B.1** Один canonical метод захоплення raw state (`ReadRawInstallationState` → на `InstallationStateStore` або поруч).
+- **B.2** Один canonical метод атомарного відновлення raw state (temp → Replace/Move → byte-verify → cleanup). Зберегти present/absent semantics, cancellation behavior, rollback safety.
+- **B.3** Замінити 3+ реалізації `ReadRawInstallationState` та 4 реалізації атомарного запису на спільні виклики.
 
 ### Stage D — Responsiveness investigation (investigation only)
 
@@ -148,12 +162,12 @@ Application self-update має materially different successful handoff path (Pro
 ## Risks / dependencies
 
 - **Safety-critical код:** Stage B торкається §14/§15/§38 (game files, backup, rollback). Мітигація: маленькі кроки, сильне тестове покриття.
-- **Конфлікт з `client-ui-redesign`:** Stage C змінює MainForm — виконувати після завершення активного плану або за координацією.
+- **Конфлікт з `client-ui-redesign`:** не актуально — `client-ui-redesign` вже заархівовано (Stage 4 + v1.1.2 stable). Stage C змінює MainForm у межах поточного ACTIVE PRIMARY плану.
 - **Test seams:** перенесення методів InstallationStateStore/BackupStore вимагає оновлення тестових підкласів.
 
 ## Current progress
 
-v14.2.25 завершив targeted hygiene та launcher-polish items (порожні catch, dead code, «Доступно» бейдж, responsive progress, Cancel visibility). `client-ui-redesign` заархівовано після v1.1.2. План активовано як ACTIVE PRIMARY. **Stage A implementation-complete:** A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED. Наступна дія: Stage A review / roadmap sequencing review (архітектурний огляд перед запуском Stage B).
+v14.2.25 завершив targeted hygiene та launcher-polish items (порожні catch, dead code, «Доступно» бейдж, responsive progress, Cancel visibility). `client-ui-redesign` заархівовано після v1.1.2. План активовано як ACTIVE PRIMARY. **Stage A COMPLETED / REVIEWED / ACCEPTED:** A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED. Поточний етап: **Stage C — MainForm physical decomposition**; безпосередня наступна дія: **Stage C read-only decomposition inspection / mapping**. Після Stage C виконується BACKLOG `background-tray-notifications`, лише потім — Stage B (raw installation-state centralization, навмисно відкладено через safety-critical ризик).
 
 ### Hotfix interruption (2026-08-27)
 
@@ -163,4 +177,4 @@ v14.2.25 завершив targeted hygiene та launcher-polish items (поро�
 
 **Status:** COMPLETED/ACCEPTED. Owner reproduced real launcher-restored-file scenario (2026-08-27): preview showed "Доступне оновлення" / "Оновити", update completed, state returned UpToDate, restart remained UpToDate.
 
-**Resume next:** A.1 GamePaths (not affected by hotfix).
+**Resume next:** Stage A повністю завершено (A.1/A.2/A.3 COMPLETED/ACCEPTED); поточний етап — Stage C (див. вище).
