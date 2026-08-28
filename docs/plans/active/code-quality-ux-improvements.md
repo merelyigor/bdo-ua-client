@@ -6,7 +6,7 @@ Focus: PRIMARY
 Backlog order: —
 Implementation authorization: **YES**
 Current phase: Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED
-Next action: T1.1 — Autostart / background startup (background-tray-notifications ACTIVE; T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED; Stage B deferred until tray complete)
+Next action: T2 — Operation / shutdown semantics (background-tray-notifications ACTIVE; T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED; T1.1 — Autostart / background startup — COMPLETED / REVIEWED / ACCEPTED; Stage B deferred until tray complete)
 Dependencies: none (client-ui-redesign archived)
 
 ## Goal
@@ -102,7 +102,7 @@ Application self-update має materially different successful handoff path (Pro
 
 **Stage C → background-tray-notifications → Stage B → Stage D → Stage E**
 
-- `background-tray-notifications` — окремий ACTIVE-план (див. `docs/plans/active/background-tray-notifications.md`), T1 COMPLETED / REVIEWED / OWNER ACCEPTED; наступна технічна дія — T1.1 Autostart / background startup. виконується після Stage C і до Stage B.
+- `background-tray-notifications` — окремий ACTIVE-план (див. `docs/plans/active/background-tray-notifications.md`), T1 COMPLETED / REVIEWED / OWNER ACCEPTED; T1.1 Autostart / background startup — COMPLETED / REVIEWED / ACCEPTED; наступна технічна дія — T2 Operation / shutdown semantics. виконується після Stage C і до Stage B.
 - Stage B (raw installation-state centralization) є safety-critical і **навмисно відкладено** до реалізації tray/background-функції: воно не розблоковує tray і несе ризик доцільно брати лише після вищопріоритетного tray-функціоналу.
 - Stage C залишається Stage C, Stage B залишається Stage B — ідентифікатори не перейменовуються під алфавітний порядок.
 
@@ -137,7 +137,7 @@ Application self-update має materially different successful handoff path (Pro
 - `MainForm.Operations.cs` — HandleInstallAsync, RestoreOriginalButton_Click, HandleRestoreOriginalAsync, CancelButton_Click, MapInstallError, MapRestoreError (фізичний partial, без нової абстракції)
 - `MainForm.ApplicationUpdate.cs` — update check, staging, handoff
 
-Безпосередня наступна дія — **T1 read-only tray lifetime inspection / mapping** (згідно з планом `background-tray-notifications`, який тепер ACTIVE). Stage C C.1–C.5 фізична декомпозиція повністю реалізована та фінально переглянута архітектором (COMPLETED / REVIEWED / ACCEPTED): partial-власність, `MainForm_FormClosing` та self-update handoff прийняті без змін, `MainForm.Lifecycle.cs` не створено, жодного generic operation runner не додано. Owner явно активував tray (ACTIVE, implementation authorization YES), але runtime-код ще не реалізовано. Stage B залишається відкладеним (після tray).
+Безпосередня наступна дія — **T1 read-only tray lifetime inspection / mapping** (згідно з планом `background-tray-notifications`, який тепер ACTIVE). Stage C C.1–C.5 фізична декомпозиція повністю реалізована та фінально переглянута архітектором (COMPLETED / REVIEWED / ACCEPTED): partial-власність, `MainForm_FormClosing` та self-update handoff прийняті без змін, `MainForm.Lifecycle.cs` не створено, жодного generic operation runner не додано. Owner явно активував tray (ACTIVE, implementation authorization YES); згодом реалізовано та прийнято T1 (Tray lifetime shell) і T1.1 (Autostart / background startup, включно з single-instance безпекою). Stage B залишається відкладеним (після tray).
 
 ### Stage B — Raw installation-state operations (low risk, correctness) — DEFERRED (після tray)
 
@@ -187,7 +187,7 @@ Application self-update має materially different successful handoff path (Pro
 
 ## Current progress
 
-v14.2.25 завершив targeted hygiene та launcher-polish items (порожні catch, dead code, «Доступно» бейдж, responsive progress, Cancel visibility). `client-ui-redesign` заархівовано після v1.1.2. План активовано як ACTIVE PRIMARY. **Stage A COMPLETED / REVIEWED / ACCEPTED:** A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED. Поточний етап: **Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED**; фінальний архітектурний review/lifecycle handoff завершено. Owner явно активував `background-tray-notifications` (ACTIVE); **T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED** (runtime + документація прийняті власником). Наступна технічна дія — **T1.1 — Autostart / background startup**. Після tray виконується Stage B (raw installation-state centralization, навмисно відкладено через safety-critical ризик).
+v14.2.25 завершив targeted hygiene та launcher-polish items (порожні catch, dead code, «Доступно» бейдж, responsive progress, Cancel visibility). `client-ui-redesign` заархівовано після v1.1.2. План активовано як ACTIVE PRIMARY. **Stage A COMPLETED / REVIEWED / ACCEPTED:** A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED. Поточний етап: **Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED**; фінальний архітектурний review/lifecycle handoff завершено. Owner явно активував `background-tray-notifications` (ACTIVE); **T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED** (runtime + документація прийняті власником); **T1.1 — Autostart / background startup — COMPLETED / REVIEWED / ACCEPTED** (runtime + docs прийняті: per-user HKCU Run автозапуск, `--background`, single-instance координатор, 835/835 тестів, 0/0 build). Наступна технічна дія — **T2 — Operation / shutdown semantics**. Після tray виконується Stage B (raw installation-state centralization, навмисно відкладено через safety-critical ризик).
 
 ### Hotfix interruption (2026-08-27)
 

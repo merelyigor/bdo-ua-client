@@ -10,6 +10,7 @@ public class ApplicationCommandLineTests
         var cmd = ApplicationCommandLine.Parse(Array.Empty<string>());
         Assert.Equal(CommandLineMode.Normal, cmd.Mode);
         Assert.Null(cmd.ApplyUpdateSessionId);
+        Assert.False(cmd.StartInBackground);
     }
 
     [Fact]
@@ -17,6 +18,57 @@ public class ApplicationCommandLineTests
     {
         var cmd = ApplicationCommandLine.Parse(new[] { "--unknown", "value" });
         Assert.Equal(CommandLineMode.Normal, cmd.Mode);
+        Assert.False(cmd.StartInBackground);
+    }
+
+    [Fact]
+    public void Parse_ExactBackground_ReturnsNormalWithBackground()
+    {
+        var cmd = ApplicationCommandLine.Parse(new[] { "--background" });
+        Assert.Equal(CommandLineMode.Normal, cmd.Mode);
+        Assert.True(cmd.StartInBackground);
+    }
+
+    [Fact]
+    public void Parse_BackgroundWithExtraArg_ReturnsNormalWithoutBackground()
+    {
+        var cmd = ApplicationCommandLine.Parse(new[] { "--background", "extra" });
+        Assert.Equal(CommandLineMode.Normal, cmd.Mode);
+        Assert.False(cmd.StartInBackground);
+    }
+
+    [Fact]
+    public void Parse_DuplicateBackground_ReturnsNormalWithoutBackground()
+    {
+        var cmd = ApplicationCommandLine.Parse(new[] { "--background", "--background" });
+        Assert.Equal(CommandLineMode.Normal, cmd.Mode);
+        Assert.False(cmd.StartInBackground);
+    }
+
+    [Fact]
+    public void Parse_SingleUnknownArg_ReturnsNormalWithoutBackground()
+    {
+        var cmd = ApplicationCommandLine.Parse(new[] { "--unknown" });
+        Assert.Equal(CommandLineMode.Normal, cmd.Mode);
+        Assert.False(cmd.StartInBackground);
+    }
+
+    [Fact]
+    public void Parse_BackgroundBeforeApplyUpdate_ReturnsInvalidWithoutBackground()
+    {
+        var sessionId = Guid.NewGuid().ToString("D");
+        var cmd = ApplicationCommandLine.Parse(new[] { "--background", "--apply-update", sessionId });
+        Assert.Equal(CommandLineMode.InvalidApplyUpdate, cmd.Mode);
+        Assert.False(cmd.StartInBackground);
+    }
+
+    [Fact]
+    public void Parse_BackgroundAfterApplyUpdate_ReturnsInvalidWithoutBackground()
+    {
+        var sessionId = Guid.NewGuid().ToString("D");
+        var cmd = ApplicationCommandLine.Parse(new[] { "--apply-update", sessionId, "--background" });
+        Assert.Equal(CommandLineMode.InvalidApplyUpdate, cmd.Mode);
+        Assert.False(cmd.StartInBackground);
     }
 
     [Fact]

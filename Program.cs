@@ -26,9 +26,30 @@ static class Program
 
             case CommandLineMode.Normal:
             default:
-                RunNormalMode();
+                RunNormalModeEntry(commandLine.StartInBackground);
                 return;
         }
+    }
+
+    private static void RunNormalModeEntry(bool startInBackground)
+    {
+        // Single-instance gate for normal clients only. The self-update helper
+        // (ApplyUpdate / InvalidApplyUpdate) must never acquire this coordinator.
+        // Command line is already parsed above, so this runs before any MainForm,
+        // HTTP client, release poller or startup lifecycle is created.
+        using var coordinator = new SingleInstanceCoordinator();
+
+        if (!coordinator.IsPrimary)
+        {
+            // A primary normal/background instance already exists. A manual launch
+            // asks the primary to restore; a background launch stays silent.
+            if (!startInBackground)
+                coordinator.SignalActivation();
+
+            return;
+        }
+
+        RunNormalMode(startInBackground, coordinator);
     }
 
     private static void RunHelperMode(string sessionId)
@@ -96,7 +117,7 @@ static class Program
         }
     }
 
-    private static void RunNormalMode()
+    private static void RunNormalMode(bool startInBackground, SingleInstanceCoordinator coordinator)
     {
         var appPaths = new AppPaths();
         appPaths.EnsureDirectories();
@@ -126,6 +147,8 @@ static class Program
         var gitHubClient = new GitHubUpdateClient(gitHubHttpClient, logger);
         var selectionPolicy = new UpdateSelectionPolicy(logger);
 
+        var autostartService = new WindowsAutostartService(Application.ExecutablePath, logger);
+
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 
@@ -135,7 +158,8 @@ static class Program
                 configStore, apiClient, gameDetector,
                 stateService, compatService,
                 localizationInstaller, backupStore, stateStore, logger,
-                appVersionInfo, gitHubClient, selectionPolicy, appPaths));
+                appVersionInfo, gitHubClient, selectionPolicy, appPaths,
+                autostartService, startInBackground, coordinator));
         }
         catch (Exception ex)
         {
@@ -144,6 +168,7 @@ static class Program
         }
         finally
         {
+            coordinator.Dispose();
             logger.Info("Application exited.");
         }
     }

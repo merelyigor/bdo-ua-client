@@ -9,4 +9,7 @@ public sealed class Config
 
     [JsonPropertyName("last_mode")]
     public string? LastMode { get; set; }
+
+    [JsonPropertyName("autostart_prompt_dismissed")]
+    public bool AutostartPromptDismissed { get; set; }
 }

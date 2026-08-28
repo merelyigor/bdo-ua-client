@@ -69,7 +69,10 @@ public partial class MainForm : Form
         AppVersionInfo appVersionInfo,
         GitHubUpdateClient gitHubClient,
         UpdateSelectionPolicy selectionPolicy,
-        AppPaths appPaths)
+        AppPaths appPaths,
+        WindowsAutostartService autostartService,
+        bool startInBackground,
+        SingleInstanceCoordinator singleInstanceCoordinator)
     {
         _configStore = configStore;
         _apiClient = apiClient;
@@ -84,6 +87,9 @@ public partial class MainForm : Form
         _gitHubClient = gitHubClient;
         _selectionPolicy = selectionPolicy;
         _appPaths = appPaths;
+        _autostartService = autostartService;
+        _startInBackground = startInBackground;
+        _singleInstanceCoordinator = singleInstanceCoordinator;
 
         _updateSessionStore = new UpdateSessionStore(appPaths, logger);
         var manifestValidator = new UpdateManifestValidator(logger);
@@ -101,7 +107,11 @@ public partial class MainForm : Form
         ApplyTheme();
         WireEventHandlers();
         this.Shown += MainForm_Shown;
-        HandleCreated += (_, _) => WindowChromeHelper.ApplyDarkCaption(this);
+        HandleCreated += (_, _) =>
+        {
+            WindowChromeHelper.ApplyDarkCaption(this);
+            RegisterSecondaryActivationListener();
+        };
     }
 
     private void WireEventHandlers()
@@ -146,6 +156,7 @@ public partial class MainForm : Form
         {
             e.Cancel = true;
             HideToTray();
+            ScheduleAutostartOfferAfterManualHide();
             return;
         }
 

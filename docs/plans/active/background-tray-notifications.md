@@ -6,7 +6,7 @@ Focus: NONE (secondary feature, not PRIMARY)
 Implementation authorization: **YES**
 Depends on: completed Stage C — MainForm physical decomposition (COMPLETED / REVIEWED / ACCEPTED)
 Lifecycle: BACKLOG → (explicit owner decision) → ACTIVE → (completed/superseded) → ARCHIVE
-Next action: T1.1 — Autostart / background startup
+Next action: T2 — Operation / shutdown semantics
 
 ## Goal
 
@@ -203,32 +203,42 @@ Status: **COMPLETED / REVIEWED / OWNER ACCEPTED**
 
 ### T1.1 — Autostart / background startup
 
-Status: **NEXT / NOT IMPLEMENTED**
+Status: **COMPLETED / REVIEWED / ACCEPTED**
 
-Власник явно схвалив додавання автозапуску/background-старту як наступного підзавдання трея.
+Власник явно схвалив додавання автозапуску/background-старту як наступного підзавдання трея. Реалізовано, переглянуто архітектором та прийнято на основі automated runtime E2E, реальної інтеграції з реєстром HKCU, фактичної UI Automation трея, background-startup валідації та duplicate-instance runtime валідації.
 
-Дизайн (схвалено власником):
+Прийнята поведінка T1.1:
 
-- після ручного нормального X -> трей, якщо автозапуск Windows не ввімкнено і власник раніше не відхиляв підказку, показати одноразовий opt-in приблизно:
-  `Запускати BDO UA Client разом із Windows?`
-  Пояснити, що застосунок стартуватиме автоматично в області сповіщень/фоні.
-- варіанти:
-  - `Так` — увімкнути per-user автозапуск Windows;
-  - `Ні` — не вмикати і запам'ятати, що підказку відхилено (не показувати щоразу).
-- підказка не спамить при кожному хованні.
-- майбутній пункт меню трея (checkable): `Запускати разом із Windows` — увімкнення/вимкнення пізніше; джерело істини — реальний стан Windows.
-- механізм: per-user реєстр `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (без UAC/адміністратора). Не використовувати Windows Service, Scheduled Task, Startup folder shortcut, зовнішні залежності.
-- значення концептуально запускає поточний exe з `--background`:
-  `"<current-executable-path>" --background` (без хардкоду шляху встановлення).
-- командний рядок: новий точний флаг `--background`:
-  - `BdoClient.exe` — нормальний видимий `MainForm`;
-  - `BdoClient.exe --background` — нормальний startup, але одразу приховано в трей;
-  - `--apply-update <session-id>` лишається суворо ізольованим.
-- джерело істини автозапуску — реєстр, а не конфіг; конфіг зберігає лише UX-стан підказки (`autostart_prompt_dismissed`).
-- `--background` використовує нормальні сервіси/startup, не створює другого процесу.
-- майбутні тести: парсинг командного рядка, сумісність з `--apply-update`, roundtrip відхилення підказки, тестована логіка побудови реєстрового значення без запису в реальний реєстр користувача.
+- per-user автозапуск Windows через `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, значення `BDO-UA-Client` = `"<current-absolute-exe-path>" --background` (без UAC/HKLM/Scheduled Task/Service/Startup-folder, без зовнішніх залежностей).
+- реєстр — джерело істини для увімкнення автозапуску; конфіг зберігає лише UX-стан підказки (`autostart_prompt_dismissed`, за замовчуванням false).
+- підказка показується лише після ручного idle X → трей, коли автозапуск вимкнено і підказку раніше не відхиляли; не спамить, не показується при `--background` старті та під час активної операції; `Так` увімкнює реєстр і помічає dismissal лише при успіху, `Ні` лише зберігає dismissal; явний вибір у меню трея також приховує майбутню підказку.
+- меню трея: `Відкрити` → `Запускати разом із Windows` (checkbox, оновлюється з реального реєстру) → separator → `Вихід`; пункту `Перевірити зараз` немає.
+- `--background` використовує той самий нормальний `MainForm`/стартовий pipeline (`MainForm_Shown`), без `ApplicationContext`, без другого процесу, без постійного видимого вікна/кнопки панелі задач; під час automated валідації видимий flash не спостерігався.
+- точний командний рядок: `BdoClient.exe` (Normal visible), `BdoClient.exe --background` (Normal приховано в трей), `--apply-update <session-id>` (helper, строго ізольовано); mixed `--background`+`--apply-update` — невалідна граматика; невідомі non-updater аргументи зберігають попередню сумісність Normal без background.
 
-Не реалізовано в цьому коміті.
+Додано `Services/WindowsAutostartService` (HKCU Run enable/disable/is-enabled + canonical command build) та поле `autostart_prompt_dismissed` у `Storage/Config`.
+
+### Безпека single-instance (нормальні клієнти)
+
+Нормальний/background клієнт є single-instance на Windows-сесію. Іменовані об'єкти: `Local\BDO-UA-Client.SingleInstance` (Mutex) та `Local\BDO-UA-Client.Activate` (AutoReset `EventWaitHandle`).
+
+- `BdoClient.exe --background` уже живий, потім `BdoClient.exe` → вторинний завершується, оригінальний primary залишається, його `MainForm` відновлюється/активується; рівно один нормальний процес.
+- `BdoClient.exe --background` + ще один `BdoClient.exe --background` → вторинний тихо завершується, оригінал лишається прихованим; рівно один процес.
+- видимий primary + ручний вторинний `BdoClient.exe` → вторинний завершується, оригінал виводиться на передній план; без дублювання стеку застосунку.
+- якщо primary немає — свіжий нормальний запуск стає primary.
+- гейт single-instance застосовується лише до Normal mode; `--apply-update` його не проходить (helper чекає завершення parent PID, старий процес звільняє Mutex, helper замінює target, перезапущений target стартує Normal і стає primary). `SelfUpdateApplier` не змінено.
+
+Валідація:
+
+- Release build: 0 errors / 0 warnings.
+- tests: 835 passed / 0 failed (baseline 827 + 8 new single-instance + autostart tests).
+- Live Registry `HKCU\...\Run` Enable/Disable/IsEnabled: PASS; canonical command підтверджено; original Registry стан відновлено.
+- Фактичне tray-меню через UI Automation: підтверджено `Відкрити` / `Запускати разом із Windows` / `Вихід`; перемикання автозапуску з трея реально створювало/видаляло реєстрове значення.
+- Background runtime `BdoClient.exe --background`: процес живий, 0 видимих віконних семплів під час старту, без підказки автозапуску, стартові логи підтверджують нормальний API/update lifecycle/poller.
+- Duplicate-instance runtime сценарії (background+manual, background+background, visible+manual, ownership release/relaunch, background regression): усі PASS.
+- Test-state restoration: Registry, config (byte-for-byte), preview-процеси зупинено, тимчасовий workspace видалено.
+
+Обмеження автоматизації: фізичне натискання кнопок `Так`/`Ні` у MessageBox після X-close не вдалося надійно синтезувати в unattended середовищі (WinForms `CloseReason.UserClosing` не піднімається від ін'єктованого Win32-вводу без foreground-сесії); гілкування підказки переглянуто структурно, backend автозапуску валідовано наживо, dismissal-поведінку конфігу покрито юніт-тестами. Це обмеження автоматизації, не дефект продукту.
 
 ### T2 — Operation / shutdown semantics
 
