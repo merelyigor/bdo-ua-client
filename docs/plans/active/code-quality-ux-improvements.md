@@ -114,8 +114,8 @@ Application self-update має materially different successful handoff path (Pro
 
 - **C.1 Presentation extraction** — `MainForm.Presentation.cs`: theme/shell layout, game-status presentation, operation/control presentation, mode-card presentation, public presentation helpers, designer-referenced visual helper. — **COMPLETED**
 - **C.2 Startup extraction** — `MainForm.Startup.cs`: `MainForm_Shown`, startup lifecycle maintenance.
-- **C.3 Localization extraction** — `MainForm.Localization.cs`: mode cards, install, restore original, `RefreshStateAsync`.
-- **C.4 Operations extraction** — `MainForm.Operations.cs`: операції install/restore (фізичний partial, НЕ абстракція/контролер).
+- **C.3 Localization extraction** — `MainForm.Localization.cs`: modes, game detect/browse, selection/config routing, release-feed application, `RefreshStateAsync`.
+- **C.4 Operations extraction** — `MainForm.Operations.cs`: `HandleInstallAsync`, `RestoreOriginalButton_Click`, `HandleRestoreOriginalAsync`, `CancelButton_Click`, `MapInstallError`, `MapRestoreError` (фізичний partial, НЕ абстракція/контролер/сервіс).
 - **C.5 ApplicationUpdate extraction** — `MainForm.ApplicationUpdate.cs`: update check, staging, handoff.
 
 Обов'язкові обмеження Stage C (затверджено архітектором):
@@ -133,8 +133,8 @@ Application self-update має materially different successful handoff path (Pro
 - `MainForm.cs` — constructor, DI, fields, WireEventHandlers, MainForm_FormClosing, LogsButton_Click
 - `MainForm.Presentation.cs` — theme/shell layout, game-status, operation/control presentation, mode-card presentation, public helpers, BuildLogsIcon
 - `MainForm.Startup.cs` — MainForm_Shown, startup lifecycle
-- `MainForm.Localization.cs` — mode cards, install, restore original, RefreshStateAsync
-- `MainForm.Operations.cs` — install/restore operation methods
+- `MainForm.Localization.cs` — modes, game detect/browse, selection/config routing, release-feed application, RefreshStateAsync
+- `MainForm.Operations.cs` — HandleInstallAsync, RestoreOriginalButton_Click, HandleRestoreOriginalAsync, CancelButton_Click, MapInstallError, MapRestoreError (фізичний partial, без нової абстракції)
 - `MainForm.ApplicationUpdate.cs` — update check, staging, handoff
 
 Безпосередня наступна дія — **C.2 Startup extraction** (після review C.1). Stage C не позначається цілком завершеним, доки не виконано C.1–C.5.
