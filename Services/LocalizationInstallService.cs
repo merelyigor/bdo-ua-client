@@ -128,7 +128,7 @@ public sealed class LocalizationInstallService
 
             if (!snapExists)
             {
-                if (preStateLoad.Status == FileLoadStatus.Valid && preStateLoad.Value?.Source == "api")
+                if (preStateLoad.Status == FileLoadStatus.Valid && preStateLoad.Value?.Source == InstallationSource.Api)
                 {
                     _logger.Error("No original snapshot but source=api metadata exists — aborting (inconsistent state)");
                     return InstallResult.Failure(InstallError.OriginalSnapshotFailed,
@@ -280,7 +280,7 @@ public sealed class LocalizationInstallService
         // --- Phase 9: Save installation state ---
         var newMetadata = new InstallationMetadata
         {
-            Source = "api",
+            Source = InstallationSource.Api,
             ModeSlug = modeSlug,
             PublicId = release.PublicId,
             Version = release.Version,

@@ -23,5 +23,5 @@ public sealed class InstallationMetadata
     public DateTimeOffset InstalledAt { get; set; }
 
     [JsonPropertyName("source")]
-    public string Source { get; set; } = "api";
+    public string Source { get; set; } = InstallationSource.Api;
 }

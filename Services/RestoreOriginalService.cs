@@ -93,7 +93,7 @@ public sealed class RestoreOriginalService
         {
             var metadata = new InstallationMetadata
             {
-                Source = "official",
+                Source = InstallationSource.Official,
                 ModeSlug = null,
                 PublicId = null,
                 Version = null,
@@ -197,7 +197,7 @@ public sealed class RestoreOriginalService
         {
             var metadata = new InstallationMetadata
             {
-                Source = "official",
+                Source = InstallationSource.Official,
                 ModeSlug = null,
                 PublicId = null,
                 Version = null,

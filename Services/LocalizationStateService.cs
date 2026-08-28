@@ -40,7 +40,7 @@ public sealed class LocalizationStateService
         var installedPatch = metadata.GamePatch is > 0 ? metadata.GamePatch : null;
         var localPatch = AdsFilesPatchReader.TryReadPatch(gameRoot ?? DeriveGameRoot(gameLocFilePath));
 
-        if (metadata.Source == "official")
+        if (metadata.Source == InstallationSource.Official)
         {
             _logger.Debug("State resolution: NotInstalled (source=official)");
             return LocalizationStateResult.Success(LocalizationState.NotInstalled);

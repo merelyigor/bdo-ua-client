@@ -141,8 +141,8 @@ public sealed class InstallationStateStore
 
         return metadata.Source switch
         {
-            "api" => ValidateApiMetadata(metadata),
-            "official" => ValidateOfficialMetadata(metadata),
+            InstallationSource.Api => ValidateApiMetadata(metadata),
+            InstallationSource.Official => ValidateOfficialMetadata(metadata),
             _ => $"Unknown source: {metadata.Source}"
         };
     }

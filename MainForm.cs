@@ -433,7 +433,7 @@ public partial class MainForm : Form
     {
         var installedLoad = _stateStore.Load();
         if (installedLoad.Status != FileLoadStatus.Valid
-            || installedLoad.Value?.Source != "api"
+            || installedLoad.Value?.Source != InstallationSource.Api
             || string.IsNullOrWhiteSpace(installedLoad.Value.ModeSlug))
         {
             return null;
@@ -759,7 +759,7 @@ public partial class MainForm : Form
             string? installedPublicId = null;
             CurrentRelease? installedModeCurrent = null;
 
-            if (installedLoad.Status == FileLoadStatus.Valid && installedLoad.Value?.Source == "api")
+            if (installedLoad.Status == FileLoadStatus.Valid && installedLoad.Value?.Source == InstallationSource.Api)
             {
                 installedModeSlug = installedLoad.Value.ModeSlug;
                 installedPublicId = installedLoad.Value.PublicId;
@@ -1632,7 +1632,7 @@ public partial class MainForm : Form
         string? installedModeSlug = null;
         string? installedPublicId = null;
 
-        if (installedLoad.Status == FileLoadStatus.Valid && installedLoad.Value?.Source == "api")
+        if (installedLoad.Status == FileLoadStatus.Valid && installedLoad.Value?.Source == InstallationSource.Api)
         {
             installedModeSlug = installedLoad.Value.ModeSlug;
             installedPublicId = installedLoad.Value.PublicId;
@@ -1656,7 +1656,7 @@ public partial class MainForm : Form
         var selectedCurrent = selectedMode?.Current;
 
         var hasInstalledApiState = installedLoad.Status == FileLoadStatus.Valid
-            && installedLoad.Value?.Source == "api";
+            && installedLoad.Value?.Source == InstallationSource.Api;
         var sameInstalledModeSelected = hasInstalledApiState
             && selectedMode?.Slug != null
             && string.Equals(installedModeSlug, selectedMode.Slug, StringComparison.Ordinal);
