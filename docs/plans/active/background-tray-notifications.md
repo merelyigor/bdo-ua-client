@@ -1,12 +1,12 @@
 # Background tray notifications
 
 Plan ID: `background-tray-notifications`
-Status: BACKLOG
+Status: ACTIVE
 Focus: NONE (secondary feature, not PRIMARY)
-Backlog order: 1
-Implementation authorization: **NO**
-Depends on: completed Stage C — MainForm physical decomposition (must be completed and reviewed first)
+Implementation authorization: **YES**
+Depends on: completed Stage C — MainForm physical decomposition (COMPLETED / REVIEWED / ACCEPTED)
 Lifecycle: BACKLOG → (explicit owner decision) → ACTIVE → (completed/superseded) → ARCHIVE
+Next action: T1 read-only tray lifetime inspection / mapping
 
 ## Goal
 
