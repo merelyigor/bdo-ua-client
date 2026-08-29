@@ -72,6 +72,15 @@ public partial class MainForm
             var gameLocPath = GamePaths.GetLocalizationFilePath(_gameRoot);
             var factualState = await _stateService.ResolveAsync(installedModeCurrent, gameLocPath, gameRoot: _gameRoot);
 
+            // Abort before any install transaction if a real application shutdown
+            // became pending while awaiting factual-state resolution (the operation
+            // CTS does not exist yet, so cancellation could not have been requested).
+            if (_exitAfterOperation || _closing)
+            {
+                _logger.Info("Install aborted before transaction start because application shutdown is pending.");
+                return;
+            }
+
             var policy = InstallActionPolicy.Evaluate(
                 factualState.State, installedModeSlug, installedPublicId,
                 mode, current, compatResult, operationInProgress: false);
@@ -165,6 +174,7 @@ public partial class MainForm
                 _feedCoordinator.UnblockUpdates();
                 if (!_closing)
                     _poller.Resume();
+                CompletePendingExitAfterOperation();
             }
         }
     }
@@ -289,6 +299,7 @@ public partial class MainForm
                 _feedCoordinator.UnblockUpdates();
                 if (!_closing)
                     _poller.Resume();
+                CompletePendingExitAfterOperation();
             }
         }
     }

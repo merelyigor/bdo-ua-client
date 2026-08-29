@@ -6,7 +6,7 @@ Focus: NONE (secondary feature, not PRIMARY)
 Implementation authorization: **YES**
 Depends on: completed Stage C — MainForm physical decomposition (COMPLETED / REVIEWED / ACCEPTED)
 Lifecycle: BACKLOG → (explicit owner decision) → ACTIVE → (completed/superseded) → ARCHIVE
-Next action: T2 — Operation / shutdown semantics
+Next action: T3 — Background polling cadence
 
 ## Goal
 
@@ -184,7 +184,7 @@ Status: **COMPLETED / REVIEWED / OWNER ACCEPTED**
 - явний Exit у треї виконує реальне завершення, коли процес простоює;
 - звичайне X під час активної Install/Update/Restore ховає вікно без скасування операції;
 - явний Exit трея під час активної операції зберігає поточну безпечну семантику скасування/очікування (без hard-kill);
-- `_explicitExitRequested` скидається, якщо спроба Exit скасована через активну операцію;
+- `_explicitExitRequested` скасування спроби Exit під час активної операції (T1/T1.1); уточнено у T2: реальний вихід тепер відкладається і завершується автоматично після безпечного очищення операції через `_exitAfterOperation`;
 - `_updateHandoffInProgress` лишається першою гілкою безпеки у `MainForm_FormClosing`;
 - self-update `Application.Exit()` лишається реальним виходом (не перетворюється на hide-to-tray);
 - Windows shutdown не перетворюється на hide-to-tray;
@@ -242,9 +242,33 @@ Status: **COMPLETED / REVIEWED / ACCEPTED**
 
 ### T2 — Operation / shutdown semantics
 
-- ховати під час активної операції без скасування
-- явний Exit зберігає безпечну скасування/wait семантику
-- валідувати FormClosing та self-update шляхи
+Status: **COMPLETED / REVIEWED / ACCEPTED**
+
+Реалізовано та переглянуто. Безпечна семантика завершення/очікування підтверджена через close-policy матрицю та статичний огляд меж безпечного завершення операції.
+
+Прийнята поведінка:
+
+- звичайне X під час активної Install/Update/Restore ховає у трей без скасування операції;
+- явний Exit трея під час активної операції стає відкладеним реальним завершенням: `e.Cancel = true`, `_closing = true`, `_exitAfterOperation = true`, запит скасування існуючого CTS;
+- після повного безпечного завершення операції (state refresh, feed unblock, poller-resume guard) `CompletePendingExitAfterOperation()` планує відкладений `BeginInvoke(Close)`;
+- другий FormClosing обходить hide-to-tray (pending exit залишається), процес завершується автоматично;
+- друге натискання `Вихід` більше не потрібне;
+- `_closing = true` під час відкладеного завершення пригнічує resume poller/feed, secondary-instance restore та layout scheduling;
+- Windows/system реальне закриття під час активної операції слідує тому ж патерну безпечного defer/cancel/cleanup/exit;
+- клієнт пріоритизує цілісність файлів гри; автоматичне відновлення оригінального Windows shutdown не гарантується і не ініціюється (жодних Windows shutdown API);
+- self-update `_updateHandoffInProgress` лишається першою гілкою FormClosing (реальний вихід, не hide-to-tray);
+- `HandleInstallAsync` захищено від pre-CTS гонки: після `await _stateService.ResolveAsync(...)` перевіряється `_exitAfterOperation || _closing`, встановлення переривається до створення CTS/початку транзакції;
+- Restore Original та application-update staging не мають еквівалентної pre-CTS await-прогалини.
+
+Валідація:
+
+- Release build: 0 errors / 0 warnings;
+- tests: 845 passed / 0 failed (baseline 835 + 10 new close-policy tests);
+- статичний огляд safe completion boundaries;
+- корекція pre-CTS install race перевірена та виправлена;
+- без деструктивного реального runtime E2E проти файлів гри.
+
+Не реалізовано T3-T6.
 
 ### T3 — Background polling cadence
 

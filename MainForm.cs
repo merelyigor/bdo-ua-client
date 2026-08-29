@@ -40,6 +40,7 @@ public partial class MainForm : Form
     private bool _suppressModeChanged;
     private volatile bool _operationInProgress;
     private volatile bool _closing;
+    private bool _exitAfterOperation;
     private LocalizationState _lastResolvedState;
     private string? _lastInstalledModeSlug;
     private string? _lastInstalledPublicId;
@@ -137,43 +138,89 @@ public partial class MainForm : Form
 
     // --- FormClosing safety ---
 
+    internal enum MainFormCloseAction
+    {
+        HideToTray,
+        ExitNow,
+        DeferUntilOperationCompletes
+    }
+
+    /// <summary>
+    /// Pure close-policy decision used by MainForm_FormClosing. Self-update
+    /// handoff is intentionally excluded and handled as a first branch outside
+    /// this helper.
+    /// </summary>
+    internal static MainFormCloseAction EvaluateCloseAction(
+        CloseReason closeReason,
+        bool explicitExitRequested,
+        bool exitAfterOperation,
+        bool operationInProgress)
+    {
+        // A normal manual X (no explicit tray Exit, no pending synthetic re-close)
+        // always hides to tray — even while an operation is active.
+        if (closeReason == CloseReason.UserClosing
+            && !explicitExitRequested
+            && !exitAfterOperation)
+        {
+            return MainFormCloseAction.HideToTray;
+        }
+
+        if (operationInProgress)
+            return MainFormCloseAction.DeferUntilOperationCompletes;
+
+        return MainFormCloseAction.ExitNow;
+    }
+
     private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
+        // Self-update handoff is a special real-exit path and must remain first.
+        // Never convert self-update into hide-to-tray or generic pending-exit.
         if (_updateHandoffInProgress)
         {
-            // Updater handoff in progress — allow close, stop background tasks.
-            // Never convert self-update into hide-to-tray.
             PrepareTrayForShutdown();
             _updateCheckCts?.Cancel();
             _poller.Stop();
             return;
         }
 
-        // Normal user close (X / Alt+F4) when not an explicit tray Exit → hide to tray.
-        // Must occur before active-operation cancellation logic so an ongoing
-        // localization operation is NOT cancelled by simply closing the window.
-        if (e.CloseReason == CloseReason.UserClosing && !_explicitExitRequested)
+        var action = EvaluateCloseAction(
+            e.CloseReason, _explicitExitRequested, _exitAfterOperation, _operationInProgress);
+
+        switch (action)
         {
-            e.Cancel = true;
-            HideToTray();
-            ScheduleAutostartOfferAfterManualHide();
-            return;
+            case MainFormCloseAction.HideToTray:
+                // Normal user close (X / Alt+F4) → hide to tray.
+                // Must occur before active-operation cancellation logic so an ongoing
+                // localization operation is NOT cancelled by simply closing the window.
+                e.Cancel = true;
+                HideToTray();
+                ScheduleAutostartOfferAfterManualHide();
+                return;
+
+            case MainFormCloseAction.ExitNow:
+                _closing = true;
+                _exitAfterOperation = false;
+                PrepareTrayForShutdown();
+                _updateCheckCts?.Cancel();
+                _poller.Stop();
+                return;
+
+            case MainFormCloseAction.DeferUntilOperationCompletes:
+            default:
+                // Real close requested while an operation is active: defer termination
+                // to protect game-file integrity, request cancellation, and let the
+                // operation reach its existing safe cleanup boundary before exiting.
+                // This also covers Windows/system close reasons (deferred, not hidden).
+                e.Cancel = true;
+                _closing = true;
+                _exitAfterOperation = true;
+                RequestOperationCancelForShutdown();
+                return;
         }
+    }
 
-        if (!_operationInProgress)
-        {
-            _closing = true;
-            PrepareTrayForShutdown();
-            _updateCheckCts?.Cancel();
-            _poller.Stop();
-            return;
-        }
-
-        // Operation active: do not allow close, preserve cancellation/wait safety.
-        // An explicit tray Exit that lands here must not stay sticky.
-        e.Cancel = true;
-        _explicitExitRequested = false;
-
+    private void RequestOperationCancelForShutdown()
+    {
         if (_operationCts != null && !_operationCts.IsCancellationRequested)
         {
             cancelButton.Enabled = false;
@@ -184,6 +231,24 @@ public partial class MainForm : Form
         {
             SetMessage("Дочекайтеся завершення поточної операції.");
         }
+    }
+
+    /// <summary>
+    /// Called at the safe completion boundary of an operation. If a real exit was
+    /// deferred because the operation was active, schedules the final Close on the
+    /// UI thread. The resulting UserClosing re-enters MainForm_FormClosing where
+    /// operationInProgress is false and _exitAfterOperation is true → ExitNow.
+    /// </summary>
+    private void CompletePendingExitAfterOperation()
+    {
+        if (_exitAfterOperation == false)
+            return;
+        if (_updateHandoffInProgress)
+            return;
+        if (IsDisposed || Disposing || !IsHandleCreated)
+            return;
+
+        BeginInvoke(new Action(Close));
     }
 
 

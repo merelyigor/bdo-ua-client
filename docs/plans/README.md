@@ -3,15 +3,15 @@
 ## Current focus
 
 **Primary:** `code-quality-ux-improvements`
-**Current phase:** background-tray-notifications — ACTIVE (T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED; T1.1 — Autostart / background startup — COMPLETED / REVIEWED / ACCEPTED)
-**Next:** T2 — Operation / shutdown semantics
+**Current phase:** background-tray-notifications — ACTIVE (T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED; T1.1 — Autostart / background startup — COMPLETED / REVIEWED / ACCEPTED; T2 — Operation / shutdown semantics — COMPLETED / REVIEWED / ACCEPTED)
+**Next:** T3 — Background polling cadence
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
 | 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED | T2 — Operation / shutdown semantics (tray T1 COMPLETED / OWNER ACCEPTED; T1.1 COMPLETED / REVIEWED / ACCEPTED; Stage B deferred until tray complete) |
-| 2 | `background-tray-notifications` | [active/background-tray-notifications.md](active/background-tray-notifications.md) | ACTIVE | T2 — Operation / shutdown semantics (T1 COMPLETED / REVIEWED / OWNER ACCEPTED; T1.1 COMPLETED / REVIEWED / ACCEPTED) |
+| 2 | `background-tray-notifications` | [active/background-tray-notifications.md](active/background-tray-notifications.md) | ACTIVE | T3 — Background polling cadence (T1 COMPLETED / REVIEWED / OWNER ACCEPTED; T1.1 COMPLETED / REVIEWED / ACCEPTED; T2 COMPLETED / REVIEWED / ACCEPTED) |
 
 ## Backlog
 

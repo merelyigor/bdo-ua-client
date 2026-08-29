@@ -261,6 +261,7 @@ public partial class MainForm
                     _feedCoordinator.UnblockUpdates();
                     if (!_closing)
                         _poller.Resume();
+                    CompletePendingExitAfterOperation();
                 }
             }
         }
