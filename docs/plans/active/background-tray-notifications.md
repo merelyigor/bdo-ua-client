@@ -6,7 +6,7 @@ Focus: NONE (secondary feature, not PRIMARY)
 Implementation authorization: **YES**
 Depends on: completed Stage C — MainForm physical decomposition (COMPLETED / REVIEWED / ACCEPTED)
 Lifecycle: BACKLOG → (explicit owner decision) → ACTIVE → (completed/superseded) → ARCHIVE
-Next action: T3 — Background polling cadence
+Next action: T4 — Local file-change trigger
 
 ## Goal
 
@@ -268,14 +268,45 @@ Status: **COMPLETED / REVIEWED / ACCEPTED**
 - корекція pre-CTS install race перевірена та виправлена;
 - без деструктивного реального runtime E2E проти файлів гри.
 
-Не реалізовано T3-T6.
+Не реалізовано T4-T6.
 
 ### T3 — Background polling cadence
 
-- видимий каденс
-- tray каденс
-- негайне оновлення при відновленні
-- уникати зайвого API-трафіку
+Status: **COMPLETED / REVIEWED / ACCEPTED**
+
+Реалізовано та переглянуто (runtime, статичний concurrency/власність-CTS рев'ю). T3 виконує лише API feed scheduling; не впроваджує локальний моніторинг файлу, SHA-полінг, `FileSystemWatcher`, сповіщення чи dedup.
+
+Прийнята поведінка T3:
+
+- рівно один `ReleaseFeedPoller.RunLoopAsync`; усі recurring/immediate API feed-запити сходяться на єдиний шлях `PerformPollAsync` → `_apiClient.GetReleasesAsync`; немає другого таймера чи другого полера; максимум одночасних API feed-запитів = 1.
+- `ReleaseFeedPollingMode.Visible / Background`; виробничі інтервали: Visible ≈ 15 секунд, Background ≈ 5 хвилин; інтервали належать `ReleaseFeedPoller` (без конфігурації/персистентності каденції).
+- `HideToTray()` обирає Background-режим; поточна visible-затримка скидається; наступний звичайний poll використовує свіжу Background-кадeнцію.
+- `--background` використовує той самий нормальний startup pipeline (`TrayStartup_Shown` → `HideToTray()` → `MainForm_Shown` → `_poller.Start`): Background обирається до `Start`, без другого шляху запуску.
+- `RestoreFromTray()` обирає Visible-режим і викликає негайний API feed poll (`RequestImmediatePoll`); наступний звичайний poll — свіжа Visible ~15s каденція. Restore спільно використовується tray Open / double-click / secondary-instance activation; поведінка вікна/show/taskbar/activation/layout не змінено.
+- меню трея (прийнятий порядок): `Відкрити` → `Перевірити зараз` → `Запускати разом із Windows` → separator → `Вихід`; `Перевірити зараз` викликає лише `_poller.RequestImmediatePoll()` (без restore, без зміни режиму, без прямого API, без `RefreshStateAsync`, без огляду локального файлу, без сповіщення).
+- кілька immediate-запитів коалесують; immediate під час активного API-запиту використовує прийнятий Option A: поточний запит задовольняє його, додатковий запит не ставиться в чергу, накладання немає.
+- `Pause` авторитетний: під час паузи — жодного запланованого poll, immediate-запити відкидаються, зміни каденції/режиму можуть запам'ятовуватись; `Pause` не скасовує вже виконуваний запит лише через факт паузи. `Resume` не робить immediate-poll, а запускає свіжу каденцію з поточним режимом.
+- шлях feed не змінено: poller → `OnFeedCandidate` → `OnReleaseFeedCandidate` → `FeedApplicationCoordinator.OnCandidateAsync` → `ApplyFeedPipelineAsync` → accepted feed через coordinator; прямого MainForm API polling-шляху для T3 немає.
+
+Виправлення власності scheduler-wait CTS (частина прийнятого T3):
+
+- для кожного фактичного scheduler-очікування `RunLoopAsync` створює linked scheduler-wait CTS (`CancellationTokenSource.CreateLinkedTokenSource`), публікує `_schedulerWaitCts`;
+- `WakeSchedulerWait()` може лише скасувати його (`Cancel`), не диспозить;
+- `RunLoopAsync` у `finally` очищає спільне посилання через `ReleaseSchedulerWait` і диспозить власний CTS рівно один раз;
+- інваріант: `_schedulerWaitCts == null`, доки виконується API-запит;
+- `Dispose()` не володіє/не диспозить `_schedulerWaitCts` безпосередньо; `_disposed` має детерміновану видимість (`volatile`).
+
+Це усуває необмежений витік per-iteration linked-CTS/реєстрацій ресурсів у довгоживучому tray-клієнті (знайдено під час фінального concurrency-рев'ю, виправлено до прийняття).
+
+Валідація:
+
+- Release build: 0 warnings / 0 errors;
+- tests: 862 passed / 0 failed (baseline 845 + 13 scheduler/cadence/immediate/pause тестів + 4 ownership-регресійних тести);
+- фінальний scheduler-ownership рев'ю: PASS;
+- статичний MainForm tray-integration рев'ю: PASS;
+- живого tray/runtime E2E не виконувалось у цьому кроці (лише unit/concurrency + статичний/MainForm інтеграційний рев'ю).
+
+T4 (Local file-change trigger) лишається НЕ реалізованим і володіє: існування файлу, Length, LastWriteTimeUtc, локально-ініційованим розв'язанням стану. T5/T6 лишаються НЕ реалізованими.
 
 ### T4 — Local file-change trigger
 

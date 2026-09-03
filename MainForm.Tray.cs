@@ -30,6 +30,9 @@ public partial class MainForm
         var openItem = new ToolStripMenuItem("Відкрити");
         openItem.Click += (_, _) => RestoreFromTray();
 
+        var checkNowItem = new ToolStripMenuItem("Перевірити зараз");
+        checkNowItem.Click += (_, _) => _poller.RequestImmediatePoll();
+
         _autostartMenuItem = new ToolStripMenuItem("Запускати разом із Windows");
         _autostartMenuItem.Click += (_, _) => ToggleAutostartFromTray();
 
@@ -39,6 +42,7 @@ public partial class MainForm
         exitItem.Click += (_, _) => ExitFromTray();
 
         _trayMenu.Items.Add(openItem);
+        _trayMenu.Items.Add(checkNowItem);
         _trayMenu.Items.Add(_autostartMenuItem);
         _trayMenu.Items.Add(separator);
         _trayMenu.Items.Add(exitItem);
@@ -84,6 +88,8 @@ public partial class MainForm
         _notifyIcon.Visible = true;
         ShowInTaskbar = false;
         Hide();
+
+        _poller.SetPollingMode(ReleaseFeedPollingMode.Background);
     }
 
     private void RegisterSecondaryActivationListener()
@@ -119,6 +125,9 @@ public partial class MainForm
         BringToFront();
 
         _notifyIcon.Visible = false;
+
+        _poller.SetPollingMode(ReleaseFeedPollingMode.Visible);
+        _poller.RequestImmediatePoll();
 
         BeginInvoke(new Action(ReconcileLayoutAfterRestore));
     }

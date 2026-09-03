@@ -6,7 +6,7 @@ Focus: PRIMARY
 Backlog order: —
 Implementation authorization: **YES**
 Current phase: Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED
-Next action: T3 — Background polling cadence (background-tray-notifications ACTIVE; T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED; T1.1 — Autostart / background startup — COMPLETED / REVIEWED / ACCEPTED; T2 — Operation / shutdown semantics — COMPLETED / REVIEWED / ACCEPTED; Stage B deferred until tray complete)
+Next action: T4 — Local file-change trigger (background-tray-notifications ACTIVE; T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED; T1.1 — Autostart / background startup — COMPLETED / REVIEWED / ACCEPTED; T2 — Operation / shutdown semantics — COMPLETED / REVIEWED / ACCEPTED; T3 — Background polling cadence — COMPLETED / REVIEWED / ACCEPTED; Stage B deferred until tray complete)
 Dependencies: none (client-ui-redesign archived)
 
 ## Goal
@@ -102,7 +102,7 @@ Application self-update має materially different successful handoff path (Pro
 
 **Stage C → background-tray-notifications → Stage B → Stage D → Stage E**
 
-- `background-tray-notifications` — окремий ACTIVE-план (див. `docs/plans/active/background-tray-notifications.md`), T1 COMPLETED / REVIEWED / OWNER ACCEPTED; T1.1 Autostart / background startup — COMPLETED / REVIEWED / ACCEPTED; T2 Operation / shutdown semantics — COMPLETED / REVIEWED / ACCEPTED; наступна технічна дія — T3 Background polling cadence. виконується після Stage C і до Stage B.
+- `background-tray-notifications` — окремий ACTIVE-план (див. `docs/plans/active/background-tray-notifications.md`), T1 COMPLETED / REVIEWED / OWNER ACCEPTED; T1.1 Autostart / background startup — COMPLETED / REVIEWED / ACCEPTED; T2 Operation / shutdown semantics — COMPLETED / REVIEWED / ACCEPTED; T3 Background polling cadence — COMPLETED / REVIEWED / ACCEPTED; наступна технічна дія — T4 Local file-change trigger. виконується після Stage C і до Stage B.
 - Stage B (raw installation-state centralization) є safety-critical і **навмисно відкладено** до реалізації tray/background-функції: воно не розблоковує tray і несе ризик доцільно брати лише після вищопріоритетного tray-функціоналу.
 - Stage C залишається Stage C, Stage B залишається Stage B — ідентифікатори не перейменовуються під алфавітний порядок.
 
@@ -187,7 +187,7 @@ Application self-update має materially different successful handoff path (Pro
 
 ## Current progress
 
-v14.2.25 завершив targeted hygiene та launcher-polish items (порожні catch, dead code, «Доступно» бейдж, responsive progress, Cancel visibility). `client-ui-redesign` заархівовано після v1.1.2. План активовано як ACTIVE PRIMARY. **Stage A COMPLETED / REVIEWED / ACCEPTED:** A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED. Поточний етап: **Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED**; фінальний архітектурний review/lifecycle handoff завершено. Owner явно активував `background-tray-notifications` (ACTIVE); **T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED** (runtime + документація прийняті власником); **T1.1 — Autostart / background startup — COMPLETED / REVIEWED / ACCEPTED** (runtime + docs прийняті: per-user HKCU Run автозапуск, `--background`, single-instance координатор, 835/835 тестів, 0/0 build). Наступна технічна дія — **T3 — Background polling cadence** (T2 COMPLETED / REVIEWED / ACCEPTED). Після tray виконується Stage B (raw installation-state centralization, навмисно відкладено через safety-critical ризик).
+v14.2.25 завершив targeted hygiene та launcher-polish items (порожні catch, dead code, «Доступно» бейдж, responsive progress, Cancel visibility). `client-ui-redesign` заархівовано після v1.1.2. План активовано як ACTIVE PRIMARY. **Stage A COMPLETED / REVIEWED / ACCEPTED:** A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED. Поточний етап: **Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED**; фінальний архітектурний review/lifecycle handoff завершено. Owner явно активував `background-tray-notifications` (ACTIVE); **T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED** (runtime + документація прийняті власником); **T1.1 — Autostart / background startup — COMPLETED / REVIEWED / ACCEPTED** (runtime + docs прийняті: per-user HKCU Run автозапуск, `--background`, single-instance координатор, 835/835 тестів, 0/0 build); **T2 — Operation / shutdown semantics — COMPLETED / REVIEWED / ACCEPTED** (845/845 тестів, 0/0 build); **T3 — Background polling cadence — COMPLETED / REVIEWED / ACCEPTED** (862/862 тестів, 0/0 build; scheduler-wait CTS витік виявлено та виправлено). Наступна технічна дія — **T4 — Local file-change trigger**. Після tray виконується Stage B (raw installation-state centralization, навмисно відкладено через safety-critical ризик).
 
 ### Hotfix interruption (2026-08-27)
 
