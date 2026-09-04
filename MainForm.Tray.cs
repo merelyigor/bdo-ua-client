@@ -90,6 +90,10 @@ public partial class MainForm
         Hide();
 
         _poller.SetPollingMode(ReleaseFeedPollingMode.Background);
+
+        // T4: only starts the local monitor if a baseline already exists from a prior
+        // successful state refresh. It must NOT re-baseline from the current file here.
+        StartLocalFileMonitorIfEligible();
     }
 
     private void RegisterSecondaryActivationListener()
@@ -126,10 +130,15 @@ public partial class MainForm
 
         _notifyIcon.Visible = false;
 
+        // T4: stop the periodic monitor but preserve the committed baseline so a change
+        // that occurred while hidden remains comparable after restore.
+        StopLocalFileMonitorPreservingBaseline();
+
         _poller.SetPollingMode(ReleaseFeedPollingMode.Visible);
         _poller.RequestImmediatePoll();
 
         BeginInvoke(new Action(ReconcileLayoutAfterRestore));
+        ScheduleLocalFileCheckAfterRestore();
     }
 
     private void ReconcileLayoutAfterRestore()
@@ -148,6 +157,8 @@ public partial class MainForm
 
     private void PrepareTrayForShutdown()
     {
+        DisposeLocalFileMonitor();
+
         _notifyIcon.Visible = false;
         _notifyIcon.Icon = null;
 

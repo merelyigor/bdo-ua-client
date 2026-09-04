@@ -4,14 +4,14 @@
 
 **Primary:** `code-quality-ux-improvements`
 **Current phase:** background-tray-notifications — ACTIVE (T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED; T1.1 — Autostart / background startup — COMPLETED / REVIEWED / ACCEPTED; T2 — Operation / shutdown semantics — COMPLETED / REVIEWED / ACCEPTED; T3 — Background polling cadence — COMPLETED / REVIEWED / ACCEPTED)
-**Next:** T4 — Local file-change trigger
+**Next:** T5 — Notifications / dedup
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED | T4 — Local file-change trigger (tray T1 COMPLETED / OWNER ACCEPTED; T1.1 COMPLETED / REVIEWED / ACCEPTED; T2 COMPLETED / REVIEWED / ACCEPTED; T3 COMPLETED / REVIEWED / ACCEPTED; Stage B deferred until tray complete) |
-| 2 | `background-tray-notifications` | [active/background-tray-notifications.md](active/background-tray-notifications.md) | ACTIVE | T4 — Local file-change trigger (T1 COMPLETED / REVIEWED / OWNER ACCEPTED; T1.1 COMPLETED / REVIEWED / ACCEPTED; T2 COMPLETED / REVIEWED / ACCEPTED; T3 COMPLETED / REVIEWED / ACCEPTED) |
+| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED | T4 — Local file-change trigger — COMPLETED / REVIEWED / ACCEPTED (tray T1/T1.1/T2/T3 COMPLETED / REVIEWED / ACCEPTED; Stage B deferred until tray complete); next = T5 — Notifications / dedup |
+| 2 | `background-tray-notifications` | [active/background-tray-notifications.md](active/background-tray-notifications.md) | ACTIVE | T4 — Local file-change trigger — COMPLETED / REVIEWED / ACCEPTED (T1/T1.1/T2/T3 COMPLETED / REVIEWED / ACCEPTED); next = T5 — Notifications / dedup |
 
 ## Backlog
 

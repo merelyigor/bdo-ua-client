@@ -461,6 +461,7 @@ public partial class MainForm
         if (_gameRoot == null)
         {
             _lastResolvedState = LocalizationState.NotInstalled;
+            ClearLocalFileTracking();
             if (!_apiLoadedSuccessfully)
                 SetMessage(ApiErrorPresentation.GetUserMessage(_apiErrorKind, _apiErrorMessage));
             else
@@ -499,6 +500,8 @@ public partial class MainForm
         }
 
         var gameLocPath = GamePaths.GetLocalizationFilePath(_gameRoot);
+        LocalizationFileFingerprint.TryCapture(gameLocPath, out var capturedFingerprint, out var captureError);
+        bool fingerprintCaptured = captureError == null;
         var stateResult = await _stateService.ResolveAsync(installedModeCurrent, gameLocPath, gameRoot: _gameRoot);
         _lastResolvedState = stateResult.State;
         _lastInstalledModeSlug = installedModeSlug;
@@ -555,5 +558,14 @@ public partial class MainForm
         SetActionsEnabled(actionPolicy.CanRestoreOriginal);
         ApplyModeCardPresentations(stateResult.State, installedModeSlug, installedPublicId);
         ScheduleContentFit();
+
+        if (fingerprintCaptured
+            && installedLoad.Status == FileLoadStatus.Valid
+            && installedLoad.Value?.Source == InstallationSource.Api)
+        {
+            _localFileChangeTracker.CommitResolved(gameLocPath, capturedFingerprint);
+        }
+
+        StartLocalFileMonitorIfEligible();
     }
 }

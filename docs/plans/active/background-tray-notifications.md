@@ -6,7 +6,7 @@ Focus: NONE (secondary feature, not PRIMARY)
 Implementation authorization: **YES**
 Depends on: completed Stage C — MainForm physical decomposition (COMPLETED / REVIEWED / ACCEPTED)
 Lifecycle: BACKLOG → (explicit owner decision) → ACTIVE → (completed/superseded) → ARCHIVE
-Next action: T4 — Local file-change trigger
+Next action: T5 — Notifications / dedup
 
 ## Goal
 
@@ -74,7 +74,7 @@ BDO UA Client має можливість залишатися запущени�
 
 `ReleaseFeedPoller` реагує лише на семантичну зміну API-фіда. Тому гра/ланчер може перезаписати `ads\languagedata_en.loc`, поки API-фід не змінився. Tray-функція потребує окремого дешевого тригера локальної зміни.
 
-Переважна перша реалізація:
+Прийнята перша реалізація (T4 — COMPLETED / REVIEWED / ACCEPTED):
 
 відстежувати:
 
@@ -268,7 +268,7 @@ Status: **COMPLETED / REVIEWED / ACCEPTED**
 - корекція pre-CTS install race перевірена та виправлена;
 - без деструктивного реального runtime E2E проти файлів гри.
 
-Не реалізовано T4-T6.
+T4 реалізовано (LOCAL FILE-CHANGE TRIGGER COMPLETED / REVIEWED / ACCEPTED); T5/T6 лишаються НЕ реалізованими.
 
 ### T3 — Background polling cadence
 
@@ -306,13 +306,35 @@ Status: **COMPLETED / REVIEWED / ACCEPTED**
 - статичний MainForm tray-integration рев'ю: PASS;
 - живого tray/runtime E2E не виконувалось у цьому кроці (лише unit/concurrency + статичний/MainForm інтеграційний рев'ю).
 
-T4 (Local file-change trigger) лишається НЕ реалізованим і володіє: існування файлу, Length, LastWriteTimeUtc, локально-ініційованим розв'язанням стану. T5/T6 лишаються НЕ реалізованими.
+T4 — Local file-change trigger — COMPLETED / REVIEWED / ACCEPTED (див. запис нижче). T5/T6 лишаються НЕ реалізованими.
 
 ### T4 — Local file-change trigger
 
-- fingerprint існування / Length / LastWriteTimeUtc
-- виклик state resolution лише після зміни
-- без постійного хешування
+Status: **COMPLETED / REVIEWED / ACCEPTED (2026-09-04)**
+
+Реалізовано локальний моніторинг зміни `<gameRoot>\ads\languagedata_en.loc` поки застосунок приховано в треї/background. `ReleaseFeedPoller` не змінено (T3 ізольовано). `LocalizationStateService` залишається єдиним власником SHA-256/Corrupted/ManagedFileChanged/GameFileReplacedAfterPatch/WaitingForRelease/UpdateAvailable/UpToDate; `RefreshStateAsync()` лишається власником презентації MainForm.
+
+Прийнята поведінка:
+
+- окремий `System.Windows.Forms.Timer` (приблизно ~5 хв), яким володіє `MainForm.LocalFileMonitor.cs`; жодного другого таймера/потоку/`FileSystemWatcher`;
+- дешева метаданна-відбиток `LocalizationFileFingerprint` (internal readonly): `Exists` / `Length` / `LastWriteTimeUtc`; відсутній файл — канонічний валідний відбиток; тимчасові IO-помилки не просувають baseline і ретраяться;
+- `LocalFileChangeTracker` — лише RAM, зіставлення шляху `OrdinalIgnoreCase`; baseline = відбиток останнього успішного `RefreshStateAsync`;
+- `RefreshStateAsync()` захоплює відбиток ДО `ResolveAsync` і комітить його (лише для валідного API-managed стану) після повної презентації; без пост-резолюційного перезахоплення (інваріант F0/F1/F2);
+- незмінений відбиток → без `RefreshStateAsync`/SHA; змінений/відсутній baseline → існуючий шлях `RefreshStateAsync` (без тихого `CommitResolved(current)`);
+- restore виконує одне дешеве порівняння через `BeginInvoke` + `RunLocalFileCheckSafeAsync`; `RestoreFromTray` лишається синхронним;
+- `FeedApplicationCoordinator` серіалізує локальну й API-реконсиляцію: `BlockUpdates()` до першого await, `await RefreshStateAsync()`, `await ApplyPendingIfAnyAsync()`, `UnblockUpdates()` у `finally`;
+- під час прихованої операції таймер може лишатися живим, але checker повертає до зчитування файлу, доки `_operationInProgress`/`IsBlocked`; власні транзакційні записи не класифікуються як зовнішня зміна;
+- перехід API-managed → Official/Missing/Invalid (або видимий стан) зупиняє таймер із збереженням baseline;
+- реальне завершення → `PrepareTrayForShutdown()` → `DisposeLocalFileMonitor()`;
+- T4 НЕ реалізує сповіщення/balloon/dedup (це T5).
+
+Валідація:
+
+- Release build: 0 warnings / 0 errors;
+- 880 passed / 0 failed (862 + 18 new T4 тестів: 9 fingerprint + 9 tracker);
+- temp-directory/file тести; покриття F0/F1/F2; case-insensitive Windows path покриття;
+- статичний lifecycle-рев'ю: прихована операція, self-update staging failure, no-baseline recovery, restore, API/feed serialization, shutdown, API→Official зупинка таймера;
+- без модифікації реального файлу гри; без реального Install/Restore T4 E2E; без поведінки T5.
 
 ### T5 — Notifications / dedup
 
@@ -334,4 +356,4 @@ T4 (Local file-change trigger) лишається НЕ реалізованим 
 - dedup працює
 - background CPU/disk/network залишається розумним
 
-Не реалізовувати T1–T6 зараз.
+Не реалізовувати T5/T6 зараз.
