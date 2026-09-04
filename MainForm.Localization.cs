@@ -567,5 +567,6 @@ public partial class MainForm
         }
 
         StartLocalFileMonitorIfEligible();
+        ObserveLocalizationNotification(stateResult.State);
     }
 }

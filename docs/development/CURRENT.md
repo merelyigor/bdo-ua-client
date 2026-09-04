@@ -6,7 +6,7 @@
 
 BDO-UA Client — Windows .NET 8 WinForms застосунок для пошуку Black Desert Online, отримання українських локалізацій через `bdo-ua.com.ua`, безпечного встановлення, оновлення та відновлення файлів гри.
 
-Стабільний реліз: v1.1.3. Останній runtime-affecting baseline включає v14.2.25 launcher polish та accepted managed-localization-overwrite hotfix. `client-ui-redesign` завершено та заархівовано. `code-quality-ux-improvements` — ACTIVE PRIMARY план; **Stage A COMPLETED / REVIEWED / ACCEPTED** (A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED). Поточний етап: **Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED**; затверджено точну послідовність фізичної декомпозиції (C.1 Presentation → C.2 Startup → C.3 Localization → C.4 Operations → C.5 ApplicationUpdate). **C.1 Presentation extraction COMPLETED** (21 метод перенесено у `MainForm.Presentation.cs`, без зміни runtime-поведінки). **C.2 Startup extraction COMPLETED** (перенесено `MainForm_Shown` та startup lifecycle maintenance у `MainForm.Startup.cs`, без зміни runtime-поведінки). **C.3 Localization extraction COMPLETED** (19 методів перенесено у `MainForm.Localization.cs`, без зміни тіл/семантики). **C.4 Operations extraction COMPLETED** (шість операційних методів `HandleInstallAsync`, `RestoreOriginalButton_Click`, `HandleRestoreOriginalAsync`, `CancelButton_Click`, `MapInstallError`, `MapRestoreError` перенесено у `MainForm.Operations.cs` як фізичний partial без зміни тіл, lifecycle, cancellation або error-mapping). **C.5 ApplicationUpdate extraction COMPLETED** (точно 10 self-update методів перенесено у `MainForm.ApplicationUpdate.cs` як фізичний partial без зміни тіл, handoff semantics, staging/preparation/cleanup або `_updateHandoffInProgress`/`Application.Exit` порядку). Усі fields, constructor, `WireEventHandlers`, `MainForm_FormClosing`, `LogsButton_Click` залишилися у `MainForm.cs`; підписка `updateButton.Click` лишилася єдиною у `MainForm.cs`; Startup викликає `StartBackgroundUpdateCheck` cross-partial. Runtime-поведінка не змінена; build 0 errors/0 warnings, tests 807/807. `background-tray-notifications` ACTIVE (T1 / T1.1 / T2 / T3 / T4 — COMPLETED / REVIEWED / ACCEPTED); наступна tray-задача — **T5 — Notifications / dedup**; Stage B відкладено до завершення tray/background.
+Стабільний реліз: v1.1.3. `code-quality-ux-improvements` — ACTIVE PRIMARY; Stage A/C accepted, Stage B deferred until tray/background completion. `background-tray-notifications` — ACTIVE secondary: T1–T4 accepted; T5 — Notifications / dedup — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**; T6 — **NOT IMPLEMENTED**. Next: T5 architect review, then T6 Owner E2E / resource validation.
 
 ## Architecture Summary
 
@@ -52,6 +52,8 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 Exact changes and validation are recorded in Git history and the monthly journal.
 
 ## Active Work
+
+T5 uses `UpdateAvailable`-only actionability, RAM-only episode dedup, hidden first-episode notification, visible latch without balloon, click restore through `RestoreFromTray()`, and isolated notification failure. Current validation: 891 tests passed; Release build 0 warnings/0 errors. Actual Windows balloon/click E2E has not been performed.
 
 ACTIVE PRIMARY: `code-quality-ux-improvements`
 

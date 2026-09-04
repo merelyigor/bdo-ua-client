@@ -690,6 +690,10 @@ BDO-UA-Client/
 §39.3 Exactly one ACTIVE plan should be marked PRIMARY. BACKLOG plans must NOT be implemented automatically. ARCHIVED plans are historical references only.
 
 §39.4 Moving lifecycle state requires file move + registry update in same commit. Folder status and registry status must always match.
+§39.5 Після кожного meaningful implementation commit, що просуває ACTIVE план, той самий commit повинен оновити відповідний active plan і `docs/plans/README.md`, правдиво зафіксувавши реалізовану задачу, фактичний validation/review status, невиконані частини та точну наступну дію.
+§39.6 Implementation-agent не має права позначати власну роботу як `REVIEWED`, `ACCEPTED` або `OWNER ACCEPTED`, якщо відповідний зовнішній review/acceptance фактично не відбувся. До нього використовувати фактичні статуси на кшталт `IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW`.
+§39.7 Звичайне plan/progress bookkeeping належить implementation commit, який спричинив прогрес. Не створювати пізніший docs-only commit для виправлення застарілого плану; окремий corrective docs-only commit дозволений лише для виправлення вже закоміченої фактичної невідповідності.
+§39.8 Registry/plan не може продовжувати вказувати вже завершену задачу як current/next.
 
 ---
 

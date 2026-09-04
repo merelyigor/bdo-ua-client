@@ -268,7 +268,7 @@ Status: **COMPLETED / REVIEWED / ACCEPTED**
 - корекція pre-CTS install race перевірена та виправлена;
 - без деструктивного реального runtime E2E проти файлів гри.
 
-T4 реалізовано (LOCAL FILE-CHANGE TRIGGER COMPLETED / REVIEWED / ACCEPTED); T5/T6 лишаються НЕ реалізованими.
+T4 реалізовано (LOCAL FILE-CHANGE TRIGGER COMPLETED / REVIEWED / ACCEPTED); на момент цього historical entry T5/T6 ще не були реалізовані.
 
 ### T3 — Background polling cadence
 
@@ -306,7 +306,7 @@ Status: **COMPLETED / REVIEWED / ACCEPTED**
 - статичний MainForm tray-integration рев'ю: PASS;
 - живого tray/runtime E2E не виконувалось у цьому кроці (лише unit/concurrency + статичний/MainForm інтеграційний рев'ю).
 
-T4 — Local file-change trigger — COMPLETED / REVIEWED / ACCEPTED (див. запис нижче). T5/T6 лишаються НЕ реалізованими.
+T4 — Local file-change trigger — COMPLETED / REVIEWED / ACCEPTED (див. запис нижче). На момент цього запису T5/T6 ще не були реалізовані.
 
 ### T4 — Local file-change trigger
 
@@ -338,9 +338,17 @@ Status: **COMPLETED / REVIEWED / ACCEPTED (2026-09-04)**
 
 ### T5 — Notifications / dedup
 
-- actionable transition-сповіщення
-- клік по сповіщенні відкриває застосунок
-- повторюваний той самий стан не спамить
+Status: **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**
+
+- Єдиний actionable state — `UpdateAvailable`; перша hidden episode показує native `NotifyIcon` balloon, visible observation latch-ить episode без balloon.
+- Повторний стан не спамить; успішний non-actionable factual state скидає episode. Dedup RAM-only, без PublicId/mode key та persistence.
+- Нейтральний текст; click повторно використовує `RestoreFromTray()`; помилка `ShowBalloonTip` ізольована і не впливає на state/feed/T4.
+- Не додано нових ресурсів, scheduler/timer/worker, dependencies або network/filesystem flow.
+- Валідація: 891 tests, Release build 0 warnings/0 errors, static integration checks PASS.
+
+T6: **NOT IMPLEMENTED**.
+
+Next action: architect review T5, then T6 Owner E2E / resource validation.
 
 ### T6 — Owner E2E / resource validation
 
@@ -356,4 +364,4 @@ Status: **COMPLETED / REVIEWED / ACCEPTED (2026-09-04)**
 - dedup працює
 - background CPU/disk/network залишається розумним
 
-Не реалізовувати T5/T6 зараз.
+T6 залишається власником фактичної Windows visual balloon/click, combined T1–T5 та resource validation.

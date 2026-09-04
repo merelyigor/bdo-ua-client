@@ -68,6 +68,13 @@ public partial class MainForm
         _notifyIcon.Icon = _trayIcon ?? SystemIcons.Application;
 
         _notifyIcon.DoubleClick += (_, _) => RestoreFromTray();
+        _notifyIcon.BalloonTipClicked += (_, _) =>
+        {
+            if (_closing || _updateHandoffInProgress)
+                return;
+
+            RestoreFromTray();
+        };
 
         // Registered before MainForm_Shown so the form is moved to tray first on
         // background startup, while the normal async startup pipeline still runs after.
@@ -94,6 +101,32 @@ public partial class MainForm
         // T4: only starts the local monitor if a baseline already exists from a prior
         // successful state refresh. It must NOT re-baseline from the current file here.
         StartLocalFileMonitorIfEligible();
+    }
+
+    private void ObserveLocalizationNotification(LocalizationState state)
+    {
+        var canNotify = !Visible
+            && _notifyIcon.Visible
+            && !_closing
+            && !_updateHandoffInProgress
+            && !IsDisposed
+            && !Disposing;
+
+        if (!_localizationNotificationTracker.Observe(state, canNotify))
+            return;
+
+        try
+        {
+            _notifyIcon.ShowBalloonTip(
+                5000,
+                "BDO UA Client",
+                "Доступне оновлення української локалізації.",
+                ToolTipIcon.Info);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"Failed to show localization notification: {ex.Message}");
+        }
     }
 
     private void RegisterSecondaryActivationListener()

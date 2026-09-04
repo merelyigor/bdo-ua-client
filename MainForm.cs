@@ -22,6 +22,7 @@ public partial class MainForm : Form
     private readonly ILogger _logger;
     private readonly ReleaseFeedPoller _poller;
     private readonly FeedApplicationCoordinator _feedCoordinator;
+    private readonly LocalizationNotificationTracker _localizationNotificationTracker = new();
     private readonly AppVersionInfo _appVersionInfo;
     private readonly GitHubUpdateClient _gitHubClient;
     private readonly UpdateSelectionPolicy _selectionPolicy;

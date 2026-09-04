@@ -187,7 +187,9 @@ Application self-update має materially different successful handoff path (Pro
 
 ## Current progress
 
-v14.2.25 завершив targeted hygiene та launcher-polish items (порожні catch, dead code, «Доступно» бейдж, responsive progress, Cancel visibility). `client-ui-redesign` заархівовано після v1.1.2. План активовано як ACTIVE PRIMARY. **Stage A COMPLETED / REVIEWED / ACCEPTED:** A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse — усі COMPLETED. Поточний етап: **Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED**; фінальний архітектурний review/lifecycle handoff завершено. Owner явно активував `background-tray-notifications` (ACTIVE); **T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED** (runtime + документація прийняті власником); **T1.1 — Autostart / background startup — COMPLETED / REVIEWED / ACCEPTED** (runtime + docs прийняті: per-user HKCU Run автозапуск, `--background`, single-instance координатор, 835/835 тестів, 0/0 build); **T2 — Operation / shutdown semantics — COMPLETED / REVIEWED / ACCEPTED** (845/845 тестів, 0/0 build); **T3 — Background polling cadence — COMPLETED / REVIEWED / ACCEPTED** (862/862 тестів, 0/0 build; scheduler-wait CTS витік виявлено та виправлено). Наступна технічна дія — **T5 — Notifications / dedup**. T4 — Local file-change trigger — COMPLETED / REVIEWED / ACCEPTED. Після tray виконується Stage B (raw installation-state centralization, навмисно відкладено через safety-critical ризик).
+Tray progress: T1–T4 accepted; T5 — Notifications / dedup — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**. Next: T5 architect review, then T6. Stage B remains deferred until tray/background completion.
+
+v14.2.25 завершив targeted hygiene та launcher-polish items. `client-ui-redesign` заархівовано після v1.1.2. План залишається ACTIVE PRIMARY; Stage A/C accepted. `background-tray-notifications` залишається ACTIVE secondary: T1–T4 accepted, T5 — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**. Наступна дія: T5 architect review, потім T6. Stage B залишається відкладеним до завершення tray/background.
 
 ### Hotfix interruption (2026-08-27)
 

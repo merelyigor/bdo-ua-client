@@ -3,15 +3,15 @@
 ## Current focus
 
 **Primary:** `code-quality-ux-improvements`
-**Current phase:** background-tray-notifications — ACTIVE (T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED; T1.1 — Autostart / background startup — COMPLETED / REVIEWED / ACCEPTED; T2 — Operation / shutdown semantics — COMPLETED / REVIEWED / ACCEPTED; T3 — Background polling cadence — COMPLETED / REVIEWED / ACCEPTED; T4 — Local file-change trigger — COMPLETED / REVIEWED / ACCEPTED)
-**Next:** T5 — Notifications / dedup
+**Current phase:** background-tray-notifications — ACTIVE (T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED; T1.1 — Autostart / background startup — COMPLETED / REVIEWED / ACCEPTED; T2 — Operation / shutdown semantics — COMPLETED / REVIEWED / ACCEPTED; T3 — Background polling cadence — COMPLETED / REVIEWED / ACCEPTED; T4 — Local file-change trigger — COMPLETED / REVIEWED / ACCEPTED; T5 — Notifications / dedup — IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW; T6 — NOT IMPLEMENTED)
+**Next:** T5 architect review, then T6 Owner E2E / resource validation
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED | T4 — Local file-change trigger — COMPLETED / REVIEWED / ACCEPTED (tray T1/T1.1/T2/T3 COMPLETED / REVIEWED / ACCEPTED; Stage B deferred until tray complete); next = T5 — Notifications / dedup |
-| 2 | `background-tray-notifications` | [active/background-tray-notifications.md](active/background-tray-notifications.md) | ACTIVE | T4 — Local file-change trigger — COMPLETED / REVIEWED / ACCEPTED (T1/T1.1/T2/T3 COMPLETED / REVIEWED / ACCEPTED); next = T5 — Notifications / dedup |
+| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED | T5 — IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW; Stage B deferred until tray completion |
+| 2 | `background-tray-notifications` | [active/background-tray-notifications.md](active/background-tray-notifications.md) | ACTIVE | T5 — IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW; next = architect review, then T6 |
 
 ## Backlog
 
@@ -43,4 +43,6 @@ BACKLOG → (explicit owner decision) → ACTIVE → (completed/superseded) → 
 - Exactly one plan should be marked PRIMARY
 - Moving lifecycle state requires file move + registry update in same commit
 - Folder status and registry status must always match
+- Meaningful implementation commits must synchronize the active plan and this registry with factual validation/review status and the exact next action
+- Implementation agents must not claim external review/acceptance that did not happen
 - Detailed plan rules live in the plan file, not duplicated into AGENTS.md
