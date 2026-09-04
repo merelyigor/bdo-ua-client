@@ -68,13 +68,6 @@ public partial class MainForm
         _notifyIcon.Icon = _trayIcon ?? SystemIcons.Application;
 
         _notifyIcon.DoubleClick += (_, _) => RestoreFromTray();
-        _notifyIcon.BalloonTipClicked += (_, _) =>
-        {
-            if (_closing || _updateHandoffInProgress)
-                return;
-
-            RestoreFromTray();
-        };
 
         // Registered before MainForm_Shown so the form is moved to tray first on
         // background startup, while the normal async startup pipeline still runs after.

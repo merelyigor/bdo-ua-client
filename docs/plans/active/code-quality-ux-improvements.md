@@ -6,7 +6,7 @@ Focus: PRIMARY
 Backlog order: —
 Implementation authorization: **YES**
 Current phase: Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED
-Next action: T5 — Notifications / dedup (background-tray-notifications ACTIVE; T1 — Tray lifetime shell — COMPLETED / REVIEWED / OWNER ACCEPTED; T1.1 — Autostart / background startup — COMPLETED / REVIEWED / ACCEPTED; T2 — Operation / shutdown semantics — COMPLETED / REVIEWED / ACCEPTED; T3 — Background polling cadence — COMPLETED / REVIEWED / ACCEPTED; T4 — Local file-change trigger — COMPLETED / REVIEWED / ACCEPTED; Stage B deferred until tray complete)
+Next action: Release preparation (background-tray-notifications T1–T6 completed/reviewed/accepted; Stage B deferred until tray release completion)
 Dependencies: none (client-ui-redesign archived)
 
 ## Goal
@@ -102,7 +102,7 @@ Application self-update має materially different successful handoff path (Pro
 
 **Stage C → background-tray-notifications → Stage B → Stage D → Stage E**
 
-- `background-tray-notifications` — окремий ACTIVE-план (див. `docs/plans/active/background-tray-notifications.md`), T1 COMPLETED / REVIEWED / OWNER ACCEPTED; T1.1 Autostart / background startup — COMPLETED / REVIEWED / ACCEPTED; T2 Operation / shutdown semantics — COMPLETED / REVIEWED / ACCEPTED; T3 Background polling cadence — COMPLETED / REVIEWED / ACCEPTED; наступна технічна дія — T5 Notifications / dedup. T4 — Local file-change trigger — COMPLETED / REVIEWED / ACCEPTED; виконується після Stage C і до Stage B.
+- `background-tray-notifications` — окремий ACTIVE-план (див. `docs/plans/active/background-tray-notifications.md`), T1–T6 COMPLETED / REVIEWED / ACCEPTED; наступна дія — Release preparation. Stage B залишається відкладеним до завершення tray release.
 - Stage B (raw installation-state centralization) є safety-critical і **навмисно відкладено** до реалізації tray/background-функції: воно не розблоковує tray і несе ризик доцільно брати лише після вищопріоритетного tray-функціоналу.
 - Stage C залишається Stage C, Stage B залишається Stage B — ідентифікатори не перейменовуються під алфавітний порядок.
 
@@ -187,9 +187,9 @@ Application self-update має materially different successful handoff path (Pro
 
 ## Current progress
 
-Tray progress: T1–T4 accepted; T5 — Notifications / dedup — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**. Next: T5 architect review, then T6. Stage B remains deferred until tray/background completion.
+Tray progress: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**. Next: Release preparation. Stage B remains deferred until tray release completion.
 
-v14.2.25 завершив targeted hygiene та launcher-polish items. `client-ui-redesign` заархівовано після v1.1.2. План залишається ACTIVE PRIMARY; Stage A/C accepted. `background-tray-notifications` залишається ACTIVE secondary: T1–T4 accepted, T5 — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**. Наступна дія: T5 architect review, потім T6. Stage B залишається відкладеним до завершення tray/background.
+v14.2.25 завершив targeted hygiene та launcher-polish items. `client-ui-redesign` заархівовано після v1.1.2. План залишається ACTIVE PRIMARY; Stage A/C accepted. `background-tray-notifications` залишається ACTIVE secondary: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**. Наступна дія: Release preparation. Stage B залишається відкладеним до завершення tray release.
 
 ### Hotfix interruption (2026-08-27)
 

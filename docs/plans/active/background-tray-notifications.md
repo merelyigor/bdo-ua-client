@@ -6,7 +6,7 @@ Focus: NONE (secondary feature, not PRIMARY)
 Implementation authorization: **YES**
 Depends on: completed Stage C — MainForm physical decomposition (COMPLETED / REVIEWED / ACCEPTED)
 Lifecycle: BACKLOG → (explicit owner decision) → ACTIVE → (completed/superseded) → ARCHIVE
-Next action: T5 — Notifications / dedup
+Next action: Release preparation
 
 ## Goal
 
@@ -131,7 +131,7 @@ Tray-код спостерігає за розв'язаним станом. Ві
 - гра/ланчер замінили файл локалізації;
 - інший справді actionable перехід стану.
 
-Клік по сповіщенню має відновлювати/відкривати MainForm.
+Сповіщення є інформаційним. Відновлення MainForm виконується через `Відкрити`, подвійний клік по іконці трея або secondary-instance activation.
 
 ## Deduplication
 
@@ -338,17 +338,21 @@ Status: **COMPLETED / REVIEWED / ACCEPTED (2026-09-04)**
 
 ### T5 — Notifications / dedup
 
-Status: **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**
+Status: **COMPLETED / REVIEWED / ACCEPTED**
 
 - Єдиний actionable state — `UpdateAvailable`; перша hidden episode показує native `NotifyIcon` balloon, visible observation latch-ить episode без balloon.
 - Повторний стан не спамить; успішний non-actionable factual state скидає episode. Dedup RAM-only, без PublicId/mode key та persistence.
-- Нейтральний текст; click повторно використовує `RestoreFromTray()`; помилка `ShowBalloonTip` ізольована і не впливає на state/feed/T4.
+- Нейтральний текст; notification є інформаційною; помилка `ShowBalloonTip` ізольована і не впливає на state/feed/T4.
+- Реальна Windows E2E перевірка довела, що `BalloonTipClicked` ненадійно доставляється поточною notification surface, тому notification activation навмисно не входить до контракту першої версії. `RestoreFromTray()` залишається єдиним lifecycle для tray Open/double-click/secondary-instance activation.
+- Не використовуються PublicId/mode як dedup keys; не додано Windows App SDK, COM activation або нову dependency.
 - Не додано нових ресурсів, scheduler/timer/worker, dependencies або network/filesystem flow.
 - Валідація: 891 tests, Release build 0 warnings/0 errors, static integration checks PASS.
 
-T6: **NOT IMPLEMENTED**.
+T6: **COMPLETED / REVIEWED / ACCEPTED**.
 
-Next action: architect review T5, then T6 Owner E2E / resource validation.
+Валідація T6: X → tray PASS; Open PASS; double-click PASS; Exit PASS; secondary instance PASS; background startup PASS; notification appearance PASS; notification dedup PASS; background cadence ~5 хв PASS; resource sanity PASS; T4 resource behavior PASS; build/tests PASS. Notification-click failure зафіксовано як підставу для звуження контракту, а не як unresolved blocker.
+
+Next action: Release preparation.
 
 ### T6 — Owner E2E / resource validation
 
@@ -364,4 +368,4 @@ Next action: architect review T5, then T6 Owner E2E / resource validation.
 - dedup працює
 - background CPU/disk/network залишається розумним
 
-T6 залишається власником фактичної Windows visual balloon/click, combined T1–T5 та resource validation.
+T6 завершив combined T1–T5, фактичну Windows visual notification appearance та resource validation. Notification click не є частиною прийнятого контракту першої версії.
