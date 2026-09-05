@@ -3,14 +3,14 @@
 ## Current focus
 
 **Primary:** `code-quality-ux-improvements`
-**Current phase:** code-quality-ux-improvements — Stage B / B.2 implemented, pending architect review
-**Next:** Architect review B.2, then B.3 raw-state call-site migration
+**Current phase:** code-quality-ux-improvements — Stage B / B.3 implemented, pending architect review
+**Next:** Architect review B.3, then close Stage B and proceed to Stage D responsiveness investigation
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | PRIMARY; Stage B / B.2 — IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW | Architect review B.2, then B.3 raw-state call-site migration |
+| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | PRIMARY; Stage B / B.3 — IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW | Architect review B.3, then close Stage B and proceed to Stage D responsiveness investigation |
 
 ## Backlog
 

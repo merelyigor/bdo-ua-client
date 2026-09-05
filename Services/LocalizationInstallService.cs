@@ -383,58 +383,21 @@ public sealed class LocalizationInstallService
 
     private async Task<bool> RollbackInstallationStateAsync(byte[]? preStateBytes)
     {
-        var stateRollbackPath = _stateStore.InstallationFile;
+        var stateWasPresent = File.Exists(_stateStore.InstallationFile);
+        var stateRestored = await _stateStore
+            .RestoreRawStateAsync(preStateBytes, CancellationToken.None)
+            .ConfigureAwait(false);
 
-        if (preStateBytes == null)
-        {
-            // Pre-operation state was absent → delete current
-            if (!File.Exists(stateRollbackPath))
-                return true;
+        if (stateRestored && preStateBytes == null && stateWasPresent)
+            _logger.Info("Installation state rollback: removed (was absent)");
+        else if (stateRestored && preStateBytes != null)
+            _logger.Info("Installation state rollback: restored from snapshot");
+        else if (!stateRestored)
+            _logger.Error(preStateBytes == null
+                ? "Installation state rollback: file still exists after delete"
+                : "Installation state rollback: verification mismatch after restore");
 
-            File.Delete(stateRollbackPath);
-            var absent = !File.Exists(stateRollbackPath);
-            if (absent)
-                _logger.Info("Installation state rollback: removed (was absent)");
-            else
-                _logger.Error("Installation state rollback: file still exists after delete");
-            return absent;
-        }
-
-        // Pre-operation state existed → atomic restore via temp → replace → verify
-        var tempPath = Path.Combine(_stateStore.StateDir, $"installation.rollback.{Guid.NewGuid():N}.tmp");
-        try
-        {
-            await File.WriteAllBytesAsync(tempPath, preStateBytes, CancellationToken.None).ConfigureAwait(false);
-
-            if (File.Exists(stateRollbackPath))
-            {
-                File.Replace(tempPath, stateRollbackPath, null);
-            }
-            else
-            {
-                File.Move(tempPath, stateRollbackPath, overwrite: false);
-            }
-
-            // Verify exact byte-for-byte match
-            var restoredBytes = await File.ReadAllBytesAsync(stateRollbackPath, CancellationToken.None)
-                .ConfigureAwait(false);
-            var match = restoredBytes.Length == preStateBytes.Length
-                && restoredBytes.AsSpan().SequenceEqual(preStateBytes);
-
-            if (match)
-            {
-                _logger.Info("Installation state rollback: restored from snapshot");
-                return true;
-            }
-
-            _logger.Error("Installation state rollback: verification mismatch after restore");
-            return false;
-        }
-        finally
-        {
-            // Cleanup temp best-effort
-            CleanupFile(tempPath);
-        }
+        return stateRestored;
     }
 
     private void CleanupDownloadTemp(string? tempPath)

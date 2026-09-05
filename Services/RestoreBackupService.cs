@@ -105,52 +105,26 @@ public sealed class RestoreBackupService
         {
             OnPostGameReplaceHook?.Invoke();
 
-            if (stateIsPresent && selectedStateBytes != null)
+            var requestedStateBytes = stateIsPresent ? selectedStateBytes : null;
+            var stateRestored = await _stateStore
+                .RestoreRawStateAsync(requestedStateBytes, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!stateRestored)
             {
-                var statePath = _stateStore.InstallationFile;
-                var tempStatePath = statePath + ".tmp";
-
-                await File.WriteAllBytesAsync(tempStatePath, selectedStateBytes, cancellationToken)
+                var stateFailureMessage = stateIsPresent
+                    ? "Installation state verification failed after restore"
+                    : "Failed to remove installation state file";
+                _logger.Error(stateFailureMessage);
+                var rollbackResult = await RollbackBothAsync(gameLocFilePath, preRpDir, preOpStateBytes, preOpStateWasPresent, CancellationToken.None)
                     .ConfigureAwait(false);
-
-                if (File.Exists(statePath))
-                    File.Replace(tempStatePath, statePath, null);
-                else
-                    File.Move(tempStatePath, statePath, overwrite: false);
-
-                var verifyBytes = await File.ReadAllBytesAsync(statePath, cancellationToken)
-                    .ConfigureAwait(false);
-                if (verifyBytes.Length != selectedStateBytes.Length
-                    || !verifyBytes.AsSpan().SequenceEqual(selectedStateBytes))
-                {
-                    _logger.Error("Installation state verification failed after restore");
-                    var rollbackResult = await RollbackBothAsync(gameLocFilePath, preRpDir, preOpStateBytes, preOpStateWasPresent, CancellationToken.None)
-                        .ConfigureAwait(false);
-                    if (!rollbackResult.IsSuccess)
-                        return RestoreResult.Failure(RestoreError.RecoveryFailed,
-                            "State verification failed and rollback also failed");
-                    return RestoreResult.Failure(RestoreError.StateRestoreFailed,
-                        "Installation state verification failed after restore");
-                }
-            }
-            else
-            {
-                var statePath = _stateStore.InstallationFile;
-                if (File.Exists(statePath))
-                {
-                    File.Delete(statePath);
-                    if (File.Exists(statePath))
-                    {
-                        _logger.Error("Failed to delete installation state file for absent-state restore");
-                        var rollbackResult = await RollbackBothAsync(gameLocFilePath, preRpDir, preOpStateBytes, preOpStateWasPresent, CancellationToken.None)
-                            .ConfigureAwait(false);
-                        if (!rollbackResult.IsSuccess)
-                            return RestoreResult.Failure(RestoreError.RecoveryFailed,
-                                "State delete failed and rollback also failed");
-                        return RestoreResult.Failure(RestoreError.StateRestoreFailed,
-                            "Failed to remove installation state file");
-                    }
-                }
+                if (!rollbackResult.IsSuccess)
+                    return RestoreResult.Failure(RestoreError.RecoveryFailed,
+                        stateIsPresent
+                            ? "State verification failed and rollback also failed"
+                            : "State delete failed and rollback also failed");
+                return RestoreResult.Failure(RestoreError.StateRestoreFailed,
+                    stateFailureMessage);
             }
         }
         catch (OperationCanceledException)
@@ -221,43 +195,19 @@ public sealed class RestoreBackupService
     private async Task<bool> RollbackStateAsync(
         byte[]? preOpStateBytes, bool preOpStateWasPresent, CancellationToken cancellationToken)
     {
-        var statePath = _stateStore.InstallationFile;
-
-        if (!preOpStateWasPresent)
-        {
-            if (!File.Exists(statePath))
-                return true;
-
-            File.Delete(statePath);
-            return !File.Exists(statePath);
-        }
-
         if (preOpStateBytes == null)
-            return false;
-
-        var tempPath = statePath + ".rollback.tmp";
-        try
         {
-            await File.WriteAllBytesAsync(tempPath, preOpStateBytes, cancellationToken)
-                .ConfigureAwait(false);
+            if (preOpStateWasPresent)
+                return false;
 
-            if (File.Exists(statePath))
-                File.Replace(tempPath, statePath, null);
-            else
-                File.Move(tempPath, statePath, overwrite: false);
-
-            var restoredBytes = await File.ReadAllBytesAsync(statePath, cancellationToken)
+            return await _stateStore
+                .RestoreRawStateAsync(null, cancellationToken)
                 .ConfigureAwait(false);
-            return restoredBytes.Length == preOpStateBytes.Length
-                && restoredBytes.AsSpan().SequenceEqual(preOpStateBytes);
         }
-        finally
-        {
-            if (File.Exists(tempPath))
-            {
-                try { File.Delete(tempPath); } catch (Exception ex) { _logger.Warning($"Failed to cleanup temporary file {Path.GetFileName(tempPath)}: {ex.Message}"); }
-            }
-        }
+
+        return await _stateStore
+            .RestoreRawStateAsync(preOpStateBytes, cancellationToken)
+            .ConfigureAwait(false);
     }
 
 }

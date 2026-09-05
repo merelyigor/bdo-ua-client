@@ -5,8 +5,8 @@ Status: ACTIVE
 Focus: PRIMARY
 Backlog order: —
 Implementation authorization: **YES**
-Current phase: Stage B — B.2 implemented / validated / pending architect review
-Next action: Architect review B.2, then B.3 raw-state call-site migration
+Current phase: Stage B — B.3 implemented / validated / pending architect review
+Next action: Architect review B.3, then close Stage B and proceed to Stage D responsiveness investigation
 Dependencies: none (client-ui-redesign archived)
 
 ## Goal
@@ -19,7 +19,7 @@ Dependencies: none (client-ui-redesign archived)
 
 ### Актуальні проблеми (ще не вирішені)
 
-- **Дубльовані raw installation-state операції**: capture централізовано у B.1; атомарний запис/restore стану ×4 (разом з `InstallationStateStore.SaveAsync`) і rollback-логіка ще розходяться (різні temp-імена, різна обробка CancellationToken). — B.2/B.3 заплановані у Stage B.
+- **Raw installation-state operations**: capture централізовано у B.1, exact restore/application і rollback централізовані у B.2/B.3; typed `InstallationStateStore.SaveAsync` навмисно залишається окремою операцією. Restore-point state snapshots залишаються відповідальністю `BackupStore`.
 - **Магічні рядки**: `"ads"`/`"languagedata_en.loc"` у 5+ місцях, `"installation.json"` ×8 (при існуючому `AppPaths.InstallationFile`), `"api"`/`"official"` маркери ×9. — **ВИРІШЕНО у Stage A** (A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse).
 - **MainForm.cs великий** (~1800+ рядків): self-update, localization, presentation, startup — все в одному файлі. — заплановано у Stage C.
 - **Дубльований factual-state резолв** у `HandleInstallAsync` та `RefreshStateAsync`.
@@ -103,7 +103,7 @@ Application self-update має materially different successful handoff path (Pro
 **Stage C → background-tray-notifications → Stage B → Stage D → Stage E**
 
 - `background-tray-notifications` завершено, прийнято, випущено у v1.2.0 та заархівовано у `docs/plans/archive/background-tray-notifications.md`.
-- Stage B (raw installation-state centralization) є поточною фазою; read-only аудит завершено, B.1 прийнято, B.2 реалізовано.
+- Stage B (raw installation-state centralization) є поточною фазою; read-only аудит завершено, B.1 і B.2 прийняті, B.3 реалізовано.
 - Stage C залишається Stage C, Stage B залишається Stage B — ідентифікатори не перейменовуються під алфавітний порядок.
 
 ### Stage C — MainForm physical decomposition (low risk) — COMPLETED / REVIEWED / ACCEPTED
@@ -141,15 +141,15 @@ Tray/background T1–T6 завершено, прийнято та випущен
 
 ### Stage B — Raw installation-state operations (low risk, correctness) — IN PROGRESS
 
-Stage B read-only audit завершено. B.1 — **COMPLETED / REVIEWED / ACCEPTED**. B.2 реалізовано та валідовано; B.3 залишається NOT IMPLEMENTED.
+Stage B read-only audit завершено. B.1 і B.2 — **COMPLETED / REVIEWED / ACCEPTED**. B.3 реалізовано та валідовано; очікує architect review.
 
-Наступна дія: `Architect review B.2, then B.3 raw-state call-site migration`.
+Наступна дія: `Architect review B.3, then close Stage B and proceed to Stage D responsiveness investigation`.
 
-Централізувати дубльовані byte-level операції з installation state файлом. **Не** об'єднувати install/restore orchestration. **Не** вводити GameFileTransaction. Stage B виконується поетапно: B.1 і B.2 реалізовані, B.3 ще не розпочато.
+Централізувати дубльовані byte-level операції з installation state файлом. **Не** об'єднувати install/restore orchestration. **Не** вводити GameFileTransaction. Stage B реалізовано поетапно; завершення очікує зовнішнього B.3 review.
 
 - **B.1** `InstallationStateStore.CaptureRawState()` — **COMPLETED / REVIEWED / ACCEPTED**. Синхронно повертає точні bytes; `null` означає відсутній файл, non-null `byte[0]` — наявний порожній файл; без JSON validation/normalization. Три service-local capture helpers видалено; transaction ordering збережено.
-- **B.2** `InstallationStateStore.RestoreRawStateAsync(byte[]?, CancellationToken)` — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**. Централізує present/absent raw restore через unique temp → Replace/Move → exact byte verification → cleanup; rollback orchestration не входить у primitive.
-- **B.3** **NOT IMPLEMENTED**. Замінити залишені service-local raw write/restore implementations спільним викликом після B.2 review; service call sites у B.2 навмисно не мігрувалися.
+- **B.2** `InstallationStateStore.RestoreRawStateAsync(byte[]?, CancellationToken)` — **COMPLETED / REVIEWED / ACCEPTED**. Централізує present/absent raw restore через unique temp → Replace/Move → exact byte verification → cleanup; rollback orchestration не входить у primitive.
+- **B.3** — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**. Мігровано install rollback, selected restore-point state apply та restore-backup pre-operation state rollback на `RestoreRawStateAsync`; typed `SaveAsync`, `BackupStore` restore-point snapshots і transaction orchestration залишилися окремими.
 
 ### Stage D — Responsiveness investigation (investigation only)
 
@@ -170,7 +170,7 @@ Stage B read-only audit завершено. B.1 — **COMPLETED / REVIEWED / ACC
 - `dotnet build BdoUaClient.sln` — без помилок (§33.6)
 - `dotnet test BdoUaClient.sln --no-build` — усі поточні тести зелені після кожного етапу (§33.7)
 - Behavior операцій не змінено: install/restore/rollback сценарії покриті існуючими тестами
-- Після завершення Stage B не повинно залишитися дублікатів capture/raw restore операцій; B.1 capture уже централізовано, B.3 call-site migration ще не виконано.
+- Після завершення Stage B не повинно залишитися дублікатів capture/raw restore операцій; B.1/B.2/B.3 runtime migration виконані, очікується лише зовнішній review.
 - MainForm розділений на partial files після Stage C
 - Жоден етап не вводить generic transaction engine або generic operation runner
 
@@ -191,9 +191,9 @@ Stage B read-only audit завершено. B.1 — **COMPLETED / REVIEWED / ACC
 
 ## Current progress
 
-Tray progress: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**, released in stable v1.2.0 and archived. Stage B is in progress: B.1 **COMPLETED / REVIEWED / ACCEPTED**, B.2 **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**, B.3 **NOT IMPLEMENTED**.
+Tray progress: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**, released in stable v1.2.0 and archived. Stage B is in progress: B.1/B.2 **COMPLETED / REVIEWED / ACCEPTED**, B.3 **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**.
 
-v14.2.25 завершив targeted hygiene та launcher-polish items. `client-ui-redesign` заархівовано після v1.1.2. План залишається ACTIVE PRIMARY; Stage A/C accepted. `background-tray-notifications` T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**, випущено у v1.2.0 та заархівовано. B.1 прийнято; B.2 реалізовано та валідовано; наступна дія — architect review B.2, потім B.3.
+v14.2.25 завершив targeted hygiene та launcher-polish items. `client-ui-redesign` заархівовано після v1.1.2. План залишається ACTIVE PRIMARY; Stage A/C accepted. `background-tray-notifications` T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**, випущено у v1.2.0 та заархівовано. B.1 і B.2 прийняті; B.3 реалізовано та валідовано; наступна дія — architect review B.3, потім закриття Stage B і Stage D.
 
 ### Hotfix interruption (2026-08-27)
 
