@@ -83,7 +83,7 @@ public sealed class LocalizationInstallService
                 $"Pre-operation installation state is invalid: {preStateLoad.Error}");
         }
 
-        var preStateBytes = ReadRawInstallationState();
+        var preStateBytes = _stateStore.CaptureRawState();
 
         // --- Phase 3: Download + Stage 4 verification ---
         DownloadResult downloadResult;
@@ -149,7 +149,7 @@ public sealed class LocalizationInstallService
             }
 
             // --- Phase 5: Capture pre-operation state (after download, before restore point) ---
-            preStateBytes = ReadRawInstallationState();
+            preStateBytes = _stateStore.CaptureRawState();
             bool stateWasPresent = preStateBytes != null;
 
             // --- Phase 6: Create restore point (after verified download, before replace) ---
@@ -435,12 +435,6 @@ public sealed class LocalizationInstallService
             // Cleanup temp best-effort
             CleanupFile(tempPath);
         }
-    }
-
-    private byte[]? ReadRawInstallationState()
-    {
-        var path = _stateStore.InstallationFile;
-        return File.Exists(path) ? File.ReadAllBytes(path) : null;
     }
 
     private void CleanupDownloadTemp(string? tempPath)

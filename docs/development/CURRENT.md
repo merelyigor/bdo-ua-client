@@ -8,7 +8,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 Стабільний реліз: **v1.2.0**. Публічний реліз опубліковано з tag `v1.2.0`; canonical application bundle містить один ZIP-asset. `background-tray-notifications` — T1–T6 COMPLETED / REVIEWED / ACCEPTED, released and archived. `code-quality-ux-improvements` залишається ACTIVE PRIMARY.
 
-Поточна наступна дія: `Stage B read-only audit — map current raw installation-state capture/restore implementations, rollback semantics and tests before B.1/B.2 implementation`.
+Поточна наступна дія: `Architect review B.1, then B.2 canonical raw restore`.
 
 ## Architecture Summary
 
@@ -32,7 +32,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - Stage A — accepted.
 - Stage C — MainForm physical decomposition, accepted.
 - Tray/background T1–T6 — accepted, released in v1.2.0, plan archived.
-- Stage B — **NOT IMPLEMENTED**. Спочатку потрібен read-only аудит raw installation-state capture/restore, rollback semantics і тестів; B.1/B.2/B.3 ще не розпочато.
+- Stage B — **NOT IMPLEMENTED overall**. B.1 — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**: `InstallationStateStore.CaptureRawState()` централізує синхронне exact-byte capture; `null` означає absent, non-null empty bytes — present empty; validation/normalization не виконується. B.2/B.3 ще не реалізовані.
 
 ## Validation / Release Facts
 

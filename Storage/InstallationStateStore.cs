@@ -66,6 +66,13 @@ public sealed class InstallationStateStore
         }
     }
 
+    internal byte[]? CaptureRawState()
+    {
+        return File.Exists(_paths.InstallationFile)
+            ? File.ReadAllBytes(_paths.InstallationFile)
+            : null;
+    }
+
     public async Task SaveAsync(InstallationMetadata metadata, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(metadata);

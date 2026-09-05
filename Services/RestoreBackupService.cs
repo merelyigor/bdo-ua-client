@@ -71,7 +71,7 @@ public sealed class RestoreBackupService
                 .ConfigureAwait(false);
         }
 
-        var preOpStateBytes = ReadRawInstallationState();
+        var preOpStateBytes = _stateStore.CaptureRawState();
         bool preOpStateWasPresent = preOpStateBytes != null;
 
         var currentLoad = _stateStore.Load();
@@ -260,9 +260,4 @@ public sealed class RestoreBackupService
         }
     }
 
-    private byte[]? ReadRawInstallationState()
-    {
-        var path = _stateStore.InstallationFile;
-        return File.Exists(path) ? File.ReadAllBytes(path) : null;
-    }
 }

@@ -63,7 +63,7 @@ public sealed class RestoreOriginalService
     private async Task<RestoreResult> ApplyOfficialRestoreAsync(
         string officialTempFilePath, CancellationToken cancellationToken)
     {
-        var preStateBytes = ReadRawInstallationState();
+        var preStateBytes = _stateStore.CaptureRawState();
         bool stateWasPresent = preStateBytes != null;
 
         var (rpDir, rpResult) = await _backupStore
@@ -170,7 +170,7 @@ public sealed class RestoreOriginalService
     private async Task<RestoreResult> ApplySnapshotRestoreAsync(
         string snapshotPath, BackupMetadata snapshotMetadata, CancellationToken cancellationToken)
     {
-        var preStateBytes = ReadRawInstallationState();
+        var preStateBytes = _stateStore.CaptureRawState();
         bool stateWasPresent = preStateBytes != null;
 
         var (rpDir, rpResult) = await _backupStore
@@ -247,9 +247,4 @@ public sealed class RestoreOriginalService
         }
     }
 
-    private byte[]? ReadRawInstallationState()
-    {
-        var path = _stateStore.InstallationFile;
-        return File.Exists(path) ? File.ReadAllBytes(path) : null;
-    }
 }

@@ -3,14 +3,14 @@
 ## Current focus
 
 **Primary:** `code-quality-ux-improvements`
-**Current phase:** code-quality-ux-improvements — Stage B read-only audit
-**Next:** Stage B read-only audit / implementation mapping
+**Current phase:** code-quality-ux-improvements — Stage B / B.1 implemented, pending architect review
+**Next:** Architect review B.1, then B.2 canonical raw restore
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | PRIMARY; Stage A/C — COMPLETED / REVIEWED / ACCEPTED | Stage B read-only audit / implementation mapping |
+| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | PRIMARY; Stage B / B.1 — IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW | Architect review B.1, then B.2 canonical raw restore |
 
 ## Backlog
 

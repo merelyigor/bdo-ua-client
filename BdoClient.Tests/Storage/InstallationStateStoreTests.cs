@@ -33,6 +33,37 @@ public class InstallationStateStoreTests : IDisposable
     }
 
     [Fact]
+    public void CaptureRawState_MissingFile_ReturnsNull()
+    {
+        var result = _store.CaptureRawState();
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task CaptureRawState_ExistingArbitraryBytes_PreservesExactBytes()
+    {
+        var expected = new byte[] { 0x00, 0xFF, 0x7B, 0x0D, 0x0A, 0x80 };
+        await File.WriteAllBytesAsync(_paths.InstallationFile, expected);
+
+        var result = _store.CaptureRawState();
+
+        Assert.NotNull(result);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public async Task CaptureRawState_ExistingEmptyFile_ReturnsNonNullEmptyBytes()
+    {
+        await File.WriteAllBytesAsync(_paths.InstallationFile, Array.Empty<byte>());
+
+        var result = _store.CaptureRawState();
+
+        Assert.NotNull(result);
+        Assert.Empty(result);
+    }
+
+    [Fact]
     public async Task SaveAndLoad_ApiMetadata_Roundtrip()
     {
         var metadata = CreateValidApiMetadata();
