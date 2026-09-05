@@ -4,14 +4,14 @@
 
 **Primary:** `code-quality-ux-improvements`
 **Current phase:** background-tray-notifications — ACTIVE (T1–T6 COMPLETED / REVIEWED / ACCEPTED)
-**Next:** Release preparation
+**Next:** Release Candidate v1.2.0
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED | T1–T6 tray completed/reviewed/accepted; Release preparation; Stage B deferred |
-| 2 | `background-tray-notifications` | [active/background-tray-notifications.md](active/background-tray-notifications.md) | ACTIVE | Release preparation |
+| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED | T1–T6 tray completed/reviewed/accepted; Release Candidate v1.2.0; Stage B deferred |
+| 2 | `background-tray-notifications` | [active/background-tray-notifications.md](active/background-tray-notifications.md) | ACTIVE | Release Candidate v1.2.0 |
 
 ## Backlog
 

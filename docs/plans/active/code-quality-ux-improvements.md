@@ -6,7 +6,7 @@ Focus: PRIMARY
 Backlog order: —
 Implementation authorization: **YES**
 Current phase: Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED
-Next action: Release preparation (background-tray-notifications T1–T6 completed/reviewed/accepted; Stage B deferred until tray release completion)
+Next action: Release Candidate v1.2.0 (background-tray-notifications T1–T6 completed/reviewed/accepted; Stage B deferred until v1.2.0 release completion)
 Dependencies: none (client-ui-redesign archived)
 
 ## Goal
@@ -102,7 +102,7 @@ Application self-update має materially different successful handoff path (Pro
 
 **Stage C → background-tray-notifications → Stage B → Stage D → Stage E**
 
-- `background-tray-notifications` — окремий ACTIVE-план (див. `docs/plans/active/background-tray-notifications.md`), T1–T6 COMPLETED / REVIEWED / ACCEPTED; наступна дія — Release preparation. Stage B залишається відкладеним до завершення tray release.
+- `background-tray-notifications` — окремий ACTIVE-план (див. `docs/plans/active/background-tray-notifications.md`), T1–T6 COMPLETED / REVIEWED / ACCEPTED; наступна дія — Release Candidate v1.2.0. Stage B залишається відкладеним до завершення релізу v1.2.0.
 - Stage B (raw installation-state centralization) є safety-critical і **навмисно відкладено** до реалізації tray/background-функції: воно не розблоковує tray і несе ризик доцільно брати лише після вищопріоритетного tray-функціоналу.
 - Stage C залишається Stage C, Stage B залишається Stage B — ідентифікатори не перейменовуються під алфавітний порядок.
 
@@ -137,7 +137,7 @@ Application self-update має materially different successful handoff path (Pro
 - `MainForm.Operations.cs` — HandleInstallAsync, RestoreOriginalButton_Click, HandleRestoreOriginalAsync, CancelButton_Click, MapInstallError, MapRestoreError (фізичний partial, без нової абстракції)
 - `MainForm.ApplicationUpdate.cs` — update check, staging, handoff
 
-Безпосередня наступна дія — **T1 read-only tray lifetime inspection / mapping** (згідно з планом `background-tray-notifications`, який тепер ACTIVE). Stage C C.1–C.5 фізична декомпозиція повністю реалізована та фінально переглянута архітектором (COMPLETED / REVIEWED / ACCEPTED): partial-власність, `MainForm_FormClosing` та self-update handoff прийняті без змін, `MainForm.Lifecycle.cs` не створено, жодного generic operation runner не додано. Owner явно активував tray (ACTIVE, implementation authorization YES); згодом реалізовано та прийнято T1 (Tray lifetime shell) і T1.1 (Autostart / background startup, включно з single-instance безпекою). Stage B залишається відкладеним (після tray).
+Tray/background T1–T6 завершено та прийнято; поточна наступна дія — Release Candidate v1.2.0. Stage C C.1–C.5 фізично декомпоновано та прийнято; Stage B залишається відкладеним до завершення релізу v1.2.0.
 
 ### Stage B — Raw installation-state operations (low risk, correctness) — DEFERRED (після tray)
 
@@ -187,9 +187,9 @@ Application self-update має materially different successful handoff path (Pro
 
 ## Current progress
 
-Tray progress: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**. Next: Release preparation. Stage B remains deferred until tray release completion.
+Tray progress: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**. Next: Release Candidate v1.2.0. Stage B remains deferred until v1.2.0 release completion.
 
-v14.2.25 завершив targeted hygiene та launcher-polish items. `client-ui-redesign` заархівовано після v1.1.2. План залишається ACTIVE PRIMARY; Stage A/C accepted. `background-tray-notifications` залишається ACTIVE secondary: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**. Наступна дія: Release preparation. Stage B залишається відкладеним до завершення tray release.
+v14.2.25 завершив targeted hygiene та launcher-polish items. `client-ui-redesign` заархівовано після v1.1.2. План залишається ACTIVE PRIMARY; Stage A/C accepted. `background-tray-notifications` залишається ACTIVE secondary: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**. Наступна дія: Release Candidate v1.2.0. Stage B залишається відкладеним до завершення релізу v1.2.0.
 
 ### Hotfix interruption (2026-08-27)
 

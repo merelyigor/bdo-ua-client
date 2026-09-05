@@ -6,7 +6,7 @@ Focus: NONE (secondary feature, not PRIMARY)
 Implementation authorization: **YES**
 Depends on: completed Stage C — MainForm physical decomposition (COMPLETED / REVIEWED / ACCEPTED)
 Lifecycle: BACKLOG → (explicit owner decision) → ACTIVE → (completed/superseded) → ARCHIVE
-Next action: Release preparation
+Next action: Release Candidate v1.2.0
 
 ## Goal
 
@@ -124,12 +124,9 @@ Tray-код спостерігає за розв'язаним станом. Ві
 
 Перша версія має використовувати існуючу підтримку Windows/WinForms через `NotifyIcon.ShowBalloonTip`. Без нових залежностей.
 
-Можливі actionable-сповіщення:
+Єдиний actionable-випадок першої версії — фінальний фактичний стан `LocalizationState.UpdateAvailable`.
 
-- доступне оновлення локалізації;
-- керована локалізація більше не активна;
-- гра/ланчер замінили файл локалізації;
-- інший справді actionable перехід стану.
+Зміна локального файлу сама по собі не є окремою notification-категорією: вона запускає звичайне розв'язання фактичного стану, після якого сповіщення можливе лише для `UpdateAvailable`.
 
 Сповіщення є інформаційним. Відновлення MainForm виконується через `Відкрити`, подвійний клік по іконці трея або secondary-instance activation.
 
@@ -146,7 +143,7 @@ Tray-код спостерігає за розв'язаним станом. Ві
 - `UpdateAvailable` → `UpToDate` = скинути;
 - пізніше: `UpToDate` → `UpdateAvailable` = сповістити знову.
 
-Можливі runtime-ключі: останній actionable стан, останній сповіщений PublicId, останній сповіщений mode. Точна реалізація — пізніше.
+Dedup-стан зберігається лише в RAM; `PublicId` і mode не є dedup keys.
 
 ## Non-goals
 
@@ -352,7 +349,7 @@ T6: **COMPLETED / REVIEWED / ACCEPTED**.
 
 Валідація T6: X → tray PASS; Open PASS; double-click PASS; Exit PASS; secondary instance PASS; background startup PASS; notification appearance PASS; notification dedup PASS; background cadence ~5 хв PASS; resource sanity PASS; T4 resource behavior PASS; build/tests PASS. Notification-click failure зафіксовано як підставу для звуження контракту, а не як unresolved blocker.
 
-Next action: Release preparation.
+Next action: Release Candidate v1.2.0.
 
 ### T6 — Owner E2E / resource validation
 

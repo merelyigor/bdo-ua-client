@@ -6,7 +6,7 @@
 
 BDO-UA Client — Windows .NET 8 WinForms застосунок для пошуку Black Desert Online, отримання українських локалізацій через `bdo-ua.com.ua`, безпечного встановлення, оновлення та відновлення файлів гри.
 
-Стабільний реліз: v1.1.3. `code-quality-ux-improvements` — ACTIVE PRIMARY; Stage A/C accepted, Stage B deferred until tray release completion. `background-tray-notifications` — ACTIVE secondary: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**. Next: Release preparation.
+Стабільний реліз: v1.1.3. `code-quality-ux-improvements` — ACTIVE PRIMARY; Stage A/C accepted, Stage B deferred until v1.2.0 release completion. `background-tray-notifications` — ACTIVE secondary: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**. Release target/next: Release Candidate v1.2.0.
 
 ## Architecture Summary
 
@@ -53,7 +53,7 @@ Exact changes and validation are recorded in Git history and the monthly journal
 
 ## Active Work
 
-T5 uses `UpdateAvailable`-only actionability, RAM-only episode dedup, hidden first-episode native notification, visible latch without balloon, informational-only notification behavior, and isolated presentation failure. Real Windows E2E confirmed that `BalloonTipClicked` is not reliably delivered by the current notification surface; activation is intentionally outside the first-version contract. Current validation: 891 tests passed; Release build 0 warnings/0 errors.
+T5/T6 use `UpdateAvailable`-only actionability, RAM-only episode dedup, hidden first-episode native notification, visible latch without balloon, informational-only notification behavior, and isolated presentation failure. Real Windows E2E confirmed that `BalloonTipClicked` is not reliably delivered by the current notification surface; activation is intentionally outside the first-version contract. Tray/background T1–T6 are accepted. Current validation: 891 tests passed; Release build 0 warnings/0 errors. Release target/next: v1.2.0 Release Candidate.
 
 ACTIVE PRIMARY: `code-quality-ux-improvements`
 
@@ -63,7 +63,7 @@ Current phase: Stage C — MainForm physical decomposition — COMPLETED / REVIE
 
 **T3 — Background polling cadence — COMPLETED / REVIEWED / ACCEPTED (2026-09-03):** один `ReleaseFeedPoller.RunLoopAsync`; усі recurring/immediate API feed-запити сходяться на єдиний шлях `PerformPollAsync` → `_apiClient.GetReleasesAsync`; максимум одночасних API feed-запитів = 1. Виробничі інтервали: видимий клієнт ≈ 15 секунд, tray/background клієнт ≈ 5 хвилин. `HideToTray()` обирає Background і скидає поточну visible-затримку (наступний poll — свіжа Background каденція); `--background` обирає Background через той самий нормальний startup pipeline до `_poller.Start`. `RestoreFromTray()` обирає Visible і викликає негайний API poll (`RequestImmediatePoll`); наступний poll — свіжа Visible ~15s каденція. Меню трея: `Відкрити` → `Перевірити зараз` → `Запускати разом із Windows` → separator → `Вихід`; `Перевірити зараз` викликає лише `_poller.RequestImmediatePoll()`. Кілька immediate-запитів коалесують; immediate під час активного запиту використовує Option A (поточний запит задовольняє, додатковий не ставиться). `Pause` авторитетний (без poll під час паузи, immediate відкидаються); `Resume` запускає свіжу каденцію з поточним режимом без immediate-poll. Feed-шлях не змінено: poller → `OnFeedCandidate` → `OnReleaseFeedCandidate` → `FeedApplicationCoordinator` → `ApplyFeedPipelineAsync`. Під час фінального concurrency-рев'ю виявлено та виправлено витік власності scheduler-wait CTS: `RunLoopAsync` створює linked wait CTS, публікує `_schedulerWaitCts`, `WakeSchedulerWait()` лише скасовує його, `RunLoopAsync` у `finally` очищає посилання через `ReleaseSchedulerWait` і диспозить власний CTS рівно один раз; інваріант `_schedulerWaitCts == null` доки виконується API-запит; `Dispose()` не володіє `_schedulerWaitCts`, `_disposed` — `volatile`. Це усуває необмежений per-iteration витік linked-CTS у довгоживучому tray-клієнті. Тести: 862/862, build 0/0. Живого tray/runtime E2E не виконувалось — automated validation = unit/concurrency-тести + статичний/MainForm-інтеграційний рев'ю. T4 згодом реалізовано (див. нижче).
 
-**T4 — Local file-change trigger — COMPLETED / REVIEWED / ACCEPTED (2026-09-04):** окремий `System.Windows.Forms.Timer` ~5 хв у `MainForm.LocalFileMonitor.cs` (background/прихований режим; `ReleaseFeedPoller` не змінено). Дешева відбиток-метаданих `LocalizationFileFingerprint` (Exists/Length/LastWriteTimeUtc), без постійного SHA; відсутній файл — валідний відбиток. `LocalFileChangeTracker` — RAM-only, `OrdinalIgnoreCase` порівняння шляху. Baseline належить останньому успішному `RefreshStateAsync`; змінений/відсутній baseline → існуючий шлях `RefreshStateAsync`; restore робить одне дешеве порівняння. `FeedApplicationCoordinator` серіалізує локальну й API-реконсиляцію. Тестів: 880/880; build 0/0.
+**T4 — Local file-change trigger — COMPLETED / REVIEWED / ACCEPTED (2026-09-04):** окремий `System.Windows.Forms.Timer` ~5 хв у `MainForm.LocalFileMonitor.cs` (background/прихований режим; `ReleaseFeedPoller` не змінено). Дешева відбиток-метаданих `LocalizationFileFingerprint` (Exists/Length/LastWriteTimeUtc), без постійного SHA; відсутній файл — валідний відбиток. `LocalFileChangeTracker` — RAM-only, `OrdinalIgnoreCase` порівняння шляху. Baseline належить останньому успішному `RefreshStateAsync`; змінений/відсутній baseline → існуючий шлях `RefreshStateAsync`; restore робить одне дешеве порівняння. `FeedApplicationCoordinator` серіалізує локальну й API-реконсиляцію. Тестів: 880/880; build 0/0. Поточний next: v1.2.0 Release Candidate.
 
 **Hotfix completed and owner-accepted (2026-08-27):** managed localization hash-mismatch state resolution. When game/launcher replaces the localization file after BDO-UA Client installed it, the state was incorrectly classified as `Corrupted` (same patch, different SHA). Fix: new `ManagedFileChanged` transition resolves to `UpdateAvailable`/`WaitingForRelease` instead. Automated validation: 805/805 tests. Owner reproduced real launcher-restored-file scenario: preview showed "Доступне оновлення" / "Оновити", update completed, state returned UpToDate, restart remained UpToDate.
 
@@ -101,7 +101,7 @@ Current phase: Stage C — MainForm physical decomposition — COMPLETED / REVIE
 
 ## Next Likely Work
 
-1. Stage C COMPLETED / REVIEWED / ACCEPTED (C.1–C.5 фізична декомпозиція + фінальний architect review/lifecycle handoff). `background-tray-notifications` (ACTIVE secondary): **T1–T6 COMPLETED / REVIEWED / ACCEPTED**. Next: Release preparation.
+1. Stage C COMPLETED / REVIEWED / ACCEPTED (C.1–C.5 фізична декомпозиція + фінальний architect review/lifecycle handoff). `background-tray-notifications` (ACTIVE secondary): **T1–T6 COMPLETED / REVIEWED / ACCEPTED**. Next: Release Candidate v1.2.0.
 2. Do not start Stage B before tray/background release completion.
 
 ## Canonical References
