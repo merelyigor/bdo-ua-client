@@ -64,6 +64,78 @@ public class InstallationStateStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task RestoreRawStateAsync_AbsentTargetAlreadyAbsent_ReturnsTrue()
+    {
+        var result = await _store.RestoreRawStateAsync(null);
+
+        Assert.True(result);
+        Assert.False(File.Exists(_paths.InstallationFile));
+    }
+
+    [Fact]
+    public async Task RestoreRawStateAsync_AbsentTargetExisting_RemovesFile()
+    {
+        await File.WriteAllBytesAsync(_paths.InstallationFile, new byte[] { 0x01, 0x02, 0x03 });
+
+        var result = await _store.RestoreRawStateAsync(null);
+
+        Assert.True(result);
+        Assert.False(File.Exists(_paths.InstallationFile));
+    }
+
+    [Fact]
+    public async Task RestoreRawStateAsync_PresentTargetAbsent_UsesExactBytes()
+    {
+        var expected = new byte[] { 0x00, 0xFF, 0x7B, 0x0D, 0x0A, 0x80 };
+
+        var result = await _store.RestoreRawStateAsync(expected);
+
+        Assert.True(result);
+        Assert.True(File.Exists(_paths.InstallationFile));
+        Assert.Equal(expected, await File.ReadAllBytesAsync(_paths.InstallationFile));
+        Assert.Empty(Directory.GetFiles(_paths.StateDir, "installation.raw-restore.*.tmp"));
+    }
+
+    [Fact]
+    public async Task RestoreRawStateAsync_PresentTargetExists_ReplacesWithExactBytes()
+    {
+        var expected = new byte[] { 0x10, 0x20, 0x30, 0x40 };
+        await File.WriteAllBytesAsync(_paths.InstallationFile, new byte[] { 0xAA, 0xBB });
+
+        var result = await _store.RestoreRawStateAsync(expected);
+
+        Assert.True(result);
+        Assert.Equal(expected, await File.ReadAllBytesAsync(_paths.InstallationFile));
+        Assert.Empty(Directory.GetFiles(_paths.StateDir, "installation.raw-restore.*.tmp"));
+    }
+
+    [Fact]
+    public async Task RestoreRawStateAsync_PresentEmptyState_RemainsPresent()
+    {
+        var result = await _store.RestoreRawStateAsync(Array.Empty<byte>());
+
+        Assert.True(result);
+        Assert.True(File.Exists(_paths.InstallationFile));
+        Assert.Empty(await File.ReadAllBytesAsync(_paths.InstallationFile));
+        Assert.Empty(Directory.GetFiles(_paths.StateDir, "installation.raw-restore.*.tmp"));
+    }
+
+    [Fact]
+    public async Task RestoreRawStateAsync_PreCancelledPresentRestore_LeavesOriginalAndCleansTemp()
+    {
+        var original = new byte[] { 0x01, 0x02, 0x03 };
+        await File.WriteAllBytesAsync(_paths.InstallationFile, original);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => _store.RestoreRawStateAsync(new byte[] { 0xAA, 0xBB }, cancellation.Token));
+
+        Assert.Equal(original, await File.ReadAllBytesAsync(_paths.InstallationFile));
+        Assert.Empty(Directory.GetFiles(_paths.StateDir, "installation.raw-restore.*.tmp"));
+    }
+
+    [Fact]
     public async Task SaveAndLoad_ApiMetadata_Roundtrip()
     {
         var metadata = CreateValidApiMetadata();

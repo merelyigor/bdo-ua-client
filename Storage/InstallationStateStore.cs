@@ -73,6 +73,43 @@ public sealed class InstallationStateStore
             : null;
     }
 
+    internal async Task<bool> RestoreRawStateAsync(
+        byte[]? stateBytes, CancellationToken cancellationToken = default)
+    {
+        if (stateBytes == null)
+        {
+            if (!File.Exists(_paths.InstallationFile))
+                return true;
+
+            File.Delete(_paths.InstallationFile);
+            return !File.Exists(_paths.InstallationFile);
+        }
+
+        var tempFile = Path.Combine(_paths.StateDir, $"installation.raw-restore.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            await File.WriteAllBytesAsync(tempFile, stateBytes, cancellationToken).ConfigureAwait(false);
+
+            if (File.Exists(_paths.InstallationFile))
+            {
+                File.Replace(tempFile, _paths.InstallationFile, null);
+            }
+            else
+            {
+                File.Move(tempFile, _paths.InstallationFile, overwrite: false);
+            }
+
+            var restoredBytes = await File.ReadAllBytesAsync(_paths.InstallationFile, cancellationToken)
+                .ConfigureAwait(false);
+            return restoredBytes.Length == stateBytes.Length
+                && restoredBytes.AsSpan().SequenceEqual(stateBytes);
+        }
+        finally
+        {
+            CleanupTempFile(tempFile);
+        }
+    }
+
     public async Task SaveAsync(InstallationMetadata metadata, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(metadata);

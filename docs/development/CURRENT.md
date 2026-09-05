@@ -1,6 +1,6 @@
 # Current Engineering Context
 
-Оновлено: 2026-09-05
+Оновлено: 2026-09-06
 
 ## Project Purpose / Status
 
@@ -8,7 +8,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 Стабільний реліз: **v1.2.0**. Публічний реліз опубліковано з tag `v1.2.0`; canonical application bundle містить один ZIP-asset. `background-tray-notifications` — T1–T6 COMPLETED / REVIEWED / ACCEPTED, released and archived. `code-quality-ux-improvements` залишається ACTIVE PRIMARY.
 
-Поточна наступна дія: `Architect review B.1, then B.2 canonical raw restore`.
+Поточна наступна дія: `Architect review B.2, then B.3 raw-state call-site migration`.
 
 ## Architecture Summary
 
@@ -32,13 +32,13 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - Stage A — accepted.
 - Stage C — MainForm physical decomposition, accepted.
 - Tray/background T1–T6 — accepted, released in v1.2.0, plan archived.
-- Stage B — **NOT IMPLEMENTED overall**. B.1 — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**: `InstallationStateStore.CaptureRawState()` централізує синхронне exact-byte capture; `null` означає absent, non-null empty bytes — present empty; validation/normalization не виконується. B.2/B.3 ще не реалізовані.
+- Stage B — **IN PROGRESS**. B.1 — **COMPLETED / REVIEWED / ACCEPTED**. B.2 — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**: `InstallationStateStore.RestoreRawStateAsync` підтримує exact present/absent state, unique temp, atomic Replace/Move, byte verification і caller-controlled cancellation. Service call sites ще не мігрувалися; B.3 залишається NOT IMPLEMENTED.
 
 ## Validation / Release Facts
 
 - RC #27 succeeded; stable v1.2.0 published.
 - Release preparation and post-release finalization залишили runtime, tests, workflows та scripts без змін.
-- Остання локальна валідація: Release build 0 warnings / 0 errors; 891 tests passed / 0 failed.
+- Остання локальна валідація B.2: Release build 0 warnings / 0 errors; 900 tests passed / 0 failed.
 
 ## Important Invariants
 
