@@ -3,15 +3,14 @@
 ## Current focus
 
 **Primary:** `code-quality-ux-improvements`
-**Current phase:** background-tray-notifications — ACTIVE (T1–T6 COMPLETED / REVIEWED / ACCEPTED)
-**Next:** Release Candidate v1.2.0
+**Current phase:** code-quality-ux-improvements — Stage B read-only audit
+**Next:** Stage B read-only audit / implementation mapping
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED | T1–T6 tray completed/reviewed/accepted; Release Candidate v1.2.0; Stage B deferred |
-| 2 | `background-tray-notifications` | [active/background-tray-notifications.md](active/background-tray-notifications.md) | ACTIVE | Release Candidate v1.2.0 |
+| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | PRIMARY; Stage A/C — COMPLETED / REVIEWED / ACCEPTED | Stage B read-only audit / implementation mapping |
 
 ## Backlog
 
@@ -25,6 +24,7 @@
 | `initial-implementation` | [archive/initial-implementation-plan.md](archive/initial-implementation-plan.md) | Stage 1–12.2 |
 | `client-self-update` | [archive/client-self-update.md](archive/client-self-update.md) | v13.1.2–v14.0.1; ZIP self-update E2E completed |
 | `client-ui-redesign` | [archive/client-ui-redesign.md](archive/client-ui-redesign.md) | Completed native WinForms launcher redesign through Stage 4; stable v1.1.2 validation |
+| `background-tray-notifications` | [archive/background-tray-notifications.md](archive/background-tray-notifications.md) | Tray/background T1–T6 completed, reviewed, accepted and released in stable v1.2.0 |
 
 ## Rules / lifecycle
 

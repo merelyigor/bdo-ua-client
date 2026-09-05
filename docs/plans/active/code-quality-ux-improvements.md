@@ -5,8 +5,8 @@ Status: ACTIVE
 Focus: PRIMARY
 Backlog order: —
 Implementation authorization: **YES**
-Current phase: Stage C — MainForm physical decomposition — COMPLETED / REVIEWED / ACCEPTED
-Next action: Release Candidate v1.2.0 (background-tray-notifications T1–T6 completed/reviewed/accepted; Stage B deferred until v1.2.0 release completion)
+Current phase: Stage B — Raw installation-state operations — NOT IMPLEMENTED
+Next action: Stage B read-only audit — map current raw installation-state capture/restore implementations, rollback semantics and tests before B.1/B.2 implementation
 Dependencies: none (client-ui-redesign archived)
 
 ## Goal
@@ -102,8 +102,8 @@ Application self-update має materially different successful handoff path (Pro
 
 **Stage C → background-tray-notifications → Stage B → Stage D → Stage E**
 
-- `background-tray-notifications` — окремий ACTIVE-план (див. `docs/plans/active/background-tray-notifications.md`), T1–T6 COMPLETED / REVIEWED / ACCEPTED; наступна дія — Release Candidate v1.2.0. Stage B залишається відкладеним до завершення релізу v1.2.0.
-- Stage B (raw installation-state centralization) є safety-critical і **навмисно відкладено** до реалізації tray/background-функції: воно не розблоковує tray і несе ризик доцільно брати лише після вищопріоритетного tray-функціоналу.
+- `background-tray-notifications` завершено, прийнято, випущено у v1.2.0 та заархівовано у `docs/plans/archive/background-tray-notifications.md`.
+- Stage B (raw installation-state centralization) стає поточною фазою, але спочатку потребує read-only аудиту safety-critical реалізацій, rollback semantics і тестів.
 - Stage C залишається Stage C, Stage B залишається Stage B — ідентифікатори не перейменовуються під алфавітний порядок.
 
 ### Stage C — MainForm physical decomposition (low risk) — COMPLETED / REVIEWED / ACCEPTED
@@ -137,9 +137,11 @@ Application self-update має materially different successful handoff path (Pro
 - `MainForm.Operations.cs` — HandleInstallAsync, RestoreOriginalButton_Click, HandleRestoreOriginalAsync, CancelButton_Click, MapInstallError, MapRestoreError (фізичний partial, без нової абстракції)
 - `MainForm.ApplicationUpdate.cs` — update check, staging, handoff
 
-Tray/background T1–T6 завершено та прийнято; поточна наступна дія — Release Candidate v1.2.0. Stage C C.1–C.5 фізично декомпоновано та прийнято; Stage B залишається відкладеним до завершення релізу v1.2.0.
+Tray/background T1–T6 завершено, прийнято та випущено у v1.2.0; план заархівовано. Stage C C.1–C.5 фізично декомпоновано та прийнято; Stage B є наступною фазою після read-only аудиту.
 
-### Stage B — Raw installation-state operations (low risk, correctness) — DEFERRED (після tray)
+### Stage B — Raw installation-state operations (low risk, correctness) — NOT IMPLEMENTED
+
+Наступна дія: `Stage B read-only audit — map current raw installation-state capture/restore implementations, rollback semantics and tests before B.1/B.2 implementation`.
 
 Централізувати дубльовані byte-level операції з installation state файлом. **Не** об'єднувати install/restore orchestration. **Не** вводити GameFileTransaction. **Не розпочато.**
 
@@ -187,9 +189,9 @@ Tray/background T1–T6 завершено та прийнято; поточна
 
 ## Current progress
 
-Tray progress: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**. Next: Release Candidate v1.2.0. Stage B remains deferred until v1.2.0 release completion.
+Tray progress: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**, released in stable v1.2.0 and archived. Stage B is next, with read-only audit before implementation.
 
-v14.2.25 завершив targeted hygiene та launcher-polish items. `client-ui-redesign` заархівовано після v1.1.2. План залишається ACTIVE PRIMARY; Stage A/C accepted. `background-tray-notifications` залишається ACTIVE secondary: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**. Наступна дія: Release Candidate v1.2.0. Stage B залишається відкладеним до завершення релізу v1.2.0.
+v14.2.25 завершив targeted hygiene та launcher-polish items. `client-ui-redesign` заархівовано після v1.1.2. План залишається ACTIVE PRIMARY; Stage A/C accepted. `background-tray-notifications` T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**, випущено у v1.2.0 та заархівовано. Наступна дія: Stage B read-only audit перед B.1/B.2.
 
 ### Hotfix interruption (2026-08-27)
 
