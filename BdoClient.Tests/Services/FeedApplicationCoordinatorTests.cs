@@ -383,12 +383,32 @@ public class FeedApplicationCoordinatorTests
 
     private class RecordingLogger : ILogger
     {
-        public List<string> DebugLines { get; } = new();
+        private readonly object _debugSync = new();
+        private readonly List<string> _debugLines = new();
+
+        public IReadOnlyList<string> DebugLines
+        {
+            get
+            {
+                lock (_debugSync)
+                {
+                    return _debugLines.ToArray();
+                }
+            }
+        }
+
         public List<string> InfoLines { get; } = new();
         public List<string> WarningLines { get; } = new();
         public List<string> ErrorLines { get; } = new();
 
-        public void Debug(string message) => DebugLines.Add(message);
+        public void Debug(string message)
+        {
+            lock (_debugSync)
+            {
+                _debugLines.Add(message);
+            }
+        }
+
         public void Info(string message) => InfoLines.Add(message);
         public void Warning(string message) => WarningLines.Add(message);
         public void Error(string message) => ErrorLines.Add(message);

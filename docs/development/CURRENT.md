@@ -8,7 +8,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 Стабільний реліз: **v1.2.2**. Публічний stable release опубліковано з tag `v1.2.2`; canonical application bundle містить один ZIP-asset. Усі approved implementation plans завершено, прийнято та заархівовано; наразі немає ACTIVE implementation plan або PRIMARY.
 
-Поточна наступна дія: `Architect review of the workflow documentation update (chat-rules paste limit, validation evidence, data-task numbers, repository/environment authority), then define the next product-development roadmap/task`.
+Поточна наступна дія: `Architect review CI test-race correction, then begin read-only product/architecture audit for the next roadmap`.
 
 ## Architecture Summary
 
