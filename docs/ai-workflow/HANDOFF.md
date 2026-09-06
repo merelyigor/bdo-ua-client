@@ -40,6 +40,8 @@ Task prompt може вимагати richer exact output.
 
 Нова session відновлює `AGENTS.md`, ai-workflow docs, CURRENT, relevant plan, journal, git history/diff, relevant source/tests/docs і current explicit task prompt. Повний transcript старих conversations не є prerequisite.
 
+Під час відновлення external Architect session з нуля Owner може використати [PROJECT_CHAT_RULES.md](PROJECT_CHAT_RULES.md) як portable project instruction, а потім bootstrap поточний repository state з `AGENTS.md`, `CURRENT.md`, plans і source. Цей файл не є обов'язковим для Implementation Agent.
+
 External coordination не зберігає personal details, irrelevant chat history, private account metadata, tokens, credentials, secrets або непотрібні private URLs. Persist лише project-relevant facts.
 
 ## Architect handoff
