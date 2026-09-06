@@ -6,9 +6,9 @@
 
 BDO-UA Client — Windows .NET 8 WinForms застосунок для пошуку Black Desert Online, отримання українських локалізацій через `bdo-ua.com.ua`, безпечного встановлення, оновлення та відновлення файлів гри.
 
-Стабільний реліз: **v1.2.1**. Публічний stable release опубліковано з tag `v1.2.1`; canonical application bundle містить один ZIP-asset. `code-quality-ux-improvements` завершено, прийнято та заархівовано. Новий ACTIVE PRIMARY — `release-experience-polish`.
+Стабільний реліз: **v1.2.2**. Публічний stable release опубліковано з tag `v1.2.2`; canonical application bundle містить один ZIP-asset. `code-quality-ux-improvements` і `release-experience-polish` завершено, прийнято та заархівовано. Наразі немає ACTIVE implementation plan.
 
-Поточна наступна дія: `Release Candidate v1.2.2, then packaged validation and owner publication`.
+Поточна наступна дія: `Await explicit owner decision for the next roadmap/task`.
 
 ## Architecture Summary
 
@@ -37,16 +37,15 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - Stage D — **COMPLETED / REVIEWED / ACCEPTED**; D.1 підтвердив negligible UI-thread local IO у realistic scenarios, D.2 — **NOT REQUIRED**.
 - Code-quality roadmap — **COMPLETED / REVIEWED / ACCEPTED**. Stage E.1 — **COMPLETED / REVIEWED / ACCEPTED**; E.2 — **NO ACTION REQUIRED / ALREADY SATISFIED**, бо `LocalizationModeCard` уже має hover surface/border feedback.
 - `code-quality-ux-improvements` — **ARCHIVED**, roadmap COMPLETED / REVIEWED / ACCEPTED, released through stable v1.2.1; no remaining implementation action.
-- `release-experience-polish` — **ACTIVE PRIMARY**. R1 — **COMPLETED / REVIEWED / ACCEPTED**; application discovery має startup + resident ~5-minute monitoring. R2 — **COMPLETED / REVIEWED / ACCEPTED**; schema-v1 `docs/releases/NEXT.json` generator прийнятий після focused workflow-summary correction. R3 — **IN PROGRESS / RELEASE CANDIDATE v1.2.2**.
-- Exact v1.2.1 facts: release ID `383553345`, RC #28 / run `34028489675`, one public asset `BDO-UA-Client-v1.2.1-win-x64.zip`. Production `v1.2.0 → v1.2.1` built-in self-update succeeded.
+- `release-experience-polish` — **ARCHIVED**. R1/R2/R3 — **COMPLETED / REVIEWED / ACCEPTED**; application discovery має startup + resident ~5-minute monitoring, а schema-v1 `NEXT.json` generator є normal release contract.
+- Exact v1.2.2 facts: release ID `383636389`, RC #29 / run `34038984319`, one public asset `BDO-UA-Client-v1.2.2-win-x64.zip`; outer SHA-256 `329c31987955dbb2139a061ea09bbad0e89fa403cf731343d124b917e68f120c`. Власник успішно виконав built-in update до `v1.2.2`; застосунок після оновлення працює. Hidden periodic notification не спостерігалася окремо в production smoke.
 
 ## Validation / Release Facts
 
-- RC #28 succeeded; stable v1.2.1 published.
-- Production self-update `v1.2.0 → v1.2.1` was successfully exercised by the owner.
-- R1 validation: Release build 0 warnings / 0 errors; 907 tests passed / 0 failed; `git diff --check` passed.
-- R2 validation: Release build/test, resolver tests, structured generator tests and real generator smoke passed; no runtime or dependency changes.
-- R3 release preflight: explicit resolver `1.2.2` / `v1.2.2`, NEXT public-copy smoke, Release build 0 warnings / 0 errors, 907 tests passed / 0 failed, resolver/generator tests passed.
+- RC #29 succeeded; stable v1.2.2 published.
+- Production self-update to `v1.2.2` was successfully exercised by the owner; the updated application works.
+- Structured release-note pipeline is the normal release contract; `NEXT.json` has been reset to an empty schema-v1 source for the next cycle.
+- R3 validation: Release build 0 warnings / 0 errors, 907 tests passed / 0 failed, resolver/generator tests and release preflight passed.
 
 ## Important Invariants
 
@@ -61,7 +60,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 - [`AGENTS.md`](../../AGENTS.md) — правила, контракти, security, build і commit requirements
 - [`docs/plans/README.md`](../plans/README.md) — plan lifecycle registry
-- [`docs/plans/active/release-experience-polish.md`](../plans/active/release-experience-polish.md) — ACTIVE PRIMARY plan
+- [`docs/plans/archive/release-experience-polish.md`](../plans/archive/release-experience-polish.md) — completed archived plan
 - [`docs/plans/archive/code-quality-ux-improvements.md`](../plans/archive/code-quality-ux-improvements.md) — completed archived roadmap
 - [`docs/releases/v1.2.1.md`](../releases/v1.2.1.md) — canonical release archive
 - [`history/2026-09.md`](history/2026-09.md) — recent engineering journal

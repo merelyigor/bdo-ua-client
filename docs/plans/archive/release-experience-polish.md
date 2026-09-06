@@ -1,12 +1,12 @@
 # Release experience polish
 
 Plan ID: `release-experience-polish`
-Status: ACTIVE
-Focus: PRIMARY
+Status: ARCHIVED
+Focus: —
 Backlog order: —
 Implementation authorization: **YES**
-Current phase: R3 release preparation / Release Candidate v1.2.2
-Next action: Release Candidate v1.2.2, then packaged validation and owner publication
+Current phase: roadmap completed / reviewed / accepted — released in stable v1.2.2
+Next action: none; no remaining implementation action
 Dependencies: stable v1.2.1
 
 ## Goal
@@ -34,11 +34,11 @@ Approved direction:
 
 Реалізація: schema-v1 `docs/releases/NEXT.json`, deterministic generator/validator без `git log`, internal-token guard, standalone script tests у normal CI та explicit structured-source input у Release Candidate workflow. Під час R2 також виправлено stale `AGENTS.md` §41.2, який ще описував startup-only application-update discovery після прийняття R1. R2 externally reviewed and accepted після focused correction RC workflow summary wording.
 
-### R3 — Stable release handoff — IN PROGRESS — RELEASE CANDIDATE v1.2.2
+### R3 — Stable release handoff — COMPLETED / REVIEWED / ACCEPTED
 
-Target: `v1.2.2`. Release Candidate готується та запускається після успішного normal CI; публікація GitHub Release залишається owner action.
+Target: `v1.2.2`. Release Candidate #29 успішний, стабільний реліз опубліковано; публікація GitHub Release залишалася owner action.
 
-У цьому плані v1.2.2 не готується до завершення R1/R2 review.
+Release facts: release ID `383636389`, tag `v1.2.2`, public asset `BDO-UA-Client-v1.2.2-win-x64.zip`. Після публікації власник успішно виконав built-in update до `v1.2.2`; застосунок після оновлення працює.
 
 ## Acceptance criteria
 
@@ -47,8 +47,8 @@ Target: `v1.2.2`. Release Candidate готується та запускаєть
 - Немає automatic download/install, persisted schema change або змін localization notification semantics.
 - R1 має focused tracker tests і повний build/test validation та прийнятий зовнішнім архітектором.
 - R2 має schema-v1 source, deterministic validation/rendering, CI script tests і RC structured-source integration та прийнятий зовнішнім архітектором.
-- R3 у release handoff: target `v1.2.2`; після RC потрібні packaged validation і owner publication.
+- R3 завершено: RC/package validation і owner publication виконані для stable `v1.2.2`.
 
 ## Current progress
 
-R1 і R2 externally accepted. `NEXT.json` містить user-facing copy для v1.2.2. R3 in progress — release preparation / Release Candidate v1.2.2; наступна дія — `Release Candidate v1.2.2, then packaged validation and owner publication`. План не вважається завершеним або released до owner publication.
+R1, R2 і R3 externally accepted. Stable `v1.2.2` опубліковано; факти релізу заархівовано, а `NEXT.json` скинуто для наступного циклу. План завершено й заархівовано; remaining implementation action немає.

@@ -2,15 +2,15 @@
 
 ## Current focus
 
-**Primary:** `release-experience-polish`
-**Current phase:** R3 release preparation / Release Candidate v1.2.2
-**Next:** Release Candidate v1.2.2, then packaged validation and owner publication
+**Primary:** none
+**Current phase:** no ACTIVE implementation plan
+**Next:** await explicit owner decision for the next roadmap/task
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| 1 | `release-experience-polish` | [active/release-experience-polish.md](active/release-experience-polish.md) | PRIMARY; R3 release preparation / Release Candidate v1.2.2 | Release Candidate v1.2.2, then packaged validation and owner publication |
+Немає ACTIVE планів.
 
 ## Backlog
 
@@ -26,6 +26,7 @@
 | `client-ui-redesign` | [archive/client-ui-redesign.md](archive/client-ui-redesign.md) | Completed native WinForms launcher redesign through Stage 4; stable v1.1.2 validation |
 | `background-tray-notifications` | [archive/background-tray-notifications.md](archive/background-tray-notifications.md) | Tray/background T1–T6 completed, reviewed, accepted and released in stable v1.2.0 |
 | `code-quality-ux-improvements` | [archive/code-quality-ux-improvements.md](archive/code-quality-ux-improvements.md) | Roadmap completed, reviewed, accepted and released in stable v1.2.1 |
+| `release-experience-polish` | [archive/release-experience-polish.md](archive/release-experience-polish.md) | R1–R3 completed, reviewed, accepted and released in stable v1.2.2 |
 
 ## Rules / lifecycle
 
@@ -41,7 +42,8 @@ BACKLOG → (explicit owner decision) → ACTIVE → (completed/superseded) → 
 - ACTIVE plans are executable roadmaps only after explicit task command
 - BACKLOG plans must NOT be implemented automatically
 - ARCHIVED plans are historical references only
-- Exactly one plan should be marked PRIMARY
+- When ACTIVE plans exist, exactly one plan should be marked PRIMARY
+- Zero ACTIVE plans is valid when no executable roadmap is approved; never create a placeholder plan solely for bookkeeping
 - Moving lifecycle state requires file move + registry update in same commit
 - Folder status and registry status must always match
 - Meaningful implementation commits must synchronize the active plan and this registry with factual validation/review status and the exact next action

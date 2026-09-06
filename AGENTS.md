@@ -687,7 +687,7 @@ BDO-UA-Client/
 
 §39.2 Implementation plans live only in `docs/plans/active/`, `docs/plans/backlog/`, `docs/plans/archive/`. No canonical `/plan.md` in repository root.
 
-§39.3 Exactly one ACTIVE plan should be marked PRIMARY. BACKLOG plans must NOT be implemented automatically. ARCHIVED plans are historical references only.
+§39.3 Якщо існують ACTIVE плани, рівно один із них має бути позначений PRIMARY. Нуль ACTIVE планів є валідним, коли немає затвердженої executable roadmap; не створювати placeholder plan лише для bookkeeping. BACKLOG plans must NOT be implemented automatically. ARCHIVED plans are historical references only.
 
 §39.4 Moving lifecycle state requires file move + registry update in same commit. Folder status and registry status must always match.
 §39.5 Після кожного meaningful implementation commit, що просуває ACTIVE план, той самий commit повинен оновити відповідний active plan і `docs/plans/README.md`, правдиво зафіксувавши реалізовану задачу, фактичний validation/review status, невиконані частини та точну наступну дію.
