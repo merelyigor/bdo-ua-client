@@ -2,7 +2,7 @@
 
 ## Evidence hierarchy
 
-Перевага надається actual commit/diff, changed source, tests, logs, build output, CI, artifacts, hashes і live release/runtime evidence, коли вони релевантні. Implementation report є supporting evidence, але не заміною inspectable repository evidence.
+Порядок джерел: diff → validation output із exit code → tests → runtime/CI evidence, artifacts, hashes → **і лише потім implementation report**. Report є supporting evidence, але не заміною inspectable repository evidence; звіт читається останнім саме тому, що він найзручніший і тому найлегше підміняє собою перевірку самої роботи.
 
 ## Review checklist
 

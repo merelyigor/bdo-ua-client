@@ -57,6 +57,7 @@ External conversations є coordination channels, а не persistent project stat
 - [REVIEW.md](REVIEW.md) — evidence hierarchy, severity та acceptance loop.
 - [HANDOFF.md](HANDOFF.md) — звітність, persistence і міжсесійний handoff.
 - [PROJECT_CHAT_RULES.md](PROJECT_CHAT_RULES.md) — portable project/chat instruction для Architect / Analyst / Reviewer sessions.
+- [PROJECT_CHAT_RULES_CORE.md](PROJECT_CHAT_RULES_CORE.md) — та сама instruction у межах ліміту 8000 символів; саме її вставляють у поле project instructions браузерного чату.
 
 ## Non-goals
 

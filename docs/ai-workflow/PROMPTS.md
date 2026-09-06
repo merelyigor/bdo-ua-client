@@ -25,6 +25,10 @@ Architect prompt має бути self-contained, передавати approved c
 
 За потреби додаються `BASELINE`, `PLAN STATE`, `COMMIT`, `PUSH`, `RELEASE`, `SAFETY` або `MIGRATION`.
 
+## Data/migration prompt
+
+Для задачі, що переносить, імпортує або мігрує дані, prompt додатково фіксує: джерело даних, ідентичність звʼязку записів, поведінку для незвʼязаного залишку і три числа, які agent зобовʼязаний навести у звіті — було, стало, не звʼязано. «Import completed successfully» без чисел не є evidence: на великому наборі воно однаково звучить і при повному, і при порожньому результаті.
+
 ## Read-only inspection prompt
 
 Prompt має прямо сказати: inspect only; do not modify files; повернути relevant files, current flow, dependencies, risks і implementation points; identify open architecture questions; do not start implementation і не redesign prematurely.

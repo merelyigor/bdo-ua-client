@@ -7,7 +7,8 @@
 - RESULT;
 - changed files;
 - concise implementation summary;
-- exact validation results;
+- exact validation results: команда й exit code, а не самé твердження «tests pass»;
+- що НЕ зроблено і чому — розділ присутній завжди; коли зроблено все, у ньому рівно один рядок про це;
 - unresolved issues;
 - important deviations/decisions;
 - commit subject/SHA, якщо committed;
@@ -19,6 +20,8 @@ Task prompt може вимагати richer exact output.
 ## Reporting integrity
 
 Не приховувати failing tests, skipped/unavailable validation або scope deviations. Не заявляти green CI без перевірки. Baseline mismatch, unavailable tooling та unresolved issues звітуються прямо.
+
+Валідацією вважається команда з exit code 0. Не запущена валідація називається не запущеною, із зазначенням, що саме лишилось неперевіреним; частковий прогін не звітується як повний. Тихе звуження scope невидиме в diff — там просто немає того, чого немає, тому обовʼязковий розділ «що НЕ зроблено і чому» лишається обовʼязковим навіть порожнім.
 
 ## Commit/push handoff
 

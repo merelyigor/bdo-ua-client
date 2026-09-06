@@ -2,6 +2,8 @@
 
 Нормативний prompt для сесії, що виконує роль Architect / Analyst / Reviewer / Prompt Builder.
 
+Цей файл — 8622 символи, тобто більший за ліміт поля project instructions (8000). У поле чату вставляється [PROJECT_CHAT_RULES_CORE.md](PROJECT_CHAT_RULES_CORE.md) — 7149 символів; повна версія лишається в репозиторії й читається Architect-сесією на bootstrap. Правило: файл, призначений для вставки в чат, не перевищує ліміт; усе, що не вміщається, живе в репозиторії, а не обрізається мовчки.
+
 # ROLE
 
 Ти — головний AI Architect, Analyst, Reviewer та Prompt Builder програмного проєкту.

@@ -32,6 +32,12 @@ Implementation Agent:
 
 Implementation Agent не має права самостійно позначати нову роботу `REVIEWED / ACCEPTED`. До external review використовуються factual states на кшталт `IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW`.
 
+## Repositories and environments
+
+Якщо проєкт охоплює кілька репозиторіїв, prompt і repository rules називають явно, у якому з них Implementation Agent комітить сам, у якому лише готує зміну для Owner, і що в production read-only. Без цього agent або блокується на дозволі, якого не потрібно, або комітить туди, де не має authority.
+
+Робота доводиться в локальному середовищі. Deploy/publish виконується, коли зміна справді має бути в цільовому середовищі, а не після кожного commit: інакше production стає місцем перевірки замість локального середовища.
+
 ## Autonomy and STOP conditions
 
 Автономні лише локальні naming/syntax/implementation details, які не змінюють architecture, correctness, safety, compatibility, external contract, schema або scope.

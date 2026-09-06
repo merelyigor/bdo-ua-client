@@ -8,7 +8,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 Стабільний реліз: **v1.2.2**. Публічний stable release опубліковано з tag `v1.2.2`; canonical application bundle містить один ZIP-asset. Усі approved implementation plans завершено, прийнято та заархівовано; наразі немає ACTIVE implementation plan або PRIMARY.
 
-Поточна наступна дія: `Architect re-review AI workflow consistency correction, then define the next product-development roadmap/task`.
+Поточна наступна дія: `Architect review of the workflow documentation update (chat-rules paste limit, validation evidence, data-task numbers, repository/environment authority), then define the next product-development roadmap/task`.
 
 ## Architecture Summary
 
@@ -56,6 +56,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - Self-update current EXE не змінюється до manifest, SHA-256 і version validation.
 - Secrets, tokens і credentials не зберігаються в repository.
 - `docs/ai-workflow/` є canonical orchestration/process documentation: repository формально розділяє Owner, Architect-Reviewer та Implementation Agent responsibilities; external conversations — coordination, а repository-owned docs/code — persistent truth.
+- Файл, призначений для вставки в поле project instructions браузерного чату, не перевищує 8000 символів: цю роль виконує `docs/ai-workflow/PROJECT_CHAT_RULES_CORE.md`, а повний `PROJECT_CHAT_RULES.md` лишається repository-side.
 
 ## Canonical References
 
