@@ -37,6 +37,12 @@ Corrective prompt містить confirmed defect, root cause/failure point ко
 
 Такий prompt окремо розмежовує allowed changes і validation-only actions, publication authority, immutable tag/artifact rules, GO/NO-GO gate та owner actions. Він не дозволяє створювати release/tag або заявляти publication без відповідної authority/evidence.
 
+## Baseline contract
+
+Коли точний стан repository має значення, implementation prompt визначає релевантний baseline: branch, expected HEAD/commit, expected worktree state, relevant CI state, relevant plan state та, коли застосовно, release/tag/version state. Не потрібно включати кожне поле для кожної задачі — лише факти, mismatch яких може зробити implementation assumptions недійсними.
+
+Implementation Agent перевіряє required baseline до зміни файлів. Якщо material mismatch робить task contract недійсним, agent повинен STOP, повідомити actual state і повернути рішення Architect/Owner; не можна мовчки перебазувати task на новий стан. Minor irrelevant drift можна повідомити й обробити лише коли це дозволяють prompt і repository rules.
+
 ## Conflict handling
 
 Implementation Agent STOP-ить, якщо prompt конфліктує з mandatory repository rule, allowed scope не задовольняє requirement, потрібне unapproved architecture/schema/dependency expansion або baseline invalidates contract. Conflict повертається Architect/Owner для рішення, а не вирішується мовчазним scope expansion.

@@ -8,7 +8,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 Стабільний реліз: **v1.2.2**. Публічний stable release опубліковано з tag `v1.2.2`; canonical application bundle містить один ZIP-asset. Усі approved implementation plans завершено, прийнято та заархівовано; наразі немає ACTIVE implementation plan або PRIMARY.
 
-Поточна наступна дія: `Architect review AI workflow documentation, then define the next product-development roadmap/task`.
+Поточна наступна дія: `Architect re-review AI workflow consistency correction, then define the next product-development roadmap/task`.
 
 ## Architecture Summary
 
@@ -64,5 +64,5 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - [`docs/plans/archive/release-experience-polish.md`](../plans/archive/release-experience-polish.md) — completed archived plan
 - [`docs/ai-workflow/README.md`](../ai-workflow/README.md) — canonical orchestration, prompt, review та handoff contract
 - [`docs/plans/archive/code-quality-ux-improvements.md`](../plans/archive/code-quality-ux-improvements.md) — completed archived roadmap
-- [`docs/releases/v1.2.1.md`](../releases/v1.2.1.md) — canonical release archive
+- [`docs/releases/v1.2.2.md`](../releases/v1.2.2.md) — current stable release archive
 - [`history/2026-09.md`](history/2026-09.md) — recent engineering journal

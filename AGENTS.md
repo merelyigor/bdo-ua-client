@@ -764,6 +764,12 @@ BDO-UA-Client/
 
 §42.7 Один journal-файл створюється на календарний місяць у форматі `YYYY-MM.md`. При першій завершеній meaningful task нового місяця створюється новий файл. Попередні monthly files не переписуються, окрім factual corrections.
 
+§42.8 Не створювати довільні journal files на кшталт `DEVLOG-2.md` і не видаляти старі monthly files автоматично. Git залишається джерелом точних історичних diff.
+
+§42.9 Persistent context є публічним repository content. Journal і CURRENT **ніколи** не повинні містити passwords, API keys, tokens, credentials, private URLs, private user information, personal ChatGPT conversation details, raw sensitive logs або local environment secrets. Дозволені лише repository-relevant engineering facts.
+
+§42.10 Не дублювати в `CURRENT.md` точний поточний Git HEAD/commit/version, якщо сам documentation commit зробить це значення недійсним. Git history є canonical source для поточного repository HEAD; version references дозволені, коли описують meaningful historical/runtime baseline або architectural milestone.
+
 ---
 
 ## §43 🤖 AI Development Workflow
@@ -783,9 +789,3 @@ BDO-UA-Client/
 §43.7 External conversations є coordination channels, а не canonical persistent state. Material decisions синхронізуються у repository-owned sources, де це доречно.
 
 §43.8 Нова session відновлює context із repository documentation/source, а не з hidden/opaque session history; canonical bootstrap описано у [`docs/ai-workflow/README.md`](docs/ai-workflow/README.md).
-
-§42.8 Не створювати довільні journal files на кшталт `DEVLOG-2.md` і не видаляти старі monthly files автоматично. Git залишається джерелом точних історичних diff.
-
-§42.9 Persistent context є публічним repository content. Journal і CURRENT **ніколи** не повинні містити passwords, API keys, tokens, credentials, private URLs, private user information, personal ChatGPT conversation details, raw sensitive logs або local environment secrets. Дозволені лише repository-relevant engineering facts.
-
-§42.10 Не дублювати в `CURRENT.md` точний поточний Git HEAD/commit/version, якщо сам documentation commit зробить це значення недійсним. Git history є canonical source для поточного repository HEAD; version references дозволені, коли описують meaningful historical/runtime baseline або architectural milestone.
