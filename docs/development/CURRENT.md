@@ -8,7 +8,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 Стабільний реліз: **v1.2.1**. Публічний stable release опубліковано з tag `v1.2.1`; canonical application bundle містить один ZIP-asset. `code-quality-ux-improvements` завершено, прийнято та заархівовано. Новий ACTIVE PRIMARY — `release-experience-polish`.
 
-Поточна наступна дія: `Architect review R2, then R3 Release Candidate v1.2.2`.
+Поточна наступна дія: `Release Candidate v1.2.2, then packaged validation and owner publication`.
 
 ## Architecture Summary
 
@@ -37,7 +37,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - Stage D — **COMPLETED / REVIEWED / ACCEPTED**; D.1 підтвердив negligible UI-thread local IO у realistic scenarios, D.2 — **NOT REQUIRED**.
 - Code-quality roadmap — **COMPLETED / REVIEWED / ACCEPTED**. Stage E.1 — **COMPLETED / REVIEWED / ACCEPTED**; E.2 — **NO ACTION REQUIRED / ALREADY SATISFIED**, бо `LocalizationModeCard` уже має hover surface/border feedback.
 - `code-quality-ux-improvements` — **ARCHIVED**, roadmap COMPLETED / REVIEWED / ACCEPTED, released through stable v1.2.1; no remaining implementation action.
-- `release-experience-polish` — **ACTIVE PRIMARY**. R1 — **COMPLETED / REVIEWED / ACCEPTED**; application discovery має startup + resident ~5-minute monitoring. R2 — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**; `docs/releases/NEXT.json` є pending public-copy source. R3 — **NOT STARTED**; future target `v1.2.2`.
+- `release-experience-polish` — **ACTIVE PRIMARY**. R1 — **COMPLETED / REVIEWED / ACCEPTED**; application discovery має startup + resident ~5-minute monitoring. R2 — **COMPLETED / REVIEWED / ACCEPTED**; schema-v1 `docs/releases/NEXT.json` generator прийнятий після focused workflow-summary correction. R3 — **IN PROGRESS / RELEASE CANDIDATE v1.2.2**.
 - Exact v1.2.1 facts: release ID `383553345`, RC #28 / run `34028489675`, one public asset `BDO-UA-Client-v1.2.1-win-x64.zip`. Production `v1.2.0 → v1.2.1` built-in self-update succeeded.
 
 ## Validation / Release Facts
@@ -46,6 +46,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - Production self-update `v1.2.0 → v1.2.1` was successfully exercised by the owner.
 - R1 validation: Release build 0 warnings / 0 errors; 907 tests passed / 0 failed; `git diff --check` passed.
 - R2 validation: Release build/test, resolver tests, structured generator tests and real generator smoke passed; no runtime or dependency changes.
+- R3 release preflight: explicit resolver `1.2.2` / `v1.2.2`, NEXT public-copy smoke, Release build 0 warnings / 0 errors, 907 tests passed / 0 failed, resolver/generator tests passed.
 
 ## Important Invariants
 

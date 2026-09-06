@@ -3,14 +3,14 @@
 ## Current focus
 
 **Primary:** `release-experience-polish`
-**Current phase:** R2 implemented / validated / pending architect review
-**Next:** Architect review R2, then R3 Release Candidate v1.2.2
+**Current phase:** R3 release preparation / Release Candidate v1.2.2
+**Next:** Release Candidate v1.2.2, then packaged validation and owner publication
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| 1 | `release-experience-polish` | [active/release-experience-polish.md](active/release-experience-polish.md) | PRIMARY; R2 implemented / validated / pending architect review | Architect review R2, then R3 Release Candidate v1.2.2 |
+| 1 | `release-experience-polish` | [active/release-experience-polish.md](active/release-experience-polish.md) | PRIMARY; R3 release preparation / Release Candidate v1.2.2 | Release Candidate v1.2.2, then packaged validation and owner publication |
 
 ## Backlog
 
