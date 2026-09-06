@@ -278,7 +278,7 @@ jobs:
         2. Test ``BDO-UA-Client.exe`` locally
         3. Do NOT unpack/repackage the downloaded artifact ZIP for publication
         4. Draft GitHub Release → select existing tag ``$tag``
-        5. Use generated ``RELEASE_NOTES-v$version.md`` as release body (auto-generated from commits, edit if needed)
+        5. Use ``RELEASE_NOTES-v$version.md`` generated from ``docs/releases/NEXT.json`` directly as the release body; edit only to correct a factual defect found during owner validation
         6. Upload the EXACT downloaded artifact ZIP as the ONLY application asset
         7. Do NOT separately upload ``BDO-UA-Client.exe``, ``release-manifest.json`` or ``SHA256SUMS.txt``
         8. Click **Publish release**
