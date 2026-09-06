@@ -6,9 +6,9 @@
 
 BDO-UA Client — Windows .NET 8 WinForms застосунок для пошуку Black Desert Online, отримання українських локалізацій через `bdo-ua.com.ua`, безпечного встановлення, оновлення та відновлення файлів гри.
 
-Стабільний реліз: **v1.2.2**. Публічний stable release опубліковано з tag `v1.2.2`; canonical application bundle містить один ZIP-asset. `code-quality-ux-improvements` і `release-experience-polish` завершено, прийнято та заархівовано. Наразі немає ACTIVE implementation plan.
+Стабільний реліз: **v1.2.2**. Публічний stable release опубліковано з tag `v1.2.2`; canonical application bundle містить один ZIP-asset. Усі approved implementation plans завершено, прийнято та заархівовано; наразі немає ACTIVE implementation plan або PRIMARY.
 
-Поточна наступна дія: `Await explicit owner decision for the next roadmap/task`.
+Поточна наступна дія: `Architect review AI workflow documentation, then define the next product-development roadmap/task`.
 
 ## Architecture Summary
 
@@ -55,12 +55,14 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - Original snapshot незмінний; restore points — окремі pre-operation recovery points.
 - Self-update current EXE не змінюється до manifest, SHA-256 і version validation.
 - Secrets, tokens і credentials не зберігаються в repository.
+- `docs/ai-workflow/` є canonical orchestration/process documentation: repository формально розділяє Owner, Architect-Reviewer та Implementation Agent responsibilities; external conversations — coordination, а repository-owned docs/code — persistent truth.
 
 ## Canonical References
 
 - [`AGENTS.md`](../../AGENTS.md) — правила, контракти, security, build і commit requirements
 - [`docs/plans/README.md`](../plans/README.md) — plan lifecycle registry
 - [`docs/plans/archive/release-experience-polish.md`](../plans/archive/release-experience-polish.md) — completed archived plan
+- [`docs/ai-workflow/README.md`](../ai-workflow/README.md) — canonical orchestration, prompt, review та handoff contract
 - [`docs/plans/archive/code-quality-ux-improvements.md`](../plans/archive/code-quality-ux-improvements.md) — completed archived roadmap
 - [`docs/releases/v1.2.1.md`](../releases/v1.2.1.md) — canonical release archive
 - [`history/2026-09.md`](history/2026-09.md) — recent engineering journal

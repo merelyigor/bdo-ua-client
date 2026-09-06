@@ -17,14 +17,16 @@
 | [Дизайн](design/BDO_THEME_PLAN.md) | BDO-тема UI (план та кольори) |
 | [Плани](plans/README.md) | Плани реалізації |
 | [Development context](development/README.md) | Поточний engineering handoff та monthly journal |
+| [AI workflow](ai-workflow/README.md) | Canonical Owner / Architect-Reviewer / Implementation-Agent workflow, prompts, reviews та handoffs |
 
 ## Поточний стан
 
 - **Платформа:** Windows x64, .NET 8, WinForms
 - **Пакування:** self-contained single-file (BDO-UA-Client.exe)
 - **Оновлення клієнта:** GitHub Releases `merelyigor/bdo-ua-client`, canonical ZIP transport (schema-2 manifest)
-- **Тести:** ~800 автоматизованих тестів (точна кількість — результат `dotnet test`, див. [testing.md](testing.md))
-- **Статус:** Stage 13 (self-update) завершено та заархівовано; активний план — `client-ui-redesign`
+- **Тести:** 907 автоматизованих тестів (за останнім Release validation)
+- **Стабільний реліз:** v1.2.2, опублікований з canonical ZIP self-update/release transport
+- **Плани:** усі approved implementation plans заархівовані; ACTIVE plan немає, наступна product roadmap ще не затверджена
 
 ## Пов'язані документи
 

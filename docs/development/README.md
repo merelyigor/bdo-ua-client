@@ -15,17 +15,20 @@
 - `docs/plans/` містить implementation plans та їх lifecycle; він не замінюється journal-ом.
 - `docs/releases/` містить user-facing release notes; він не замінюється journal-ом.
 - `AGENTS.md` містить обов'язкові правила роботи, контракти та Definition of Done.
+- `docs/ai-workflow/` містить canonical orchestration/process contract між Owner, Architect/Reviewer та Implementation Agent.
 
 ## Відновлення контексту
 
 Нову developer/AI-сесію слід починати в такому порядку:
 
 1. `AGENTS.md`
-2. `docs/development/CURRENT.md`
-3. Поточний або найновіший `docs/development/history/YYYY-MM.md`
-4. Relevant ACTIVE plan з `docs/plans/`
-5. Recent Git commits/diffs, якщо потрібні точні деталі
-6. Subsystem documentation, релевантна задачі
+2. `docs/ai-workflow/README.md`
+3. `docs/development/CURRENT.md`
+4. Relevant ACTIVE plan, якщо він існує
+5. Поточний або relevant `docs/development/history/YYYY-MM.md`
+6. Recent Git commits/diffs, якщо потрібні точні деталі
+7. Subsystem documentation
+8. Relevant source/tests
 
 ## Ротація
 

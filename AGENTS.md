@@ -48,6 +48,7 @@
 | [§40](#40--архів-реліз-нотаток) | 📦 Архів реліз-нотаток | Збереження текстів релізів |
 | [§41](#41--оновлення-клієнта) | 🔄 Оновлення клієнта | Client self-update |
 | [§42](#42--persistent-development-context) | 🧭 Persistent development context | Engineering handoff та journal |
+| [§43](#43--ai-development-workflow) | 🤖 AI Development Workflow | Orchestration, prompts, reviews та handoffs |
 
 ---
 
@@ -572,7 +573,7 @@ BDO-UA-Client/
 - Після першого рядка — порожній рядок, потім **детальний опис** того, що зроблено
 - Опис містить: що реалізовано, що змінено, що оновлено, чому саме так (якщо неочевидно)
 - Кожен завершений етап/підетап — окремий коміт
-- Деталі в `docs/plans/active/client-self-update.md` (розділ "Правила комітів та версійності")
+- Деталі у [`docs/ai-workflow/HANDOFF.md`](docs/ai-workflow/HANDOFF.md) та, коли застосовно, у relevant ACTIVE plan.
 
 §34.3 **Звіт після коміту/пушу — ОБОВ'ЯЗКОВИЙ.** Після кожного коміту та пушу агент повинен чітко повідомити:
 
@@ -762,6 +763,26 @@ BDO-UA-Client/
 §42.6 `CURRENT.md` — не append-only і має зазвичай залишатися меншим приблизно за 400 рядків. Старий контекст можна видаляти з нього лише після перевірки, що потрібна історична інформація вже є в monthly journal або Git history.
 
 §42.7 Один journal-файл створюється на календарний місяць у форматі `YYYY-MM.md`. При першій завершеній meaningful task нового місяця створюється новий файл. Попередні monthly files не переписуються, окрім factual corrections.
+
+---
+
+## §43 🤖 AI Development Workflow
+
+§43.1 Детальний canonical orchestration contract живе у [`docs/ai-workflow/README.md`](docs/ai-workflow/README.md) та linked files у цьому каталозі.
+
+§43.2 Roles є vendor-neutral: Owner, Architect / Analyst / Reviewer, Implementation Agent. Implementation Agent — executor; task-level architecture/review authority належить external Architect/Reviewer, якщо Owner явно не вирішив інакше.
+
+§43.3 Implementation Agent перевіряє repository context/baseline і дотримується approved scope. При unapproved API/schema/dependency/framework/architecture/safety/scope expansion або конфлікті з mandatory rules він STOP і звітує.
+
+§43.4 Local autonomous decisions дозволені лише якщо не змінюють architecture, correctness, safety, compatibility, persistence/public contracts.
+
+§43.5 Коли workflow вимагає acceptance, implementation follow-up проходить external review. Implementation Agent не може self-mark нову роботу як `REVIEWED / ACCEPTED`.
+
+§43.6 Unresolved BLOCKER/IMPORTANT блокують dependent next work. OPTIONAL не вимагає corrective iteration автоматично.
+
+§43.7 External conversations є coordination channels, а не canonical persistent state. Material decisions синхронізуються у repository-owned sources, де це доречно.
+
+§43.8 Нова session відновлює context із repository documentation/source, а не з hidden/opaque session history; canonical bootstrap описано у [`docs/ai-workflow/README.md`](docs/ai-workflow/README.md).
 
 §42.8 Не створювати довільні journal files на кшталт `DEVLOG-2.md` і не видаляти старі monthly files автоматично. Git залишається джерелом точних історичних diff.
 
