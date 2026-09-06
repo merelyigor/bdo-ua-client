@@ -35,8 +35,10 @@ Production GitHub Releases завжди публікуються вручну в
 
 ### 4. Підготовка реліз-нотаток
 
-- Відкрийте згенерований `RELEASE_NOTES-vX.Y.Z.md` з artifact
-- Відредагуйте секції змін (Що нового / Виправлено / Зміни)
+- User-facing зміни, які мають потрапити до наступного релізу, додавайте до `docs/releases/NEXT.json` у тому самому meaningful implementation commit.
+- `NEXT.json` містить лише public copy; task/plan bookkeeping туди не додається.
+- Release Candidate workflow валідовує та детерміновано рендерить `NEXT.json` у `RELEASE_NOTES-vX.Y.Z.md` без LLM або API.
+- Згенерований файл зазвичай готовий для прямої публікації; власник перевіряє його та редагує лише у разі фактичної помилки.
 
 ### 5. Публікація релізу
 
@@ -55,6 +57,7 @@ Production GitHub Releases завжди публікуються вручну в
 - НЕ створює GitHub Release
 - НЕ публікує реліз автоматично
 - НЕ переміщує існуючі теги
+- Git history залишається provenance; public copy береться з `NEXT.json`.
 
 ## Політика невдалих кандидатів
 
@@ -72,3 +75,5 @@ Production GitHub Releases завжди публікуються вручну в
 Текст кожного релізу зберігається у `docs/releases/vX.Y.Z.md` (де `X.Y.Z` — версія).
 Файл створюється на основі `RELEASE_TEMPLATE.md` та заповнюється конкретними даними релізу.
 Поле `{{SHA256}}` заповнюється після завершення Release Candidate workflow.
+
+Після стабільної публікації post-release finalization архівує факти релізу та готує `NEXT.json` для наступного циклу. Саме публікування GitHub Release залишається ручною дією власника.

@@ -33,6 +33,10 @@ jobs:
       shell: pwsh
       run: scripts/Test-Resolve-ReleaseVersion.ps1
 
+    - name: Release notes generator tests
+      shell: pwsh
+      run: scripts/Test-Generate-ReleaseNotes.ps1
+
     - name: Version resolver smoke (real origin)
       shell: pwsh
       run: |

@@ -1,204 +1,105 @@
-﻿param(
-    [Parameter(Mandatory=$true)]
-    [string]$Version,
-    [Parameter(Mandatory=$true)]
-    [string]$Tag,
-    [Parameter(Mandatory=$true)]
-    [string]$Sha,
-    [Parameter(Mandatory=$true)]
-    [string]$AssetName,
-    [Parameter(Mandatory=$false)]
-    [string]$ExeSha256
+param(
+    [Parameter(Mandatory = $true)] [string]$Version,
+    [Parameter(Mandatory = $true)] [string]$Tag,
+    [Parameter(Mandatory = $true)] [string]$Sha,
+    [Parameter(Mandatory = $true)] [string]$AssetName,
+    [Parameter(Mandatory = $false)] [string]$ExeSha256,
+    [Parameter(Mandatory = $false)] [string]$FragmentsPath = "docs/releases/NEXT.json"
 )
 
 $ErrorActionPreference = "Stop"
 
-# Find latest existing tag (before this release)
-$latestTag = git tag --sort=-version:refname | Where-Object { $_ -match '^v\d+\.\d+\.\d+$' } | Select-Object -First 1
-
-if ($latestTag) {
-    Write-Output "Previous tag: $latestTag"
-    $commitRange = "$latestTag..HEAD"
-} else {
-    Write-Output "No previous tag found - including all commits"
-    $commitRange = "HEAD"
+function Assert-NonEmpty([string]$Name, [string]$Value) {
+    if ([string]::IsNullOrWhiteSpace($Value)) { throw "$Name must not be empty." }
 }
 
-# Get commits (skip merge commits, get first line only)
-$commits = git log $commitRange --no-merges --pretty=format:"%s" --reverse 2>$null
-if (-not $commits) {
-    $commits = @("(no commits found)")
-} else {
-    $commits = @($commits)
+Assert-NonEmpty "Version" $Version
+Assert-NonEmpty "Tag" $Tag
+Assert-NonEmpty "Sha" $Sha
+Assert-NonEmpty "AssetName" $AssetName
+Assert-NonEmpty "ExeSha256" $ExeSha256
+Assert-NonEmpty "FragmentsPath" $FragmentsPath
+
+$fragmentFile = Resolve-Path -LiteralPath $FragmentsPath -ErrorAction Stop
+$jsonText = [System.IO.File]::ReadAllText($fragmentFile.Path, [System.Text.Encoding]::UTF8)
+try { $source = $jsonText | ConvertFrom-Json }
+catch { throw "Release-note source JSON is malformed: $($_.Exception.Message)" }
+if ($null -eq $source) { throw "Release-note source must contain a JSON object." }
+
+$requiredProperties = @("schema_version", "summary", "new", "fixed", "reliability", "performance", "changes", "limitations")
+$actualProperties = @($source.PSObject.Properties.Name)
+foreach ($required in $requiredProperties) {
+    if ($actualProperties -notcontains $required) { throw "Release-note source is missing required property '$required'." }
+}
+foreach ($actual in $actualProperties) {
+    if ($requiredProperties -notcontains $actual) { throw "Release-note source contains unknown top-level property '$actual'." }
+}
+$integerSchemaType = $source.schema_version -is [byte] -or $source.schema_version -is [int16] -or $source.schema_version -is [int32] -or $source.schema_version -is [int64]
+if (-not $integerSchemaType -or $source.schema_version -ne 1) { throw "Release-note source schema_version must be integer 1." }
+if ($source.summary -isnot [string]) { throw "Release-note source summary must be a string." }
+
+$categoryNames = @("new", "fixed", "reliability", "performance", "changes", "limitations")
+$categories = @{}
+foreach ($categoryName in $categoryNames) {
+    $category = $source.PSObject.Properties[$categoryName].Value
+    if ($category -isnot [System.Array]) { throw "Release-note source category '$categoryName' must be an array." }
+    $items = @()
+    foreach ($item in @($category)) {
+        if ($item -isnot [string]) { throw "Release-note source category '$categoryName' must contain only strings." }
+        $trimmed = $item.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed)) { throw "Release-note source category '$categoryName' contains an empty item." }
+        $items += $trimmed
+    }
+    $categories[$categoryName] = $items
 }
 
-Write-Output "Found $($commits.Count) commits since $latestTag"
-
-# Ukrainian description mapping for common patterns
-$descriptionMap = @{
-    # Fix patterns
-    "fix compiler warnings" = "виправлено попередження компілятора"
-    "fix diagnostic correctness" = "виправлено коректність діагностики"
-    "fix resolver test isolation" = "виправлено ізоляцію тестів резолвера"
-    "fix live feed" = "виправлено живе оновлення стрічки"
-    "fix retention boundary" = "виправлено межу зберігання логів"
-    "fix release candidate" = "виправлено реліз-кандидат"
-    "fix stale pending" = "виправлено застарілий pending feed"
-    "fix formclosing" = "виправлено закриття форми"
-    "fix lifecycle" = "виправлено життєвий цикл"
-    "fix network" = "виправлено мережеву діагностику"
-    "fix tls" = "виправлено TLS з'єднання"
-    "fix startup" = "виправлено запуск"
-    "fix mode selection" = "виправлено вибір режиму"
-    "fix game detection" = "виправлено пошук гри"
-    "fix installed marker" = "виправлено маркер встановлення"
-    "fix hash" = "виправлено перевірку хешу"
-    "fix download" = "виправлено завантаження"
-    "fix backup" = "виправлено резервне копіювання"
-    "fix path" = "виправлено обробку шляхів"
-    "fix utf" = "виправлено кодування UTF-8"
-    "fix byte count" = "виправлено підрахунок байтів"
-
-    # Add patterns
-    "add network diagnostics" = "додано діагностику мережі"
-    "add log retention" = "додано автоматичне видалення старих логів"
-    "add application icon" = "додано іконку програми"
-    "add startup version" = "додано логування версії при запуску"
-    "add release notes" = "додано автогенерацію реліз-нотаток"
-    "add correlation headers" = "додано correlation headers для діагностики"
-    "add api timing" = "додано діагностику часу відповіді API"
-    "add download timing" = "додано діагностику часу завантаження"
-    "add marquee progress" = "додано анімацію прогресу"
-    "add test build" = "додано тестовий білд workflow"
-    "add auto release notes" = "додано автогенерацію реліз-нотаток"
-    "auto-generate release notes" = "додано автогенерацію реліз-нотаток з git log"
-    "auto-triggers on push" = "автозапуск при push/PR"
-    "auto-triggers" = "автозапуск"
-
-    # Feature patterns
-    "live refresh" = "оновлення списку режимів без перезапуску"
-    "parallel startup" = "паралельний запуск API та пошук гри"
-    "auto increment" = "автоматичне визначення наступної версії"
-    "poller" = "фонове оновлення стрічки релізів"
-    "coordinator" = "координатор оновлення стрічки"
-    "semantic change detection" = "семантичне виявлення змін у стрічці"
-
-    # Change patterns
-    "rename release build to test build" = "перейменовано Release Build на Test Build"
-    "unify feed coordinator" = "об'єднано координатор стрічки"
-    "serialize feed application" = "серіалізація застосування стрічки"
-    "preserve newer pending" = "збереження новішого pending feed при помилці"
-    "close finalization races" = "усунення гонок фіналізації"
-    "harden lifecycle" = "зміцнення життєвого циклу"
-    "extract startup coordinator" = "виділення координатора запуску"
-    "status readability" = "покращення читабельності стану"
-    "release candidate workflow" = "workflow реліз-кандидата"
-    "immutable release contract" = "незмінний контракт релізу"
-    "log retention" = "автовидалення логів старше 15 днів"
-    "network diagnostics" = "діагностика мережі"
-    "correlation headers" = "кореляційні заголовки"
-}
-
-# Categorize commits
-$newFeatures = @()
-$fixes = @()
-$changes = @()
-$other = @()
-
-foreach ($msg in $commits) {
-    $lower = $msg.ToLower()
-
-    # Skip internal version bump commits
-    if ($lower -match '^(v\d+\.\d+\.\d+\.\d+|merge|bump|chore)') {
-        continue
-    }
-
-    # Extract description after dash (handle various dash encodings)
-    $description = $msg
-    if ($msg -match '[\u2014\u2013\u2012\u2011]\s*(.+)$') {
-        $description = $Matches[1].Trim()
-    } elseif ($msg -match '---\s*(.+)$') {
-        $description = $Matches[1].Trim()
-    } elseif ($msg -match ' - \s*(.+)$') {
-        $description = $Matches[1].Trim()
-    } elseif ($msg -match '^v\d+\.\d+\.\d+\.\d+\s*[\u2014\u2013\u2012\u2011-]+\s*(.+)$') {
-        $description = $Matches[1].Trim()
-    }
-
-    # Try to find Ukrainian translation
-    $uaDescription = $null
-    foreach ($pattern in $descriptionMap.Keys) {
-        if ($description.ToLower().Contains($pattern)) {
-            $uaDescription = $descriptionMap[$pattern]
-            break
-        }
-    }
-
-    # Use Ukrainian if found, otherwise keep original
-    if ($uaDescription) {
-        $finalDescription = $uaDescription
-    } else {
-        $finalDescription = $description
-    }
-
-    # Categorize by keywords (check both original and mapped description)
-    $checkLower = "$lower $finalDescription".ToLower()
-
-    if ($checkLower -match '(fix|виправлен|bug|patch|correct|repair|corrupt|violation)') {
-        $fixes += $finalDescription
-    }
-    elseif ($checkLower -match '(add|додан|new|feature|implement|create|автогенерац|автозапуск|icon|live refresh)') {
-        $newFeatures += $finalDescription
-    }
-    elseif ($checkLower -match '(refactor|онов|update|change|змін|improve|покращ|clean|remove|delete|rename|переймен|test|doc|harden|extract|unify|serialize|зміцнен|виділен|серіаліз|координатор|poller|live|poll|coordinator|header)') {
-        $changes += $finalDescription
-    }
-    else {
-        $other += $finalDescription
+$publicText = @($source.summary.Trim()) + @($categoryNames | ForEach-Object { $categories[$_] })
+$unsafePatterns = @(
+    "PENDING ARCHITECT REVIEW",
+    "REVIEWED / ACCEPTED",
+    "\bPlan ID\b",
+    "\bPRIMARY\b",
+    "\bStage [A-E]\b",
+    "(?<![A-Za-z0-9])R[1-3](?![A-Za-z0-9])",
+    "\bB\.[1-3]\b",
+    "\bv15\.\d+\b"
+)
+foreach ($text in $publicText) {
+    foreach ($pattern in $unsafePatterns) {
+        if ($text -match $pattern) { throw "Unsafe internal release-note content detected." }
     }
 }
 
-# Build sections
+$sectionMap = [ordered]@{
+    "new" = "## Що нового"
+    "fixed" = "## Виправлено"
+    "reliability" = "## Надійність"
+    "performance" = "## Продуктивність"
+    "changes" = "## Зміни"
+    "limitations" = "## Відомі проблеми / обмеження"
+}
 $sections = @()
-
-if ($newFeatures.Count -gt 0) {
-    $items = ($newFeatures | ForEach-Object { "- $_" }) -join "`n"
-    $sections += "## New Features`n`n$items"
+if (-not [string]::IsNullOrWhiteSpace($source.summary.Trim())) { $sections += $source.summary.Trim() }
+foreach ($categoryName in $sectionMap.Keys) {
+    $items = $categories[$categoryName]
+    if ($items.Count -gt 0) {
+        $renderedItems = (@($items | ForEach-Object { "- $_" }) -join "`n")
+        $sections += "$($sectionMap[$categoryName])`n`n$renderedItems"
+    }
 }
-
-if ($fixes.Count -gt 0) {
-    $items = ($fixes | ForEach-Object { "- $_" }) -join "`n"
-    $sections += "## Fixed`n`n$items"
-}
-
-if ($changes.Count -gt 0) {
-    $items = ($changes | ForEach-Object { "- $_" }) -join "`n"
-    $sections += "## Changes`n`n$items"
-}
-
-if ($other.Count -gt 0) {
-    $items = ($other | ForEach-Object { "- $_" }) -join "`n"
-    $sections += "## Other`n`n$items"
-}
+if ($sections.Count -eq 0) { $sections += "## Зміни`n`n- Технічне обслуговування та внутрішні покращення без окремих користувацьких нововведень." }
 
 $body = $sections -join "`n`n"
-
-if ($sections.Count -eq 0) {
-    $allItems = ($commits | ForEach-Object { "- $_" }) -join "`n"
-    $body = "## Changes`n`n$allItems"
-}
-
-# Generate final notes
 $notes = @"
 # BDO UA Client $Version
 
-Version: $Version
-Tag: $Tag
+Версія: $Version
+Тег: $Tag
 Commit: $Sha
 
 $body
 
-## Download
+## Завантаження
 
 ``$AssetName``
 
@@ -206,19 +107,19 @@ Internal EXE SHA-256:
 
 ``$ExeSha256``
 
-## How to install
+## Як встановити
 
-1. Download ``$AssetName`` from this page
-2. Extract the archive
-3. Run ``BDO-UA-Client.exe``
-4. If Windows SmartScreen shows warning - click "More info" -> "Run" (details: [README](https://github.com/merelyigor/bdo-ua-client#windows-smartscreen))
+1. Завантажте ``$AssetName`` зі сторінки цього релізу
+2. Розпакуйте архів
+3. Запустіть ``BDO-UA-Client.exe``
+4. Якщо Windows SmartScreen покаже попередження — натисніть "Докладніше" → "Виконати" (деталі: [README](https://github.com/merelyigor/bdo-ua-client#windows-smartscreen))
 
-## Links
+## Посилання
 
 - [bdo-ua.com.ua](https://bdo-ua.com.ua/)
-- [Repository](https://github.com/merelyigor/bdo-ua-client)
-- [Instructions](https://github.com/merelyigor/bdo-ua-client#readme)
-- [Technical docs](https://github.com/merelyigor/bdo-ua-client/blob/main/docs/index.md)
+- [Репозиторій](https://github.com/merelyigor/bdo-ua-client)
+- [Інструкція](https://github.com/merelyigor/bdo-ua-client#readme)
+- [Технічна документація](https://github.com/merelyigor/bdo-ua-client/blob/main/docs/index.md)
 "@
 
-return $notes
+return $notes.TrimEnd()

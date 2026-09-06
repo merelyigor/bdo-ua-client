@@ -208,7 +208,7 @@ jobs:
         $manifest | Out-File -FilePath "artifacts/release-manifest.json" -Encoding utf8
         Write-Output "release-manifest.json created"
 
-    - name: Generate release notes (auto from git log)
+    - name: Generate release notes from structured source
       shell: pwsh
       run: |
         $version = "${{ steps.resolve.outputs.RELEASE_VERSION }}"
@@ -222,10 +222,11 @@ jobs:
           -Tag $tag `
           -Sha $sha `
           -AssetName $assetName `
-          -ExeSha256 $exeHash
+          -ExeSha256 $exeHash `
+          -FragmentsPath "${{ github.workspace }}\docs\releases\NEXT.json"
 
         $notes | Out-File -FilePath "artifacts/RELEASE_NOTES-v$version.md" -Encoding utf8
-        Write-Output "RELEASE_NOTES-v$version.md generated from git log"
+        Write-Output "RELEASE_NOTES-v$version.md generated from docs/releases/NEXT.json"
         Write-Output ""
         Write-Output $notes
 

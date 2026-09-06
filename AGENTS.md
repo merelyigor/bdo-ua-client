@@ -707,13 +707,21 @@ BDO-UA-Client/
 
 §40.4 Архів реліз-нотаток зберігається в репозиторії як історична довідка. Кожен реліз — окремий файл.
 
+§40.5 `docs/releases/NEXT.json` — canonical structured source для public copy наступного релізу. User-facing implementation task оновлює relevant fragments у тому самому implementation commit.
+
+§40.6 Git history є provenance, а не public release prose. Generator не виводить основний public copy з commit subjects.
+
+§40.7 CI release-note generation має бути deterministic і не залежати від LLM, API або secrets. Internal plan/review/task labels не повинні потрапляти в public notes.
+
+§40.8 Після стабільної публікації post-release finalization архівує факти релізу та скидає `NEXT.json` для наступної розробки.
+
 ---
 
 ## §41 🔄 Оновлення клієнта
 
 §41.1 Джерело оновлень — публічні GitHub Releases репозиторію `merelyigor/bdo-ua-client`. Не використовувати bdo-ua.com.ua, custom backend, або GitHub token.
 
-§41.2 Перевірка оновлень — автоматична у background при startup. Не блокує UI, game detection, або API loading. Максимум один запит за session.
+§41.2 Перевірка оновлень — автоматична у background одразу після startup lifecycle maintenance і приблизно кожні 5 хвилин, поки процес працює, включно з tray/background. Restore та tray `Перевірити зараз` можуть запросити негайну перевірку. Запити single-flight, не перекриваються, не блокують UI, game detection або API loading і не завантажують/встановлюють оновлення автоматично.
 
 §41.3 Встановлення оновлення вимагає explicit натискання кнопки "Оновити до vX.Y.Z". Ніякого silent/forced update.
 
