@@ -114,9 +114,13 @@ public partial class MainForm
 
     private void SetGameFound(string path, DetectionSource? source)
     {
-        gameStatusLabel.Text = source == DetectionSource.Manual
+        var status = source == DetectionSource.Manual
             ? "✓ Гру знайдено вручну"
             : "✓ Гру знайдено";
+        var patch = AdsFilesPatchReader.TryReadPatch(path);
+        gameStatusLabel.Text = patch is > 0
+            ? $"{status} • patch {patch.Value}"
+            : status;
         gameStatusLabel.ForeColor = UiTheme.Success;
         gamePathLabel.Text = path;
         detectGameButton.Text = "Перевірити";

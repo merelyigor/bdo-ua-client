@@ -5,8 +5,8 @@ Status: ACTIVE
 Focus: PRIMARY
 Backlog order: —
 Implementation authorization: **YES**
-Current phase: Stage B — B.3 implemented / validated / pending architect review
-Next action: Architect review B.3, then close Stage B and proceed to Stage D responsiveness investigation
+Current phase: Stage E.1 — implemented / validated / pending architect review
+Next action: Architect review E.1, then close code-quality-ux-improvements plan
 Dependencies: none (client-ui-redesign archived)
 
 ## Goal
@@ -23,7 +23,7 @@ Dependencies: none (client-ui-redesign archived)
 - **Магічні рядки**: `"ads"`/`"languagedata_en.loc"` у 5+ місцях, `"installation.json"` ×8 (при існуючому `AppPaths.InstallationFile`), `"api"`/`"official"` маркери ×9. — **ВИРІШЕНО у Stage A** (A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse).
 - **MainForm.cs великий** (~1800+ рядків): self-update, localization, presentation, startup — все в одному файлі. — заплановано у Stage C.
 - **Дубльований factual-state резолв** у `HandleInstallAsync` та `RefreshStateAsync`.
-- **Sync file IO на UI-потоку** (`_stateStore.Load()`, `AdsFilesPatchReader.TryReadPatch`, `GameDetector.ValidateGamePath`) — не підтверджено як реальний performance defect, потребує вимірювання. — заплановано у Stage D.
+- **Sync file IO на UI-потоку** (`_stateStore.Load()`, `AdsFilesPatchReader.TryReadPatch`, `GameDetector.ValidateGamePath`) — D.1 показав negligible latency у realistic local scenarios; async conversion не виправдана.
 
 ## Completed before backlog execution (v14.2.25)
 
@@ -137,31 +137,31 @@ Application self-update має materially different successful handoff path (Pro
 - `MainForm.Operations.cs` — HandleInstallAsync, RestoreOriginalButton_Click, HandleRestoreOriginalAsync, CancelButton_Click, MapInstallError, MapRestoreError (фізичний partial, без нової абстракції)
 - `MainForm.ApplicationUpdate.cs` — update check, staging, handoff
 
-Tray/background T1–T6 завершено, прийнято та випущено у v1.2.0; план заархівовано. Stage C C.1–C.5 фізично декомпоновано та прийнято; Stage B триває після завершеного read-only аудиту.
+Tray/background T1–T6 завершено, прийнято та випущено у v1.2.0; план заархівовано. Stage C C.1–C.5 фізично декомпоновано та прийнято; Stage B завершено після read-only аудиту та зовнішнього review.
 
-### Stage B — Raw installation-state operations (low risk, correctness) — IN PROGRESS
+### Stage B — Raw installation-state operations (low risk, correctness) — COMPLETED / REVIEWED / ACCEPTED
 
-Stage B read-only audit завершено. B.1 і B.2 — **COMPLETED / REVIEWED / ACCEPTED**. B.3 реалізовано та валідовано; очікує architect review.
+Stage B read-only audit завершено. B.1, B.2 і B.3 — **COMPLETED / REVIEWED / ACCEPTED**.
 
-Наступна дія: `Architect review B.3, then close Stage B and proceed to Stage D responsiveness investigation`.
+Stage B завершено після зовнішнього architect review.
 
-Централізувати дубльовані byte-level операції з installation state файлом. **Не** об'єднувати install/restore orchestration. **Не** вводити GameFileTransaction. Stage B реалізовано поетапно; завершення очікує зовнішнього B.3 review.
+Централізувати дубльовані byte-level операції з installation state файлом. **Не** об'єднувати install/restore orchestration. **Не** вводити GameFileTransaction. Stage B реалізовано поетапно та зовнішньо прийнято.
 
 - **B.1** `InstallationStateStore.CaptureRawState()` — **COMPLETED / REVIEWED / ACCEPTED**. Синхронно повертає точні bytes; `null` означає відсутній файл, non-null `byte[0]` — наявний порожній файл; без JSON validation/normalization. Три service-local capture helpers видалено; transaction ordering збережено.
 - **B.2** `InstallationStateStore.RestoreRawStateAsync(byte[]?, CancellationToken)` — **COMPLETED / REVIEWED / ACCEPTED**. Централізує present/absent raw restore через unique temp → Replace/Move → exact byte verification → cleanup; rollback orchestration не входить у primitive.
-- **B.3** — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**. Мігровано install rollback, selected restore-point state apply та restore-backup pre-operation state rollback на `RestoreRawStateAsync`; typed `SaveAsync`, `BackupStore` restore-point snapshots і transaction orchestration залишилися окремими.
+- **B.3** — **COMPLETED / REVIEWED / ACCEPTED**. Мігровано install rollback, selected restore-point state apply та restore-backup pre-operation state rollback на `RestoreRawStateAsync`; typed `SaveAsync`, `BackupStore` restore-point snapshots і transaction orchestration залишилися окремими.
 
-### Stage D — Responsiveness investigation (investigation only)
+### Stage D — Responsiveness investigation (investigation only) — COMPLETED / REVIEWED / ACCEPTED
 
-Виміряти, чи створює sync local file IO реальні UI stalls. Не конвертувати speculative в async.
+Вимірювання завершено: sync local file IO є negligible у realistic scenarios; async conversion не виправдана.
 
-- **D.1** Профілювання `_stateStore.Load()`, `_configStore.Load()`, `AdsFilesPatchReader.TryReadPatch`, `GameDetector.ValidateGamePath` на UI-потоку.
-- **D.2** Якщо підтверджено stall — окрема implementation task для конкретного call path.
+- **D.1** — **COMPLETED / REVIEWED / ACCEPTED**. Профілювання `_stateStore.Load()`, `_configStore.Load()`, `AdsFilesPatchReader.TryReadPatch`, `GameDetector.ValidateGamePath` на UI-потоку не виявило responsiveness defect.
+- **D.2** — **NOT REQUIRED**. Виміряні latency/frequency не обґрунтовують async conversion.
 
 ### Stage E — Remaining UX ideas (optional)
 
-- **E.1** (OPTIONAL) Блок «Гра»: показувати патч гри (`AdsFilesPatchReader`): «✓ Гру знайдено • patch 398».
-- **E.2** (OPTIONAL) Картки режимів: hover-стан для візуального фідбеку клікабельності (якщо ще не достатньо).
+- **E.1** — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**. Блок «Гра» показує patch із `AdsFilesPatchReader`, якщо його можна визначити.
+- **E.2** — **NO ACTION REQUIRED / ALREADY SATISFIED**. `LocalizationModeCard` уже має hover surface/border feedback; нова реалізація не потрібна.
 
 Не додавати: роботу над «Доступно» бейджем (завершено), responsive progress (завершено), Cancel visibility (завершено), persistent selected-card highlighting (не планується).
 
@@ -191,9 +191,9 @@ Stage B read-only audit завершено. B.1 і B.2 — **COMPLETED / REVIEWE
 
 ## Current progress
 
-Tray progress: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**, released in stable v1.2.0 and archived. Stage B is in progress: B.1/B.2 **COMPLETED / REVIEWED / ACCEPTED**, B.3 **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**.
+Tray progress: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**, released in stable v1.2.0 and archived. Stage B — **COMPLETED / REVIEWED / ACCEPTED**. Stage D — **COMPLETED / REVIEWED / ACCEPTED**, D.2 **NOT REQUIRED**. E.1 — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**; E.2 — **NO ACTION REQUIRED / ALREADY SATISFIED**.
 
-v14.2.25 завершив targeted hygiene та launcher-polish items. `client-ui-redesign` заархівовано після v1.1.2. План залишається ACTIVE PRIMARY; Stage A/C accepted. `background-tray-notifications` T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**, випущено у v1.2.0 та заархівовано. B.1 і B.2 прийняті; B.3 реалізовано та валідовано; наступна дія — architect review B.3, потім закриття Stage B і Stage D.
+v14.2.25 завершив targeted hygiene та launcher-polish items. `client-ui-redesign` заархівовано після v1.1.2. План залишається ACTIVE PRIMARY; Stage A/C accepted. `background-tray-notifications` T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**, випущено у v1.2.0 та заархівовано. Stage B accepted; Stage D completed without D.2; E.1 implemented pending review; E.2 already satisfied. Наступна дія — `Architect review E.1, then close code-quality-ux-improvements plan`.
 
 ### Hotfix interruption (2026-08-27)
 
