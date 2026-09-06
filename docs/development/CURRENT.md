@@ -8,7 +8,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 Стабільний реліз: **v1.2.0**. Публічний реліз опубліковано з tag `v1.2.0`; canonical application bundle містить один ZIP-asset. `background-tray-notifications` — T1–T6 COMPLETED / REVIEWED / ACCEPTED, released and archived. `code-quality-ux-improvements` залишається ACTIVE PRIMARY.
 
-Поточна наступна дія: `Architect review E.1, then close code-quality-ux-improvements plan`.
+Поточна наступна дія: `Release Candidate v1.2.1`.
 
 ## Architecture Summary
 
@@ -34,7 +34,8 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - Tray/background T1–T6 — accepted, released in v1.2.0, plan archived.
 - Stage B — **COMPLETED / REVIEWED / ACCEPTED**. B.1/B.2/B.3 прийняті; install rollback, selected restore-point state apply та restore-backup rollback мігровані на `InstallationStateStore.RestoreRawStateAsync`; typed `SaveAsync`, `BackupStore` snapshots і transaction orchestration залишаються окремими.
 - Stage D — **COMPLETED / REVIEWED / ACCEPTED**; D.1 підтвердив negligible UI-thread local IO у realistic scenarios, D.2 — **NOT REQUIRED**.
-- Stage E.1 — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**; E.2 — **NO ACTION REQUIRED / ALREADY SATISFIED**, бо `LocalizationModeCard` уже має hover surface/border feedback.
+- Code-quality roadmap — **COMPLETED / REVIEWED / ACCEPTED**. Stage E.1 — **COMPLETED / REVIEWED / ACCEPTED**; E.2 — **NO ACTION REQUIRED / ALREADY SATISFIED**, бо `LocalizationModeCard` уже має hover surface/border feedback.
+- Release handoff: target **v1.2.1**; stable public release залишається **v1.2.0**. PRIMARY plan залишається ACTIVE до публікації v1.2.1; після успішного public release план слід архівувати під час post-release finalization.
 
 ## Validation / Release Facts
 

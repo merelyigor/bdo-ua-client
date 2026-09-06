@@ -5,8 +5,8 @@ Status: ACTIVE
 Focus: PRIMARY
 Backlog order: —
 Implementation authorization: **YES**
-Current phase: Stage E.1 — implemented / validated / pending architect review
-Next action: Architect review E.1, then close code-quality-ux-improvements plan
+Current phase: Roadmap completed / reviewed / accepted — release handoff v1.2.1
+Next action: Release Candidate v1.2.1
 Dependencies: none (client-ui-redesign archived)
 
 ## Goal
@@ -17,13 +17,13 @@ Dependencies: none (client-ui-redesign archived)
 
 Аудит коду (2026-08) виявив дублювання та порушення AGENTS. Частина проблем вирішена у v14.2.25 (див. нижче). Архітектурний рев'ю відхилив деякі запропоновані абстракції як надмірні.
 
-### Актуальні проблеми (ще не вирішені)
+### Фінальний статус аудиту
 
-- **Raw installation-state operations**: capture централізовано у B.1, exact restore/application і rollback централізовані у B.2/B.3; typed `InstallationStateStore.SaveAsync` навмисно залишається окремою операцією. Restore-point state snapshots залишаються відповідальністю `BackupStore`.
-- **Магічні рядки**: `"ads"`/`"languagedata_en.loc"` у 5+ місцях, `"installation.json"` ×8 (при існуючому `AppPaths.InstallationFile`), `"api"`/`"official"` маркери ×9. — **ВИРІШЕНО у Stage A** (A.1 GamePaths, A.2 InstallationSource, A.3 AppPaths.InstallationFile reuse).
-- **MainForm.cs великий** (~1800+ рядків): self-update, localization, presentation, startup — все в одному файлі. — заплановано у Stage C.
-- **Дубльований factual-state резолв** у `HandleInstallAsync` та `RefreshStateAsync`.
-- **Sync file IO на UI-потоку** (`_stateStore.Load()`, `AdsFilesPatchReader.TryReadPatch`, `GameDetector.ValidateGamePath`) — D.1 показав negligible latency у realistic local scenarios; async conversion не виправдана.
+- **Raw installation-state operations** — **RESOLVED** у B.1/B.2/B.3; typed `InstallationStateStore.SaveAsync` і restore-point snapshots залишилися окремими за дизайном.
+- **Магічні рядки, path/source markers** — **RESOLVED** у Stage A.
+- **MainForm physical size/decomposition** — **RESOLVED** у Stage C.
+- **Sync UI-thread local IO** — **MEASURED / NO ACTION**: D.1 показав negligible latency у realistic local scenarios; D.2 не потрібен.
+- **Дубльований factual-state резолв** між install preflight і general refresh — **DEFERRED / NO CURRENT ACTION**. Дублювання існує, але не є підтвердженим correctness або responsiveness defect: install preflight і загальний UI refresh мають різні behavioral responsibilities/lifecycles. Цей план не вводить shared abstraction лише для усунення дублювання; майбутня зміна потребує concrete defect або окремої approved focused task.
 
 ## Completed before backlog execution (v14.2.25)
 
@@ -103,7 +103,7 @@ Application self-update має materially different successful handoff path (Pro
 **Stage C → background-tray-notifications → Stage B → Stage D → Stage E**
 
 - `background-tray-notifications` завершено, прийнято, випущено у v1.2.0 та заархівовано у `docs/plans/archive/background-tray-notifications.md`.
-- Stage B (raw installation-state centralization) є поточною фазою; read-only аудит завершено, B.1 і B.2 прийняті, B.3 реалізовано.
+- Stage B (raw installation-state centralization) завершено; read-only аудит і B.1/B.2/B.3 externally accepted.
 - Stage C залишається Stage C, Stage B залишається Stage B — ідентифікатори не перейменовуються під алфавітний порядок.
 
 ### Stage C — MainForm physical decomposition (low risk) — COMPLETED / REVIEWED / ACCEPTED
@@ -160,7 +160,7 @@ Stage B завершено після зовнішнього architect review.
 
 ### Stage E — Remaining UX ideas (optional)
 
-- **E.1** — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**. Блок «Гра» показує patch із `AdsFilesPatchReader`, якщо його можна визначити.
+- **E.1** — **COMPLETED / REVIEWED / ACCEPTED**. Блок «Гра» показує patch із `AdsFilesPatchReader`, якщо його можна визначити.
 - **E.2** — **NO ACTION REQUIRED / ALREADY SATISFIED**. `LocalizationModeCard` уже має hover surface/border feedback; нова реалізація не потрібна.
 
 Не додавати: роботу над «Доступно» бейджем (завершено), responsive progress (завершено), Cancel visibility (завершено), persistent selected-card highlighting (не планується).
@@ -170,7 +170,7 @@ Stage B завершено після зовнішнього architect review.
 - `dotnet build BdoUaClient.sln` — без помилок (§33.6)
 - `dotnet test BdoUaClient.sln --no-build` — усі поточні тести зелені після кожного етапу (§33.7)
 - Behavior операцій не змінено: install/restore/rollback сценарії покриті існуючими тестами
-- Після завершення Stage B не повинно залишитися дублікатів capture/raw restore операцій; B.1/B.2/B.3 runtime migration виконані, очікується лише зовнішній review.
+- B.1/B.2/B.3 runtime migration виконані та externally accepted; safety-critical transaction ordering збережено.
 - MainForm розділений на partial files після Stage C
 - Жоден етап не вводить generic transaction engine або generic operation runner
 
@@ -191,9 +191,9 @@ Stage B завершено після зовнішнього architect review.
 
 ## Current progress
 
-Tray progress: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**, released in stable v1.2.0 and archived. Stage B — **COMPLETED / REVIEWED / ACCEPTED**. Stage D — **COMPLETED / REVIEWED / ACCEPTED**, D.2 **NOT REQUIRED**. E.1 — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**; E.2 — **NO ACTION REQUIRED / ALREADY SATISFIED**.
+Tray progress: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**, released in stable v1.2.0 and archived. Stage B — **COMPLETED / REVIEWED / ACCEPTED**. Stage D — **COMPLETED / REVIEWED / ACCEPTED**, D.2 **NOT REQUIRED**. E.1 — **COMPLETED / REVIEWED / ACCEPTED**; E.2 — **NO ACTION REQUIRED / ALREADY SATISFIED**.
 
-v14.2.25 завершив targeted hygiene та launcher-polish items. `client-ui-redesign` заархівовано після v1.1.2. План залишається ACTIVE PRIMARY; Stage A/C accepted. `background-tray-notifications` T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**, випущено у v1.2.0 та заархівовано. Stage B accepted; Stage D completed without D.2; E.1 implemented pending review; E.2 already satisfied. Наступна дія — `Architect review E.1, then close code-quality-ux-improvements plan`.
+v14.2.25 завершив targeted hygiene та launcher-polish items. `client-ui-redesign` заархівовано після v1.1.2. План залишається ACTIVE PRIMARY лише для release handoff v1.2.1. `background-tray-notifications` T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**, випущено у v1.2.0 та заархівовано. Code-quality roadmap completed/reviewed/accepted; factual-state duplication explicitly deferred/no current action. Наступна дія — `Release Candidate v1.2.1`.
 
 ### Hotfix interruption (2026-08-27)
 
@@ -203,4 +203,4 @@ v14.2.25 завершив targeted hygiene та launcher-polish items. `client-u
 
 **Status:** COMPLETED/ACCEPTED. Owner reproduced real launcher-restored-file scenario (2026-08-27): preview showed "Доступне оновлення" / "Оновити", update completed, state returned UpToDate, restart remained UpToDate.
 
-**Resume next:** Stage A повністю завершено (A.1/A.2/A.3 COMPLETED/ACCEPTED); поточний етап — Stage C (див. вище).
+**Resume next:** `Release Candidate v1.2.1`.

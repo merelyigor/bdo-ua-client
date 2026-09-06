@@ -3,14 +3,14 @@
 ## Current focus
 
 **Primary:** `code-quality-ux-improvements`
-**Current phase:** code-quality-ux-improvements — Stage E.1 implemented / validated, pending architect review
-**Next:** Architect review E.1, then close code-quality-ux-improvements plan
+**Current phase:** code-quality-ux-improvements — roadmap completed / reviewed / accepted — release handoff v1.2.1
+**Next:** Release Candidate v1.2.1
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | PRIMARY; Stage E.1 — IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW | Architect review E.1, then close code-quality-ux-improvements plan |
+| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | PRIMARY; roadmap completed / reviewed / accepted — release handoff v1.2.1 | Release Candidate v1.2.1 |
 
 ## Backlog
 
