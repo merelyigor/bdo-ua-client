@@ -56,7 +56,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - Self-update current EXE не змінюється до manifest, SHA-256 і version validation.
 - Secrets, tokens і credentials не зберігаються в repository.
 - `docs/ai-workflow/` є canonical orchestration/process documentation: repository формально розділяє Owner, Architect-Reviewer та Implementation Agent responsibilities; external conversations — coordination, а repository-owned docs/code — persistent truth.
-- Файл, призначений для вставки в поле project instructions браузерного чату, не перевищує 8000 символів: цю роль виконує `docs/ai-workflow/PROJECT_CHAT_RULES_CORE.md`, а повний `PROJECT_CHAT_RULES.md` лишається repository-side.
+- `docs/ai-workflow/PROJECT_CHAT_RULES.md` є єдиною Owner-maintained canonical copyable project instruction для Architect-chat sessions; repository-specific workflow explanation залишається в інших ai-workflow docs.
 
 ## Canonical References
 

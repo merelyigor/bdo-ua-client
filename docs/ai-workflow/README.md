@@ -56,8 +56,9 @@ External conversations є coordination channels, а не persistent project stat
 - [PROMPTS.md](PROMPTS.md) — контракти implementation, corrective та release prompts.
 - [REVIEW.md](REVIEW.md) — evidence hierarchy, severity та acceptance loop.
 - [HANDOFF.md](HANDOFF.md) — звітність, persistence і міжсесійний handoff.
-- [PROJECT_CHAT_RULES.md](PROJECT_CHAT_RULES.md) — portable project/chat instruction для Architect / Analyst / Reviewer sessions.
-- [PROJECT_CHAT_RULES_CORE.md](PROJECT_CHAT_RULES_CORE.md) — та сама instruction у межах ліміту 8000 символів; саме її вставляють у поле project instructions браузерного чату.
+- [PROJECT_CHAT_RULES.md](PROJECT_CHAT_RULES.md) — єдина Owner-maintained copyable project instruction для Architect / Analyst / Reviewer sessions.
+
+Owner копіює та надалі підтримує цей файл безпосередньо як canonical Architect-chat instruction. Repository-specific workflow explanation залишається в `README.md`, `ROLES.md`, `WORKFLOW.md`, `PROMPTS.md`, `REVIEW.md` та `HANDOFF.md`, а не додається до exact-copy instruction.
 
 ## Non-goals
 
