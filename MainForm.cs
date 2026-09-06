@@ -23,6 +23,7 @@ public partial class MainForm : Form
     private readonly ReleaseFeedPoller _poller;
     private readonly FeedApplicationCoordinator _feedCoordinator;
     private readonly LocalizationNotificationTracker _localizationNotificationTracker = new();
+    private readonly ApplicationUpdateNotificationTracker _applicationUpdateNotificationTracker = new();
     private readonly AppVersionInfo _appVersionInfo;
     private readonly GitHubUpdateClient _gitHubClient;
     private readonly UpdateSelectionPolicy _selectionPolicy;
@@ -52,6 +53,7 @@ public partial class MainForm : Form
 
     private CancellationTokenSource? _updateCheckCts;
     private Task? _updateCheckTask;
+    private System.Windows.Forms.Timer? _applicationUpdateTimer;
     private UpdateCandidate? _pendingUpdateCandidate;
     private UpdateSession? _stagedUpdateSession;
     private volatile bool _updateHandoffInProgress;

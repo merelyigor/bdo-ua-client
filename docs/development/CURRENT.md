@@ -6,9 +6,9 @@
 
 BDO-UA Client — Windows .NET 8 WinForms застосунок для пошуку Black Desert Online, отримання українських локалізацій через `bdo-ua.com.ua`, безпечного встановлення, оновлення та відновлення файлів гри.
 
-Стабільний реліз: **v1.2.0**. Публічний реліз опубліковано з tag `v1.2.0`; canonical application bundle містить один ZIP-asset. `background-tray-notifications` — T1–T6 COMPLETED / REVIEWED / ACCEPTED, released and archived. `code-quality-ux-improvements` залишається ACTIVE PRIMARY.
+Стабільний реліз: **v1.2.1**. Публічний stable release опубліковано з tag `v1.2.1`; canonical application bundle містить один ZIP-asset. `code-quality-ux-improvements` завершено, прийнято та заархівовано. Новий ACTIVE PRIMARY — `release-experience-polish`.
 
-Поточна наступна дія: `Release Candidate v1.2.1`.
+Поточна наступна дія: `Architect review R1, then R2 deterministic structured release notes`.
 
 ## Architecture Summary
 
@@ -24,7 +24,8 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - Звичайне X ховає MainForm у Windows tray і не завершує процес; `Відкрити` та подвійний клік відновлюють те саме вікно; `Вихід` є фактичним завершенням.
 - Нормальний і background запуск використовують single-instance activation; повторний запуск активує існуючий клієнт.
 - Видимий API polling працює приблизно кожні 15 секунд, прихований — приблизно кожні 5 хвилин; локальний файл локалізації у background перевіряється дешевим metadata fingerprint.
-- Єдиний actionable factual state для notification — `UpdateAvailable`; dedup RAM-only, без PublicId/mode keys. Windows notification є інформаційною; click-to-open не є контрактом.
+- Localization update notification і application version update notification — окремі інформаційні канали з RAM-only dedup; application notification показується один раз для кожного tag у hidden tray. Click-to-open не є контрактом.
+- Application-update discovery виконується одразу під час startup і приблизно кожні 5 хвилин, а restore та `Перевірити зараз` запитують свіжу перевірку. Download/install application update не є автоматичними.
 - Приховування вікна не перериває активну операцію; explicit Exit зберігає безпечну семантику завершення.
 
 ## Current Phase
@@ -35,13 +36,15 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - Stage B — **COMPLETED / REVIEWED / ACCEPTED**. B.1/B.2/B.3 прийняті; install rollback, selected restore-point state apply та restore-backup rollback мігровані на `InstallationStateStore.RestoreRawStateAsync`; typed `SaveAsync`, `BackupStore` snapshots і transaction orchestration залишаються окремими.
 - Stage D — **COMPLETED / REVIEWED / ACCEPTED**; D.1 підтвердив negligible UI-thread local IO у realistic scenarios, D.2 — **NOT REQUIRED**.
 - Code-quality roadmap — **COMPLETED / REVIEWED / ACCEPTED**. Stage E.1 — **COMPLETED / REVIEWED / ACCEPTED**; E.2 — **NO ACTION REQUIRED / ALREADY SATISFIED**, бо `LocalizationModeCard` уже має hover surface/border feedback.
-- Release handoff: target **v1.2.1**; stable public release залишається **v1.2.0**. PRIMARY plan залишається ACTIVE до публікації v1.2.1; після успішного public release план слід архівувати під час post-release finalization.
+- `code-quality-ux-improvements` — **ARCHIVED**, roadmap COMPLETED / REVIEWED / ACCEPTED, released through stable v1.2.1; no remaining implementation action.
+- `release-experience-polish` — **ACTIVE PRIMARY**. R1 — **IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW**; R2 — **NOT IMPLEMENTED**; R3 — **NOT STARTED**.
+- Exact v1.2.1 facts: release ID `383553345`, RC #28 / run `34028489675`, one public asset `BDO-UA-Client-v1.2.1-win-x64.zip`. Production `v1.2.0 → v1.2.1` built-in self-update succeeded.
 
 ## Validation / Release Facts
 
-- RC #27 succeeded; stable v1.2.0 published.
-- Release preparation and post-release finalization залишили runtime, tests, workflows та scripts без змін.
-- Остання локальна валідація B.3: Release build 0 warnings / 0 errors; 901 tests passed / 0 failed.
+- RC #28 succeeded; stable v1.2.1 published.
+- Production self-update `v1.2.0 → v1.2.1` was successfully exercised by the owner.
+- R1 validation: Release build 0 warnings / 0 errors; 907 tests passed / 0 failed; `git diff --check` passed.
 
 ## Important Invariants
 
@@ -56,6 +59,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 - [`AGENTS.md`](../../AGENTS.md) — правила, контракти, security, build і commit requirements
 - [`docs/plans/README.md`](../plans/README.md) — plan lifecycle registry
-- [`docs/plans/active/code-quality-ux-improvements.md`](../plans/active/code-quality-ux-improvements.md) — PRIMARY plan і Stage B
-- [`docs/releases/v1.2.0.md`](../releases/v1.2.0.md) — canonical release archive
+- [`docs/plans/active/release-experience-polish.md`](../plans/active/release-experience-polish.md) — ACTIVE PRIMARY plan
+- [`docs/plans/archive/code-quality-ux-improvements.md`](../plans/archive/code-quality-ux-improvements.md) — completed archived roadmap
+- [`docs/releases/v1.2.1.md`](../releases/v1.2.1.md) — canonical release archive
 - [`history/2026-09.md`](history/2026-09.md) — recent engineering journal

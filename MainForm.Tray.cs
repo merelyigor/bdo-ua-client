@@ -31,7 +31,11 @@ public partial class MainForm
         openItem.Click += (_, _) => RestoreFromTray();
 
         var checkNowItem = new ToolStripMenuItem("Перевірити зараз");
-        checkNowItem.Click += (_, _) => _poller.RequestImmediatePoll();
+        checkNowItem.Click += (_, _) =>
+        {
+            _poller.RequestImmediatePoll();
+            RequestApplicationUpdateCheck();
+        };
 
         _autostartMenuItem = new ToolStripMenuItem("Запускати разом із Windows");
         _autostartMenuItem.Click += (_, _) => ToggleAutostartFromTray();
@@ -122,6 +126,32 @@ public partial class MainForm
         }
     }
 
+    private void ObserveApplicationUpdateNotification(string? candidateTag)
+    {
+        var canNotify = !Visible
+            && _notifyIcon.Visible
+            && !_closing
+            && !_updateHandoffInProgress
+            && !IsDisposed
+            && !Disposing;
+
+        if (!_applicationUpdateNotificationTracker.Observe(candidateTag, canNotify))
+            return;
+
+        try
+        {
+            _notifyIcon.ShowBalloonTip(
+                5000,
+                "BDO UA Client",
+                $"Доступна нова версія BDO UA Client {candidateTag}. Відкрийте програму, щоб оновитися.",
+                ToolTipIcon.Info);
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"Failed to show application update notification: {ex.Message}");
+        }
+    }
+
     private void RegisterSecondaryActivationListener()
     {
         if (_singleInstanceCoordinator == null) return;
@@ -162,6 +192,7 @@ public partial class MainForm
 
         _poller.SetPollingMode(ReleaseFeedPollingMode.Visible);
         _poller.RequestImmediatePoll();
+        RequestApplicationUpdateCheck();
 
         BeginInvoke(new Action(ReconcileLayoutAfterRestore));
         ScheduleLocalFileCheckAfterRestore();
@@ -183,6 +214,7 @@ public partial class MainForm
 
     private void PrepareTrayForShutdown()
     {
+        DisposeApplicationUpdateTimer();
         DisposeLocalFileMonitor();
 
         _notifyIcon.Visible = false;

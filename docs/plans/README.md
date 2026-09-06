@@ -2,15 +2,15 @@
 
 ## Current focus
 
-**Primary:** `code-quality-ux-improvements`
-**Current phase:** code-quality-ux-improvements — roadmap completed / reviewed / accepted — release handoff v1.2.1
-**Next:** Release Candidate v1.2.1
+**Primary:** `release-experience-polish`
+**Current phase:** R1 implemented / validated / pending architect review
+**Next:** Architect review R1, then R2 deterministic structured release notes
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| 1 | `code-quality-ux-improvements` | [active/code-quality-ux-improvements.md](active/code-quality-ux-improvements.md) | PRIMARY; roadmap completed / reviewed / accepted — release handoff v1.2.1 | Release Candidate v1.2.1 |
+| 1 | `release-experience-polish` | [active/release-experience-polish.md](active/release-experience-polish.md) | PRIMARY; R1 implemented / validated / pending architect review | Architect review R1, then R2 deterministic structured release notes |
 
 ## Backlog
 
@@ -25,6 +25,7 @@
 | `client-self-update` | [archive/client-self-update.md](archive/client-self-update.md) | v13.1.2–v14.0.1; ZIP self-update E2E completed |
 | `client-ui-redesign` | [archive/client-ui-redesign.md](archive/client-ui-redesign.md) | Completed native WinForms launcher redesign through Stage 4; stable v1.1.2 validation |
 | `background-tray-notifications` | [archive/background-tray-notifications.md](archive/background-tray-notifications.md) | Tray/background T1–T6 completed, reviewed, accepted and released in stable v1.2.0 |
+| `code-quality-ux-improvements` | [archive/code-quality-ux-improvements.md](archive/code-quality-ux-improvements.md) | Roadmap completed, reviewed, accepted and released in stable v1.2.1 |
 
 ## Rules / lifecycle
 

@@ -13,7 +13,7 @@ public partial class MainForm
 {
     // --- Application update (self-update) ---
 
-    private void StartBackgroundUpdateCheck()
+    private void StartApplicationUpdateMonitoring()
     {
         versionLabel.Text = _appVersionInfo.DisplayVersion;
 
@@ -23,7 +23,38 @@ public partial class MainForm
             return;
         }
 
+        if (_updateCheckCts != null)
+            return;
+
         _updateCheckCts = new CancellationTokenSource();
+        _applicationUpdateTimer = new System.Windows.Forms.Timer
+        {
+            Interval = (int)TimeSpan.FromMinutes(5).TotalMilliseconds
+        };
+        _applicationUpdateTimer.Tick += ApplicationUpdateTimer_Tick;
+        _applicationUpdateTimer.Start();
+
+        RequestApplicationUpdateCheck();
+    }
+
+    private void ApplicationUpdateTimer_Tick(object? sender, EventArgs e)
+    {
+        RequestApplicationUpdateCheck();
+    }
+
+    private void RequestApplicationUpdateCheck()
+    {
+        if (!_appVersionInfo.IsPublicRelease)
+            return;
+        if (_closing || _updateHandoffInProgress || IsDisposed || Disposing)
+            return;
+        if (_updateCheckCts == null || _updateCheckCts.IsCancellationRequested)
+            return;
+        if (_operationInProgress)
+            return;
+        if (_updateCheckTask != null && !_updateCheckTask.IsCompleted)
+            return;
+
         _updateCheckTask = RunUpdateCheckAsync(_updateCheckCts.Token);
     }
 
@@ -46,16 +77,7 @@ public partial class MainForm
 
             if (cancellationToken.IsCancellationRequested || _closing) return;
 
-            if (candidate != null)
-            {
-                _pendingUpdateCandidate = candidate;
-                _logger.Info($"Update available: {candidate.TagName}");
-                RefreshUpdateButtonPresentation();
-            }
-            else
-            {
-                _logger.Debug("Update check: no eligible update");
-            }
+            ApplyApplicationUpdateResult(candidate, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -65,6 +87,40 @@ public partial class MainForm
         {
             _logger.Error($"Update check error: {ex.Message}");
         }
+    }
+
+    private void ApplyApplicationUpdateResult(UpdateCandidate? candidate, CancellationToken cancellationToken)
+    {
+        if (InvokeRequired)
+        {
+            if (IsDisposed || Disposing || _closing || cancellationToken.IsCancellationRequested)
+                return;
+
+            BeginInvoke(new Action(() => ApplyApplicationUpdateResult(candidate, cancellationToken)));
+            return;
+        }
+
+        if (cancellationToken.IsCancellationRequested || _closing || _updateHandoffInProgress)
+            return;
+
+        _pendingUpdateCandidate = candidate;
+        if (candidate != null)
+            _logger.Info($"Update available: {candidate.TagName}");
+        else
+            _logger.Debug("Update check: no eligible update");
+
+        RefreshUpdateButtonPresentation();
+        ObserveApplicationUpdateNotification(candidate?.TagName);
+    }
+
+    private void DisposeApplicationUpdateTimer()
+    {
+        if (_applicationUpdateTimer == null)
+            return;
+
+        _applicationUpdateTimer.Stop();
+        _applicationUpdateTimer.Dispose();
+        _applicationUpdateTimer = null;
     }
 
     private void RefreshUpdateButtonPresentation()

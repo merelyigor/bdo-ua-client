@@ -109,7 +109,7 @@ public partial class MainForm
                 await StartupUpdateLifecycleCoordinator.RunAsync(
                     RunStartupLifecycleMaintenanceAsync,
                     () => _closing,
-                    StartBackgroundUpdateCheck,
+                    StartApplicationUpdateMonitoring,
                     ex => _logger.Warning($"Startup lifecycle maintenance failed: {ex.Message}"));
             }
         }

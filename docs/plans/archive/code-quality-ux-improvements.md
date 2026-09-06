@@ -1,12 +1,12 @@
 # Code quality improvements (refactor)
 
 Plan ID: `code-quality-ux-improvements`
-Status: ACTIVE
-Focus: PRIMARY
+Status: ARCHIVED
+Focus: —
 Backlog order: —
 Implementation authorization: **YES**
-Current phase: Roadmap completed / reviewed / accepted — release handoff v1.2.1
-Next action: Release Candidate v1.2.1
+Current phase: Roadmap completed / reviewed / accepted — released through stable v1.2.1
+Next action: none; no remaining implementation action
 Dependencies: none (client-ui-redesign archived)
 
 ## Goal
@@ -186,14 +186,14 @@ Stage B завершено після зовнішнього architect review.
 ## Risks / dependencies
 
 - **Safety-critical код:** Stage B торкається §14/§15/§38 (game files, backup, rollback). Мітигація: маленькі кроки, сильне тестове покриття.
-- **Конфлікт з `client-ui-redesign`:** не актуально — `client-ui-redesign` вже заархівовано (Stage 4 + v1.1.2 stable). Stage C змінює MainForm у межах поточного ACTIVE PRIMARY плану.
+- **Конфлікт з `client-ui-redesign`:** не актуально — `client-ui-redesign` вже заархівовано (Stage 4 + v1.1.2 stable). Stage C змінював MainForm у межах цього плану.
 - **Test seams:** перенесення методів InstallationStateStore/BackupStore вимагає оновлення тестових підкласів.
 
 ## Current progress
 
 Tray progress: T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**, released in stable v1.2.0 and archived. Stage B — **COMPLETED / REVIEWED / ACCEPTED**. Stage D — **COMPLETED / REVIEWED / ACCEPTED**, D.2 **NOT REQUIRED**. E.1 — **COMPLETED / REVIEWED / ACCEPTED**; E.2 — **NO ACTION REQUIRED / ALREADY SATISFIED**.
 
-v14.2.25 завершив targeted hygiene та launcher-polish items. `client-ui-redesign` заархівовано після v1.1.2. План залишається ACTIVE PRIMARY лише для release handoff v1.2.1. `background-tray-notifications` T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**, випущено у v1.2.0 та заархівовано. Code-quality roadmap completed/reviewed/accepted; factual-state duplication explicitly deferred/no current action. Наступна дія — `Release Candidate v1.2.1`.
+v14.2.25 завершив targeted hygiene та launcher-polish items. `client-ui-redesign` заархівовано після v1.1.2. `background-tray-notifications` T1–T6 — **COMPLETED / REVIEWED / ACCEPTED**, випущено у v1.2.0 та заархівовано. Code-quality roadmap completed/reviewed/accepted і випущено у stable v1.2.1; factual-state duplication explicitly deferred/no current action. Реалізаційних дій за цим планом не залишилося.
 
 ### Hotfix interruption (2026-08-27)
 
@@ -203,4 +203,4 @@ v14.2.25 завершив targeted hygiene та launcher-polish items. `client-u
 
 **Status:** COMPLETED/ACCEPTED. Owner reproduced real launcher-restored-file scenario (2026-08-27): preview showed "Доступне оновлення" / "Оновити", update completed, state returned UpToDate, restart remained UpToDate.
 
-**Resume next:** `Release Candidate v1.2.1`.
+**Resume next:** `release-experience-polish` — R1 implementation.

@@ -4,7 +4,7 @@
 
 ## Принципи (AGENTS §41)
 
-- Автоматична перевірка оновлень у background при startup; максимум один запит за session; не блокує UI.
+- Автоматична перевірка оновлень під час startup і приблизно кожні 5 хвилин, доки процес працює, зокрема у background/tray; не блокує UI.
 - Встановлення — лише після explicit натискання «Оновити до vX.Y.Z». Ніякого silent/forced update.
 - Порівняння версій — тільки numeric (`AppVersion`: 0.1.9 < 0.1.10), ніколи lexicographic.
 - Channel policy: якщо current release prerelease → дозволені newer prerelease + stable; інакше — тільки newer stable.
@@ -52,8 +52,13 @@
 Startup
 ├── StartupUpdateLifecycleCoordinator.RunStartupMaintenance()
 │     └── cleanup незавершених prepared sessions
-├── Background check (один раз за session)
-│     └── GitHubUpdateClient → UpdateSelectionPolicy → candidate?
+├── Application update monitoring
+│     ├── негайна перевірка під час startup
+│     ├── періодична перевірка приблизно кожні 5 хвилин
+│     └── приховане tray-сповіщення один раз для кожного tag (RAM-only dedup)
+│           └── GitHubUpdateClient → UpdateSelectionPolicy → candidate?
+├── Restore / «Перевірити зараз»
+│     └── негайний application-update check; «Перевірити зараз» також запускає localization poll
 ├── Користувач натискає «Оновити до vX.Y.Z»
 │     └── SelfUpdatePreparationService:
 │           download ZIP → validate manifest → extract EXE →
@@ -62,6 +67,8 @@ Startup
       └── запуск staged EXE з --apply-update <session-id>,
           завершення поточного процесу
 ```
+
+Application-update discovery не завантажує і не встановлює оновлення автоматично. Якщо нова версія знайдена, видима MainForm показує звичайну кнопку оновлення, а прихований процес може показати одне інформаційне tray-сповіщення для цього tag. RAM-only tracker не повторює сповіщення для того самого tag; новий tag починає новий епізод. Restore з tray і пункт «Перевірити зараз» запитують свіжу application-update перевірку. Фактичне завантаження та self-update починаються лише після натискання користувачем кнопки оновлення.
 
 ### Helper mode (`--apply-update <session-id>`)
 
