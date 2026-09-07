@@ -1,6 +1,6 @@
 # Current Engineering Context
 
-Оновлено: 2026-09-06
+Оновлено: 2026-09-08
 
 ## Project Purpose / Status
 
@@ -8,7 +8,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 Стабільний реліз: **v1.2.2**. Публічний stable release опубліковано з tag `v1.2.2`; canonical application bundle містить один ZIP-asset. Усі approved implementation plans завершено, прийнято та заархівовано; наразі немає ACTIVE implementation plan або PRIMARY.
 
-Поточна наступна дія: `Architect review CI test-race correction, then begin read-only product/architecture audit for the next roadmap`.
+Поточна наступна дія: `External Architect review v15.41 MainForm lifecycle integration coverage`.
 
 ## Architecture Summary
 
@@ -39,6 +39,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - `code-quality-ux-improvements` — **ARCHIVED**, roadmap COMPLETED / REVIEWED / ACCEPTED, released through stable v1.2.1; no remaining implementation action.
 - `release-experience-polish` — **ARCHIVED**. R1/R2/R3 — **COMPLETED / REVIEWED / ACCEPTED**; application discovery має startup + resident ~5-minute monitoring, а schema-v1 `NEXT.json` generator є normal release contract.
 - Exact v1.2.2 facts: release ID `383636389`, RC #29 / run `34038984319`, one public asset `BDO-UA-Client-v1.2.2-win-x64.zip`; outer SHA-256 `329c31987955dbb2139a061ea09bbad0e89fa403cf731343d124b917e68f120c`. Власник успішно виконав built-in update до `v1.2.2`; застосунок після оновлення працює. Hidden periodic notification не спостерігалася окремо в production smoke.
+- v15.41 — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**: bounded test-only MainForm lifecycle integration coverage додано без production changes; testability gate пройдено через dedicated STA/message-loop fixture.
 
 ## Validation / Release Facts
 
@@ -46,6 +47,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - Production self-update to `v1.2.2` was successfully exercised by the owner; the updated application works.
 - Structured release-note pipeline is the normal release contract; `NEXT.json` has been reset to an empty schema-v1 source for the next cycle.
 - R3 validation: Release build 0 warnings / 0 errors, 907 tests passed / 0 failed, resolver/generator tests and release preflight passed.
+- v15.41 validation: Release build — 0 warnings / 0 errors; full Release suite — 911 passed / 0 failed / 0 skipped; focused MainForm lifecycle suite — 4 passed; 20/20 independent targeted invocations — 4/4 passed; related lifecycle suites passed.
 
 ## Important Invariants
 
@@ -67,3 +69,9 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - [`docs/plans/archive/code-quality-ux-improvements.md`](../plans/archive/code-quality-ux-improvements.md) — completed archived roadmap
 - [`docs/releases/v1.2.2.md`](../releases/v1.2.2.md) — current stable release archive
 - [`history/2026-09.md`](history/2026-09.md) — recent engineering journal
+
+## Current Task Handoff
+
+- v15.41 is a bounded reliability task, not a new roadmap or PRIMARY plan.
+- Scope is limited to test-only MainForm lifecycle composition coverage and documentation synchronization.
+- Next action: `External Architect review v15.41 MainForm lifecycle integration coverage`.

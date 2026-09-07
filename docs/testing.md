@@ -8,7 +8,7 @@
 
 ## Кількість тестів
 
-Точна кількість змінюється з кожним етапом — canonical source це результат `dotnet test BdoUaClient.sln` та CI (на момент останньої ревізії — ~800 тестів).
+Точна кількість змінюється з кожним етапом; authoritative source — результат `dotnet test BdoUaClient.sln` та CI.
 
 ## Категорії тестів
 
@@ -76,6 +76,14 @@
 | `InstallButtonLabelPolicyTests.cs` | Контекстний текст кнопки («Встановити»/«Оновити»/exact target) |
 | `LocalizationFlagParserTests.cs` | Парсинг UA/GB прапорців |
 | `ModeCardPresentationPolicyTests.cs` | Презентація карток режимів, exact installed badge |
+
+### MainForm lifecycle integration тести
+
+| Файл | Що тестує |
+|------|-----------|
+| `MainFormLifecycleIntegrationTests.cs` | STA/message-loop startup wiring, degraded startup completion, secondary activation до існуючого MainForm та clean shutdown при pending startup request |
+
+Ці тести використовують окремий STA thread і контрольований WinForms message loop, тимчасові `AppPaths` та локальні HTTP handlers. Native tray rendering, taskbar/foreground focus і реальна multi-process shell activation залишаються OS-dependent manual validation.
 
 ### Storage тести
 
