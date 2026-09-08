@@ -10,7 +10,7 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   release-candidate:
@@ -260,7 +260,7 @@ jobs:
         |---|---|
         | **Version source** | $source |
         | **Version** | $version |
-        | **Tag** | ``$tag`` (will be created after this step) |
+        | **Proposed final tag** | ``$tag`` (not created by the RC workflow) |
         | **Commit** | ``$sha`` |
         | **Artifact** | ``BDO-UA-Client-v$version-win-x64`` |
 
@@ -277,33 +277,13 @@ jobs:
         1. Download artifact ``BDO-UA-Client-v$version-win-x64``
         2. Test ``BDO-UA-Client.exe`` locally
         3. Do NOT unpack/repackage the downloaded artifact ZIP for publication
-        4. Draft GitHub Release → select existing tag ``$tag``
-        5. Use ``RELEASE_NOTES-v$version.md`` generated from ``docs/releases/NEXT.json`` directly as the release body; edit only to correct a factual defect found during owner validation
-        6. Upload the EXACT downloaded artifact ZIP as the ONLY application asset
-        7. Do NOT separately upload ``BDO-UA-Client.exe``, ``release-manifest.json`` or ``SHA256SUMS.txt``
-        8. Click **Publish release**
+        4. Perform Owner native UI smoke on ``BDO-UA-Client.exe`` from this exact RC/source SHA
+        5. After Owner approval, create and push ``$tag`` on the exact source SHA ``$sha``
+        6. Draft GitHub Release → select the existing tag ``$tag``
+        7. Use ``RELEASE_NOTES-v$version.md`` generated from ``docs/releases/NEXT.json`` directly as the release body; edit only to correct a factual defect found during owner validation
+        8. Upload the EXACT downloaded artifact ZIP as the ONLY application asset
+        9. Do NOT separately upload ``BDO-UA-Client.exe``, ``release-manifest.json`` or ``SHA256SUMS.txt``
+        10. Click **Publish release**
 
-        > GitHub Release is NOT created automatically.
+        > Final tag creation and GitHub Release publication are intentionally outside this RC workflow.
         "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8
-
-    - name: Create and push tag (FINAL)
-      shell: pwsh
-      run: |
-        $tag = "${{ steps.resolve.outputs.RELEASE_TAG }}"
-        $sha = "${{ github.sha }}"
-
-        $remoteOutput = git ls-remote origin "refs/tags/$tag" 2>&1
-        if ($LASTEXITCODE -ne 0) {
-          Write-Error "Failed to query remote for tag $tag (exit code $LASTEXITCODE)"
-          exit 1
-        }
-        if ($remoteOutput) {
-          Write-Error "Tag $tag was created on remote by another process. Aborting."
-          exit 1
-        }
-
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git tag -a $tag -m "Release $tag" $sha
-        git push origin $tag
-        Write-Output "Tag $tag created and pushed on $sha"

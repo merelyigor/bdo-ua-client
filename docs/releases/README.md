@@ -14,7 +14,7 @@ Production GitHub Releases завжди публікуються вручну в
 - GitHub Actions → **Release Candidate** → **Run workflow**
 - Оберіть гілку `main`
 - **Version**: залиште порожнім для автоматичного наступного patch (найпоширеніший випадок), або введіть версію вручну для minor/major
-- Дочекайтеся завершення: Validate → Resolve → Build → Test → Publish → Prepare flat release artifact → SHA/manifest/notes → Tag
+- Дочекайтеся завершення: Validate → Resolve → Build → Test → Publish → Prepare flat release artifact → SHA/manifest/notes → Summary. RC workflow не створює фінальний tag.
 
 #### Автоматична версія (порожнє поле)
 
@@ -42,8 +42,9 @@ Production GitHub Releases завжди публікуються вручну в
 
 ### 5. Публікація релізу
 
+- Після Owner native UI smoke створіть і push-ніть запропонований tag `vX.Y.Z` на exact source SHA, вказаний у RC artifact/summary.
 - GitHub → **Releases** → **Draft a new release**
-- Оберіть існуючий тег `vX.Y.Z`
+- Оберіть створений tag `vX.Y.Z`
 - Вставте відредаговані реліз-нотатки у тіло релізу
 - Завантажте exact downloaded GitHub artifact ZIP як **єдиний application asset**.
 - Не unpack/repackage artifact ZIP перед публікацією.
@@ -54,6 +55,7 @@ Production GitHub Releases завжди публікуються вручну в
 
 ## Workflow НЕ робить
 
+- НЕ створює і не push-ить фінальний tag
 - НЕ створює GitHub Release
 - НЕ публікує реліз автоматично
 - НЕ переміщує існуючі теги
