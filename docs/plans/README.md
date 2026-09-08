@@ -2,15 +2,15 @@
 
 ## Current focus
 
-**Primary:** offline-degraded-reliability
-**Current phase:** implementation complete / validation pending external review
-**Next:** external Architect review of offline/degraded release-feed mode
+**Primary:** none
+**Current phase:** no ACTIVE implementation plan
+**Next:** `WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| PRIMARY | offline-degraded-reliability | [active/offline-degraded-reliability.md](active/offline-degraded-reliability.md) | implementation complete / validation pending external review | external Architect review of offline/degraded release-feed mode |
+| — | — | — | — | — |
 
 ## Backlog
 
@@ -27,6 +27,7 @@
 | `background-tray-notifications` | [archive/background-tray-notifications.md](archive/background-tray-notifications.md) | Tray/background T1–T6 completed, reviewed, accepted and released in stable v1.2.0 |
 | `code-quality-ux-improvements` | [archive/code-quality-ux-improvements.md](archive/code-quality-ux-improvements.md) | Roadmap completed, reviewed, accepted and released in stable v1.2.1 |
 | `release-experience-polish` | [archive/release-experience-polish.md](archive/release-experience-polish.md) | R1–R3 completed, reviewed, accepted and released in stable v1.2.2 |
+| `offline-degraded-reliability` | [archive/offline-degraded-reliability.md](archive/offline-degraded-reliability.md) | Offline/degraded release-feed roadmap completed, reviewed, accepted; v15.46 released in stable v1.2.3 |
 
 ## Rules / lifecycle
 

@@ -6,9 +6,9 @@
 
 BDO-UA Client — Windows .NET 8 WinForms застосунок для пошуку Black Desert Online, отримання українських локалізацій через `bdo-ua.com.ua`, безпечного встановлення, оновлення та відновлення файлів гри.
 
-Стабільний реліз: **v1.2.3**. Публічний stable release опубліковано з tag v1.2.3; canonical application bundle містить один ZIP-asset. Offline/degraded release-feed implementation виконується в ACTIVE PRIMARY plan offline-degraded-reliability і очікує external Architect review.
+Стабільний реліз: **v1.2.3**. Публічний stable release опубліковано з tag v1.2.3; canonical application bundle містить один ZIP-asset. Offline/degraded release-feed implementation завершено та прийнято зовнішнім Architect; ACTIVE implementation plan немає.
 
-Поточна наступна дія: External Architect review of offline/degraded release-feed mode.
+Поточна наступна дія: `WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`.
 
 ## Architecture Summary
 
@@ -42,7 +42,9 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - v15.41 — **REVIEWED / ACCEPTED**: bounded test-only MainForm lifecycle integration coverage додано без production changes; testability gate пройдено через dedicated STA/message-loop fixture.
 - v15.42 — **REVIEWED / ACCEPTED**: додано README та MainForm informational guidance для видалення portable-клієнта без self-uninstall механізму; localization, autostart і storage behavior не змінювалися.
 - v15.43 — **REVIEWED / ACCEPTED**: Release Candidate workflow більше не створює фінальний tag; Owner native UI smoke gate успішно пройдено перед публікацією `v1.2.3`.
-- v15.46 — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**: додано normalized last-known release-feed cache, cached read-only fallback та Live-only mutation gate; API, installer safety, GameDetector threading і self-update architecture не змінювалися.
+- v15.46 — **REVIEWED / ACCEPTED**: додано normalized last-known release-feed cache, cached read-only fallback та Live-only mutation gate; API, installer safety, GameDetector threading і self-update architecture не змінювалися.
+- v15.47 — **REVIEWED / ACCEPTED**: repository AI workflow синхронізовано навколо default Combined mode, risk-based pre-commit review, evidence policy та terminal state `WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`; production і release behavior не змінювалися.
+- `offline-degraded-reliability` — **ARCHIVED**: roadmap завершено, reviewed / accepted; активного PRIMARY немає.
 - v1.2.3 — **PUBLISHED / VERIFIED**: tag `v1.2.3` і public Release ID `384894464` опубліковано на exact approved RC SHA `ec891ea7077dd70e2aafd0c2e00674f47c45a94a`; Owner native UI smoke exact RC passed.
 
 ## Validation / Release Facts
@@ -70,15 +72,16 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 - [`AGENTS.md`](../../AGENTS.md) — правила, контракти, security, build і commit requirements
 - [`docs/plans/README.md`](../plans/README.md) — plan lifecycle registry
-- [docs/plans/active/offline-degraded-reliability.md](../plans/active/offline-degraded-reliability.md) — current offline/degraded release-feed plan
+- [docs/plans/archive/offline-degraded-reliability.md](../plans/archive/offline-degraded-reliability.md) — completed offline/degraded release-feed roadmap
 - [`docs/plans/archive/release-experience-polish.md`](../plans/archive/release-experience-polish.md) — completed archived plan
 - [`docs/ai-workflow/README.md`](../ai-workflow/README.md) — canonical orchestration, prompt, review та handoff contract
 - [`docs/plans/archive/code-quality-ux-improvements.md`](../plans/archive/code-quality-ux-improvements.md) — completed archived roadmap
-- [`docs/releases/v1.2.2.md`](../releases/v1.2.2.md) — current stable release archive
+- [`docs/releases/v1.2.3.md`](../releases/v1.2.3.md) — current stable release archive
 - [`history/2026-09.md`](history/2026-09.md) — recent engineering journal
 
 ## Current Task Handoff
 
 - v1.2.3 release cycle is completed and archived.
-- Offline/degraded release-feed mode is implemented and validated; external Architect review is pending.
-- Next action: `External Architect review of offline/degraded release-feed mode`.
+- Offline/degraded release-feed mode is completed, reviewed and accepted; `offline-degraded-reliability` is archived.
+- No ACTIVE/PRIMARY roadmap remains.
+- Next action: `WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`.

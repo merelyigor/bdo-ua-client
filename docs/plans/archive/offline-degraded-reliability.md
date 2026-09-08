@@ -2,10 +2,10 @@
 
 ## Status
 
-Status: ACTIVE
-Focus: PRIMARY
-Current phase: implementation complete / validation pending external review
-Next action: External Architect review of offline/degraded release-feed mode
+Status: ARCHIVED
+Focus: —
+Current phase: roadmap completed / reviewed / accepted — offline/degraded release-feed feature complete
+Next action: none; no remaining implementation action
 
 ## Scope
 
@@ -23,11 +23,11 @@ Next action: External Architect review of offline/degraded release-feed mode
 
 ## Milestones
 
-- Cache schema/store, normalized mapper і atomic best-effort persistence — IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW
-- Startup live-first / cached fallback / unavailable state — IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW
-- Background reconnect and source transition — IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW
-- Cached write-action gate and degraded UX — IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW
-- Storage, policy, poller and MainForm lifecycle coverage — IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW
+- Cache schema/store, normalized mapper і atomic best-effort persistence — COMPLETED / REVIEWED / ACCEPTED
+- Startup live-first / cached fallback / unavailable state — COMPLETED / REVIEWED / ACCEPTED
+- Background reconnect and source transition — COMPLETED / REVIEWED / ACCEPTED
+- Cached write-action gate and degraded UX — COMPLETED / REVIEWED / ACCEPTED
+- Storage, policy, poller and MainForm lifecycle coverage — COMPLETED / REVIEWED / ACCEPTED
 
 ## Compatibility invariants
 
@@ -37,6 +37,6 @@ Next action: External Architect review of offline/degraded release-feed mode
 - Poll failure preserves the current accepted feed and does not demote a live source.
 - Existing operation serialization, rollback, tray lifecycle, GameDetector threading and self-update behavior remain unchanged.
 
-## Validation handoff
+## Validation and final disposition
 
-Перед external review перевіряються Release build, повний test suite, focused cache/policy/poller/MainForm integration tests і git diff --check. Plan remains active until external review; acceptance is not self-claimed.
+Release build, повний test suite, focused cache/policy/poller/MainForm integration tests і git diff --check пройдені; CI #189 успішний. External Architect review завершено: v15.46 — REVIEWED / ACCEPTED. Offline/degraded release-feed mode завершено без змін API contract, installer safety workflow, GameDetector threading або self-update architecture. План заархівовано; remaining implementation action немає.
