@@ -27,7 +27,7 @@ Implementation Agent:
 - виконує лише approved scope, зберігає existing patterns і додає relevant tests;
 - синхронізує plan/CURRENT/journal, коли це вимагають правила task;
 - запускає build/test/validation, перевіряє diff, status і secrets;
-- commit/push виконує лише коли це дозволено prompt;
+- у default Combined mode commit/push є частиною bounded task, якщо prompt явно не забороняє їх; для high-risk змін дотримується pre-commit review mode;
 - звітує exact evidence, deviations і unresolved issues.
 
 Implementation Agent не має права самостійно позначати нову роботу `REVIEWED / ACCEPTED`. До external review використовуються factual states на кшталт `IMPLEMENTED / VALIDATED / PENDING ARCHITECT REVIEW`.
@@ -36,7 +36,7 @@ Implementation Agent не має права самостійно познача�
 
 Якщо проєкт охоплює кілька репозиторіїв, prompt і repository rules називають явно, у якому з них Implementation Agent комітить сам, у якому лише готує зміну для Owner, і що в production read-only. Без цього agent або блокується на дозволі, якого не потрібно, або комітить туди, де не має authority.
 
-Робота доводиться в локальному середовищі. Deploy/publish виконується, коли зміна справді має бути в цільовому середовищі, а не після кожного commit: інакше production стає місцем перевірки замість локального середовища.
+Робота доводиться в локальному середовищі. У default Combined mode Implementation Agent може commit/push після required validation, якщо це дозволено task prompt; normal CI є частиною handoff. Deploy/publish виконується, коли зміна справді має бути в цільовому середовищі, а не після кожного commit: інакше production стає місцем перевірки замість локального середовища.
 
 ## Autonomy and STOP conditions
 
@@ -47,3 +47,7 @@ Implementation Agent повинен STOP і звітувати, якщо пот�
 ## Separation of roles
 
 Architect і Implementation Agent мають розглядатися як окремі review roles, навіть якщо фактично вони виконуються автоматизованими системами. Self-review є preflight, але не external acceptance.
+
+Для bounded low/medium-risk задач ціль — один implementation prompt і один external review. Pre-commit review є винятком для high-risk змін, а не default.
+
+Після `REVIEWED / ACCEPTED`, якщо немає unresolved BLOCKER/IMPORTANT і approved dependent next step, Architect повертає terminal state `WORK CYCLE COMPLETE / OWNER DECISION REQUIRED` і не створює наступну роботу без explicit Owner decision.

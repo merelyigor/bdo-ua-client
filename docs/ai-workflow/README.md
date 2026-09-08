@@ -19,19 +19,31 @@ OWNER INPUT
 → ARCHITECTURE / SCOPE
 → IMPLEMENTATION PROMPT
 → IMPLEMENTATION AGENT
-→ VALIDATION / COMMIT / PUSH / REPORT
+→ TESTS / DOCS-PLAN SYNC / VALIDATION / COMMIT / PUSH / CI / REPORT
 → ARCHITECT REVIEW
-→ ACCEPT or CORRECT
-→ NEXT TASK
+→ ACCEPT or CORRECT ONLY IF NEEDED
+→ WORK CYCLE COMPLETE / OWNER DECISION REQUIRED
 ```
 
-Для складної, safety-critical або неоднозначної роботи перед implementation додаються read-only inspection і risk-based decomposition.
+Це default Combined mode для bounded low/medium-risk задач: один implementation prompt охоплює implementation, tests, потрібну docs/plan synchronization, validation, commit/push і CI; після нього виконується один external Architect review. Для high-risk роботи — destructive/data-loss, security-critical, schema/data migration, public API redesign, architecture/framework change або іншого суттєвого ризику — Architect може вимагати pre-commit review mode. Окремий finalization prompt не потрібен, якщо agent уже має право commit/push і required gates пройдені.
+
+Corrective prompt створюється лише для `BLOCKER`, `IMPORTANT`, failed required validation або material baseline mismatch. `OPTIONAL` сам по собі не запускає нову ітерацію.
+
+Коли немає unresolved `BLOCKER`/`IMPORTANT`, approved dependent next step і активного незавершеного roadmap, Architect завершує цикл станом `WORK CYCLE COMPLETE / OWNER DECISION REQUIRED` і STOP. Він не створює автоматично новий audit, roadmap, refactoring, feature, release cycle або task; наступний development cycle починає Owner.
+
+Для UI/visual змін Combined mode може завершити commit/push, але Owner native/visual smoke залишається окремим gate, якщо automated evidence недостатній.
 
 ## Authority / source of truth
 
 Owner має продуктову та release publication authority. `AGENTS.md` має обов'язкову repository-rule authority. Architect / Reviewer має task-level architecture та acceptance authority. Реальний source, diff, tests, build, CI, artifacts і hashes є доказом фактичного результату. Деталі наведено в [ROLES.md](ROLES.md) та [REVIEW.md](REVIEW.md).
 
 External conversations є coordination channels, а не persistent project state. Material decisions зберігаються у відповідних repository-owned документах.
+
+Task lifecycle: `IMPLEMENTED → VALIDATED → PENDING EXTERNAL REVIEW → REVIEWED / ACCEPTED`.
+
+Release lifecycle: `RC READY → OWNER SMOKE ACCEPTED → RELEASED → PUBLIC VERIFIED → RELEASE REVIEWED / ACCEPTED`.
+
+Evidence policy: actual repository/diff/CI/test/artifact evidence має пріоритет; structured agent evidence з exact SHA/run IDs/hashes допустимий fallback при тимчасово недоступному external connector. Простого prose «все працює» недостатньо.
 
 ## Session bootstrap
 
@@ -48,6 +60,8 @@ External conversations є coordination channels, а не persistent project stat
 9. explicit task prompt
 
 Нуль ACTIVE планів є валідним станом. Відсутність plan не дозволяє вигадувати placeholder; bounded owner-authorized task може виконуватися без roadmap. Task prompt може звузити inspection set, але не скасовує `AGENTS.md`.
+
+Plan створюється лише для справжнього multi-step roadmap або роботи, яку потрібно переносити між сесіями. Bounded task не створює plan лише для bookkeeping.
 
 ## Documents in this folder
 

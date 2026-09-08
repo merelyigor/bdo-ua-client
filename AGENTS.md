@@ -789,3 +789,15 @@ BDO-UA-Client/
 §43.7 External conversations є coordination channels, а не canonical persistent state. Material decisions синхронізуються у repository-owned sources, де це доречно.
 
 §43.8 Нова session відновлює context із repository documentation/source, а не з hidden/opaque session history; canonical bootstrap описано у [`docs/ai-workflow/README.md`](docs/ai-workflow/README.md).
+
+§43.9 **Combined mode** є default для bounded low/medium-risk задач із визначеним scope: `Architect prompt → Implementation Agent implement + tests/docs/plan sync + validation + commit/push + CI → один external Architect review`. Цільовий цикл — один implementation prompt і один external review.
+
+§43.10 Pre-commit review mode використовується лише для реально high-risk змін: destructive/data-loss risk, security-critical behavior, schema/data migration, public API redesign, architecture/framework change або іншого випадку, де commit до review створює суттєвий ризик. Окремий finalization prompt не створюється, якщо Implementation Agent уже має право commit/push і всі required gates пройдені.
+
+§43.11 Corrective iteration дозволена лише для `BLOCKER`, `IMPORTANT`, failed required validation або material baseline mismatch. `OPTIONAL` сам по собі не створює новий prompt.
+
+§43.12 Після завершення approved work, коли немає unresolved `BLOCKER`/`IMPORTANT`, already-approved dependent next step і активного незавершеного roadmap, кінцевий стан: `WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`. Architect повинен STOP і не створювати автоматично audit, roadmap, refactoring, feature, release cycle або наступний task. Новий development cycle починає Owner.
+
+§43.13 Для UI/visual changes commit/push дозволені у Combined mode, але Owner native/visual smoke може залишатися окремим acceptance або release gate, якщо automated evidence недостатній. Task lifecycle і release lifecycle не змішуються: task — `IMPLEMENTED → VALIDATED → PENDING EXTERNAL REVIEW → REVIEWED / ACCEPTED`; release — `RC READY → OWNER SMOKE ACCEPTED → RELEASED → PUBLIC VERIFIED → RELEASE REVIEWED / ACCEPTED`.
+
+§43.14 Actual repository/diff/CI/test/artifact evidence має пріоритет. Structured agent evidence з exact SHA, run IDs і hashes є допустимим fallback лише за тимчасової недоступності external connector; prose без evidence недостатній. Plan створюється лише для справжнього multi-step roadmap або роботи, яку потрібно переносити між сесіями; bounded task не створює plan автоматично. Implementation prompt посилається на current `AGENTS.md` і `docs/ai-workflow/` та повторює лише task-specific scope, invariants і validation.

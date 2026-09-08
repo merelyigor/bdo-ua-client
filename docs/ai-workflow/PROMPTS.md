@@ -2,7 +2,7 @@
 
 ## General principles
 
-Architect prompt має бути self-contained, передавати approved conclusions, behavior/state/order/invariants, explicit scope, validation і expected output. Exact identifiers, files, commands і strings дозволені. Harmless local details залишаються Implementation Agent; syntax tutorial і зайве internal reasoning не потрібні.
+Architect prompt має бути self-contained щодо task contract, передавати approved conclusions, behavior/state/order/invariants, explicit scope, validation і expected output, та посилатися на current `AGENTS.md` і `docs/ai-workflow/` замість дублювання repository handbook. Exact identifiers, files, commands і strings дозволені. Harmless local details залишаються Implementation Agent; syntax tutorial і зайве internal reasoning не потрібні.
 
 ## Canonical implementation prompt
 
@@ -23,7 +23,9 @@ Architect prompt має бути self-contained, передавати approved c
 ## OUTPUT
 ```
 
-За потреби додаються `BASELINE`, `PLAN STATE`, `COMMIT`, `PUSH`, `RELEASE`, `SAFETY` або `MIGRATION`.
+За потреби додаються `BASELINE`, `PLAN STATE`, `COMMIT`, `PUSH`, `RELEASE`, `SAFETY` або `MIGRATION`. Для bounded low/medium-risk задач один prompt зазвичай охоплює implementation, tests, docs/plan sync, validation, commit/push і CI; після нього — один external Architect review.
+
+Окремий pre-commit review mode вказується лише для high-risk змін: destructive/data-loss, security-critical, schema/data migration, public API redesign, architecture/framework change або іншого суттєвого ризику. Окремий finalization prompt не додається лише для bookkeeping, якщо agent уже має commit/push authority та пройдені required gates.
 
 ## Data/migration prompt
 
@@ -50,3 +52,7 @@ Implementation Agent перевіряє required baseline до зміни фай
 ## Conflict handling
 
 Implementation Agent STOP-ить, якщо prompt конфліктує з mandatory repository rule, allowed scope не задовольняє requirement, потрібне unapproved architecture/schema/dependency expansion або baseline invalidates contract. Conflict повертається Architect/Owner для рішення, а не вирішується мовчазним scope expansion.
+
+Corrective prompt створюється лише для `BLOCKER`, `IMPORTANT`, failed required validation або material baseline mismatch. `OPTIONAL` сам по собі не створює новий prompt.
+
+Implementation prompts не повинні копіювати весь repository handbook: вони посилаються на current `AGENTS.md` / `docs/ai-workflow/` і повторюють лише task-specific architecture, scope, invariants та validation.

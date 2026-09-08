@@ -1,20 +1,19 @@
 # Executable workflow
 
-## Low-risk coherent flow
+## Default Combined mode
 
 ```text
-ANALYZE
-→ IMPLEMENTATION PROMPT
-→ IMPLEMENT
-→ TEST / DOCS / PLAN SYNC
+ARCHITECT PROMPT
+→ IMPLEMENT + TESTS + DOCS / PLAN SYNC
 → VALIDATE
-→ COMMIT / PUSH
-→ REPORT
-→ ARCHITECT REVIEW
-→ ACCEPT or CORRECT
+→ COMMIT / PUSH / CI / REPORT
+→ ONE EXTERNAL ARCHITECT REVIEW
+→ ACCEPT or CORRECT ONLY IF NEEDED
 ```
 
-## Complex/high-risk flow
+Це default для bounded low/medium-risk задач із достатньо визначеним scope. Target — one implementation prompt + one external review.
+
+## Pre-commit review mode for high-risk work
 
 ```text
 UNDERSTAND
@@ -24,16 +23,25 @@ UNDERSTAND
 → DECOMPOSE
 → IMPLEMENTATION PROMPT
 → IMPLEMENT
-→ VALIDATE
-→ REPORT
-→ ARCHITECT REVIEW
-→ CORRECT IF NEEDED
-→ FINAL ACCEPTANCE
+→ TEST / VALIDATE
+→ PRE-COMMIT ARCHITECT REVIEW
+→ COMMIT / PUSH / CI
+→ FINAL EXTERNAL ACCEPTANCE REVIEW WHEN REQUIRED
 ```
 
 Read-only investigation потрібна, коли current flow, architecture або risk недостатньо відомі. Вона не змінює файли, описує relevant files, data/control flow, dependencies, implementation points, risks і open questions; передчасний redesign не робиться.
 
-Complex, safety-critical або ambiguous work слід split-ити за risk. Coherent low-risk task може об'єднати implementation, tests, docs, validation, commit і push. Artificial iterations, які не зменшують risk, не створюються.
+Pre-commit mode застосовується лише для destructive/data-loss, security-critical, schema/data migration, public API redesign, architecture/framework change або іншого high-risk випадку, де commit до review створює суттєвий ризик. Для bounded low/medium-risk задач не створюються штучні pre-commit чи finalization iterations.
+
+Окремий finalization prompt не потрібен, якщо agent уже має право commit/push і всі required gates пройшли.
+
+```text
+TASK LIFECYCLE:
+IMPLEMENTED → VALIDATED → PENDING EXTERNAL REVIEW → REVIEWED / ACCEPTED
+
+RELEASE LIFECYCLE:
+RC READY → OWNER SMOKE ACCEPTED → RELEASED → PUBLIC VERIFIED → RELEASE REVIEWED / ACCEPTED
+```
 
 ## Task types and states
 
@@ -45,7 +53,9 @@ Factual states:
 - після успішного external review: `COMPLETED / REVIEWED / ACCEPTED`;
 - при material issue: `NEEDS CORRECTION`.
 
-Dependent next task не починається, поки unresolved BLOCKER або IMPORTANT не закриті. OPTIONAL не блокує progress, якщо Owner/Architect явно не підвищив його пріоритет.
+Corrective iteration створюється лише для `BLOCKER`, `IMPORTANT`, failed required validation або material baseline mismatch. `OPTIONAL` сам по собі не створює новий prompt. Approved dependent work не починається, поки unresolved BLOCKER або IMPORTANT не закриті.
+
+Після завершення approved work, коли немає unresolved BLOCKER/IMPORTANT, approved dependent next step і активного незавершеного roadmap, стан циклу: `WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`. Architect STOP-ить і не генерує автоматично audit, roadmap, refactoring, feature, release cycle або наступний task. Наступний cycle починає Owner.
 
 ## Session policy and changes
 
@@ -53,7 +63,7 @@ Dependent next task не починається, поки unresolved BLOCKER а�
 
 Якщо Owner змінює material requirements mid-task, Implementation Agent не зливає їх мовчки: Architect переглядає architecture/scope і надає оновлений explicit contract. Unrelated defect лише звітується, якщо він не потрібен для task. Unrelated failing tests не приховуються; baseline failure відокремлюється від regression, а unavailable validation звітується як така.
 
-Нуль ACTIVE планів валідний. Bounded owner-authorized task може виконуватися без roadmap; placeholder ACTIVE/PRIMARY не створюється. Broad product development зазвичай потребує approved roadmap/PRIMARY.
+Нуль ACTIVE планів валідний. Bounded owner-authorized task може виконуватися без roadmap; placeholder ACTIVE/PRIMARY не створюється. Plan створюється лише для справжнього multi-step roadmap або роботи, яку потрібно переносити між сесіями. Broad product development зазвичай потребує approved roadmap/PRIMARY.
 
 ## Plans and persistent context
 

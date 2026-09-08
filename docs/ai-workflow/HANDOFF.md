@@ -25,7 +25,9 @@ Task prompt може вимагати richer exact output.
 
 ## Commit/push handoff
 
-Дотримуватися [AGENTS §34](../../AGENTS.md). Перед commit Implementation Agent перевіряє `git status`, `git diff`, scope і secret exposure risk, а також потрібну docs/context synchronization. Commit/push виконуються лише за explicit authorization task.
+Дотримуватися [AGENTS §34](../../AGENTS.md). Перед commit Implementation Agent перевіряє `git status`, `git diff`, scope і secret exposure risk, а також потрібну docs/context synchronization. У default Combined mode commit/push є частиною bounded implementation task, якщо task prompt не забороняє їх явно; для high-risk змін Architect може вимагати pre-commit review.
+
+Окремий finalization prompt не потрібен лише для виконання commit/push або bookkeeping, якщо agent уже має authority і required validation/CI gates пройдені. Після external acceptance без approved dependent next step handoff закінчується `WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`; новий task генерується лише після explicit Owner decision.
 
 ## Repository persistence
 
@@ -49,4 +51,4 @@ External coordination не зберігає personal details, irrelevant chat hi
 
 ## Architect handoff
 
-Architect отримує implementation report, exact commit/diff, validation/build/CI evidence і artifacts/logs/hashes, коли релевантно. Dependent next prompt зазвичай створюється після review. Якщо CI/artifact/manual validation недоступні, limitation фіксується без припущень, а Architect вирішує достатність evidence.
+Architect отримує implementation report, exact commit/diff, validation/build/CI evidence і artifacts/logs/hashes, коли релевантно. Якщо CI/artifact/manual validation недоступні, limitation фіксується без припущень, а Architect вирішує достатність evidence. Dependent next prompt створюється лише для approved next step або після explicit Owner decision.
