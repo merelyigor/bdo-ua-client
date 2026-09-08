@@ -70,9 +70,11 @@ Plan створюється лише для справжнього multi-step ro
 - [PROMPTS.md](PROMPTS.md) — контракти implementation, corrective та release prompts.
 - [REVIEW.md](REVIEW.md) — evidence hierarchy, severity та acceptance loop.
 - [HANDOFF.md](HANDOFF.md) — звітність, persistence і міжсесійний handoff.
-- [PROJECT_CHAT_RULES.md](PROJECT_CHAT_RULES.md) — єдина Owner-maintained copyable project instruction для Architect / Analyst / Reviewer sessions.
+- [PROJECT_CHAT_RULES.md](PROJECT_CHAT_RULES.md) — короткий Owner-maintained portable bootstrap prompt для Architect / Analyst / Reviewer sessions; повний handbook залишається в `AGENTS.md` і linked workflow docs.
 
 Owner копіює та надалі підтримує цей файл безпосередньо як canonical Architect-chat instruction. Repository-specific workflow explanation залишається в `README.md`, `ROLES.md`, `WORKFLOW.md`, `PROMPTS.md`, `REVIEW.md` та `HANDOFF.md`, а не додається до exact-copy instruction.
+
+Portable bootstrap має бути не довшим за `7500` UTF-16 code units; після його зміни запускається `scripts/Check-ProjectChatRules.ps1`, а normal CI виконує той самий gate.
 
 ## Non-goals
 

@@ -37,6 +37,10 @@ jobs:
       shell: pwsh
       run: scripts/Test-Generate-ReleaseNotes.ps1
 
+    - name: Project chat rules size check
+      shell: pwsh
+      run: scripts/Check-ProjectChatRules.ps1
+
     - name: Version resolver smoke (real origin)
       shell: pwsh
       run: |

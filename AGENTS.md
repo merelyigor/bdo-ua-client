@@ -801,3 +801,7 @@ BDO-UA-Client/
 §43.13 Для UI/visual changes commit/push дозволені у Combined mode, але Owner native/visual smoke може залишатися окремим acceptance або release gate, якщо automated evidence недостатній. Task lifecycle і release lifecycle не змішуються: task — `IMPLEMENTED → VALIDATED → PENDING EXTERNAL REVIEW → REVIEWED / ACCEPTED`; release — `RC READY → OWNER SMOKE ACCEPTED → RELEASED → PUBLIC VERIFIED → RELEASE REVIEWED / ACCEPTED`.
 
 §43.14 Actual repository/diff/CI/test/artifact evidence має пріоритет. Structured agent evidence з exact SHA, run IDs і hashes є допустимим fallback лише за тимчасової недоступності external connector; prose без evidence недостатній. Plan створюється лише для справжнього multi-step roadmap або роботи, яку потрібно переносити між сесіями; bounded task не створює plan автоматично. Implementation prompt посилається на current `AGENTS.md` і `docs/ai-workflow/` та повторює лише task-specific scope, invariants і validation.
+
+§43.15 `docs/ai-workflow/PROJECT_CHAT_RULES.md` — portable bootstrap prompt для Architect Project Instructions, а не повний handbook. Його hard limit — `7500` UTF-16 code units; detailed rules залишаються в `AGENTS.md` та інших `docs/ai-workflow/*.md`. Не дублювати canonical docs лише для self-contained prose.
+
+§43.16 Після кожної зміни `PROJECT_CHAT_RULES.md` Implementation Agent зобов'язаний запустити `scripts/Check-ProjectChatRules.ps1`; цей gate також є обов'язковим кроком normal CI.
