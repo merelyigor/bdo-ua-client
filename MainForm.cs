@@ -33,6 +33,18 @@ public partial class MainForm : Form
     private readonly SelfUpdatePreparationService _selfUpdatePreparation;
     private readonly UpdateLifecycleService _updateLifecycle;
 
+    private const string UninstallInstructions =
+        "BDO-UA Client — portable-застосунок. Він не встановлюється через Windows Installer і не має окремого деінсталятора у Windows." +
+        "\n\n" +
+        "Звичайне видалення:\n" +
+        "1. Якщо увімкнено автозапуск, вимкніть його в меню трея «Запускати разом із Windows».\n" +
+        "2. Повністю завершіть клієнт: відкрийте меню трея та виберіть «Вихід». Натискання X лише ховає клієнт у трей.\n" +
+        "3. Видаліть файл BDO-UA-Client.exe." +
+        "\n\n" +
+        "Повне очищення даних (необов’язково): після завершення клієнта можна видалити папку %LocalAppData%\\BDO-UA-Client. У ній можуть зберігатися конфігурація, логи, стан встановлення, тимчасові cache-файли, резервні копії та дані сесій оновлення. Видаляйте цю папку лише якщо хочете втратити ці дані." +
+        "\n\n" +
+        "Важливо: видалення клієнта або його даних не відновлює і не видаляє локалізацію у Black Desert Online. Якщо потрібно повернути оригінальну локалізацію гри, спочатку використайте в клієнті дію «Відновити оригінал», а вже потім завершіть і видаліть клієнт.";
+
     private string? _gameRoot;
     private ReleasesResponse? _apiResponse;
     private bool _apiLoadedSuccessfully;
@@ -126,6 +138,7 @@ public partial class MainForm : Form
         cancelButton.Click += CancelButton_Click;
         updateButton.Click += UpdateButton_Click;
         logsButton.Click += LogsButton_Click;
+        uninstallHelpLink.LinkClicked += UninstallHelpLink_LinkClicked;
         modesFlowPanel.Resize += ModesFlowPanel_Resize;
         this.FormClosing += MainForm_FormClosing;
     }
@@ -256,6 +269,16 @@ public partial class MainForm : Form
 
 
     // --- Logs button ---
+
+    private void UninstallHelpLink_LinkClicked(object? sender, LinkLabelLinkClickedEventArgs e)
+    {
+        MessageBox.Show(
+            this,
+            UninstallInstructions,
+            "Як видалити BDO-UA Client?",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
+    }
 
     private void LogsButton_Click(object? sender, EventArgs e)
     {

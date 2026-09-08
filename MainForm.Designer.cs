@@ -13,6 +13,7 @@ partial class MainForm
     private FlowLayoutPanel rightUtilityPanel = null!;
     private Button updateButton = null!;
     private Label versionLabel = null!;
+    private LinkLabel uninstallHelpLink = null!;
     private Button logsButton = null!;
     private ToolTip logsToolTip = null!;
 
@@ -66,11 +67,22 @@ partial class MainForm
         rightUtilityPanel = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Anchor = AnchorStyles.Top | AnchorStyles.Right, Margin = new Padding(0, 4, 0, 0), BackColor = Color.Transparent };
         updateButton = new Button { Text = "Оновити до vX.Y.Z", AutoSize = true, Visible = false, Margin = new Padding(0, 0, 10, 0) };
         versionLabel = new Label { AutoSize = true, Font = new Font("Segoe UI", 8.5F), ForeColor = UiTheme.SecondaryText, Margin = new Padding(0, 8, 10, 0) };
+        uninstallHelpLink = new LinkLabel
+        {
+            Text = "Як видалити клієнт?",
+            AutoSize = true,
+            LinkColor = UiTheme.SecondaryText,
+            ActiveLinkColor = UiTheme.PrimaryText,
+            VisitedLinkColor = UiTheme.SecondaryText,
+            LinkBehavior = LinkBehavior.HoverUnderline,
+            AccessibleName = "Як видалити клієнт?",
+            Margin = new Padding(0, 8, 10, 0)
+        };
         logsButton = new Button { Text = "", AutoSize = false, Size = new Size(32, 32), FlatStyle = FlatStyle.Flat, AccessibleName = "Відкрити папку журналів", Image = BuildLogsIcon(), ImageAlign = ContentAlignment.MiddleCenter, Margin = new Padding(0) };
         logsButton.FlatAppearance.BorderSize = 0;
-        rightUtilityPanel.Controls.AddRange(new Control[] { updateButton, versionLabel, logsButton });
+        rightUtilityPanel.Controls.AddRange(new Control[] { updateButton, versionLabel, uninstallHelpLink, logsButton });
         headerLayout.Controls.Add(headerTitleLabel, 0, 0); headerLayout.Controls.Add(headerSubtitleLabel, 0, 1); headerLayout.Controls.Add(headerAccentLine, 0, 2); headerLayout.Controls.Add(rightUtilityPanel, 1, 0); headerLayout.SetRowSpan(rightUtilityPanel, 3); headerPanel.Controls.Add(headerLayout);
-        components = new System.ComponentModel.Container(); logsToolTip = new ToolTip(components); logsToolTip.SetToolTip(logsButton, "Відкрити папку журналів");
+        components = new System.ComponentModel.Container(); logsToolTip = new ToolTip(components); logsToolTip.SetToolTip(logsButton, "Відкрити папку журналів"); logsToolTip.SetToolTip(uninstallHelpLink, "Клієнт портативний. Для видалення повністю вийдіть із програми та видаліть EXE.");
 
         gameGroupBox = new BdoSurfacePanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(20), Margin = new Padding(0, 0, 0, 24), SurfaceColor = UiTheme.SurfaceElevated };
         gameSectionCaptionLabel = CreateSectionCaption("BLACK DESERT");

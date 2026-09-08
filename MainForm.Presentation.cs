@@ -33,6 +33,9 @@ public partial class MainForm
         gamePathLabel.ForeColor = UiTheme.SecondaryText;
         progressLabel.ForeColor = UiTheme.SecondaryText;
         versionLabel.ForeColor = UiTheme.SecondaryText;
+        uninstallHelpLink.LinkColor = UiTheme.SecondaryText;
+        uninstallHelpLink.ActiveLinkColor = UiTheme.PrimaryText;
+        uninstallHelpLink.VisitedLinkColor = UiTheme.SecondaryText;
 
         UiTheme.StyleSecondaryButton(detectGameButton);
         UiTheme.StyleSecondaryButton(browseGameButton);
