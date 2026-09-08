@@ -8,7 +8,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 Стабільний реліз: **v1.2.2**. Публічний stable release опубліковано з tag `v1.2.2`; canonical application bundle містить один ZIP-asset. Усі approved implementation plans завершено, прийнято та заархівовано; наразі немає ACTIVE implementation plan або PRIMARY.
 
-Поточна наступна дія: `External Architect review v15.43 release workflow correction, then prepare v1.2.3 Release Candidate`.
+Поточна наступна дія: `Owner native UI smoke of exact v1.2.3 Release Candidate, then final tag/publication after approval`.
 
 ## Architecture Summary
 
@@ -41,7 +41,8 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - Exact v1.2.2 facts: release ID `383636389`, RC #29 / run `34038984319`, one public asset `BDO-UA-Client-v1.2.2-win-x64.zip`; outer SHA-256 `329c31987955dbb2139a061ea09bbad0e89fa403cf731343d124b917e68f120c`. Власник успішно виконав built-in update до `v1.2.2`; застосунок після оновлення працює. Hidden periodic notification не спостерігалася окремо в production smoke.
 - v15.41 — **REVIEWED / ACCEPTED**: bounded test-only MainForm lifecycle integration coverage додано без production changes; testability gate пройдено через dedicated STA/message-loop fixture.
 - v15.42 — **REVIEWED / ACCEPTED**: додано README та MainForm informational guidance для видалення portable-клієнта без self-uninstall механізму; localization, autostart і storage behavior не змінювалися.
-- v15.43 — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**: Release Candidate workflow більше не створює фінальний tag; Owner native UI smoke є наступним gate перед tag/publication.
+- v15.43 — **REVIEWED / ACCEPTED**: Release Candidate workflow більше не створює фінальний tag; Owner native UI smoke є наступним gate перед tag/publication.
+- v1.2.3 — **RELEASE CANDIDATE PREPARATION IN PROGRESS**: structured release notes підготовлено, final tag/publication очікують Owner native UI smoke exact RC.
 
 ## Validation / Release Facts
 
@@ -76,4 +77,4 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 - v15.41 is a bounded reliability task, not a new roadmap or PRIMARY plan.
 - Scope is limited to test-only MainForm lifecycle composition coverage and documentation synchronization.
-- Next action: `External Architect review v15.43 release workflow correction, then prepare v1.2.3 Release Candidate`.
+- Next action: `Owner native UI smoke of exact v1.2.3 Release Candidate, then final tag/publication after approval`.
