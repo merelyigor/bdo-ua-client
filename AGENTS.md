@@ -474,6 +474,8 @@ BDO-UA-Client/
 
 §26.4 Для meaningful UI/visual implementation tasks, де потрібне owner visual approval, automated build/tests недостатні для handoff: перед ручним review агент зобов'язаний створити local runnable preview build. Preview не замінює build/tests або CI; GitHub Actions artifacts не є обов'язковою залежністю для локальної visual inspection, якщо можливий local publish. Preview artifacts є тимчасовим локальним output і ніколи не commit-яться.
 
+§26.5 Якщо локальний GitHub CLI (`gh`) автентифікований, Implementation Agent може використовувати його для дозволених task-ом операцій із цим repository та GitHub Actions. Перед операцією перевірити `gh auth status`, repository/remote і exact ref/SHA; токени, credentials і повні auth-виводи не друкувати, не зберігати в repository та не включати у звіти. Якщо task не дозволяє мутацію — використовувати лише read-only GitHub/API/CI перевірки.
+
 ---
 
 ## §27 🧪 Тести

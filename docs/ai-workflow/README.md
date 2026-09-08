@@ -45,6 +45,10 @@ Release lifecycle: `RC READY → OWNER SMOKE ACCEPTED → RELEASED → PUBLIC VE
 
 Evidence policy: actual repository/diff/CI/test/artifact evidence має пріоритет; structured agent evidence з exact SHA/run IDs/hashes допустимий fallback при тимчасово недоступному external connector. Простого prose «все працює» недостатньо.
 
+## Local GitHub access
+
+Якщо `gh` локально автентифікований, Implementation Agent може використовувати GitHub CLI для дозволених task-ом операцій із цим repository та GitHub Actions. Перед кожною операцією перевіряються `gh auth status`, target repository/remote і exact ref/SHA. Токени та credentials не виводяться, не зберігаються в repository і не потрапляють у handoff; read-only task не виконує мутацій.
+
 ## Session bootstrap
 
 Нова інженерна сесія відновлює контекст у такому порядку:
