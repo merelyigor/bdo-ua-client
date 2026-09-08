@@ -32,9 +32,9 @@ public partial class MainForm
                 return;
             }
 
-            if (!_apiLoadedSuccessfully)
+            if (_releaseFeedSource != ReleaseFeedSource.Live)
             {
-                finalMessage = $"Помилка завантаження API: {_apiErrorMessage}";
+                finalMessage = "Встановлення та оновлення стануть доступні після відновлення з'єднання.";
                 return;
             }
 
@@ -211,9 +211,9 @@ public partial class MainForm
                 return;
             }
 
-            if (!_apiLoadedSuccessfully || _apiResponse?.Data == null)
+            if (_releaseFeedSource != ReleaseFeedSource.Live || _apiResponse?.Data == null)
             {
-                finalMessage = "Дані API недоступні для відновлення оригіналу.";
+                finalMessage = "Відновлення оригіналу стане доступним після відновлення з'єднання.";
                 return;
             }
 

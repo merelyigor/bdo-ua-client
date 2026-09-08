@@ -23,7 +23,8 @@ internal static class ModeCardPresentationPolicy
         LocalizationMode mode,
         CompatibilityResult compatibility,
         bool operationInProgress,
-        bool activeTarget)
+        bool activeTarget,
+        bool allowWriteActions = true)
     {
         var current = mode.Current;
         if (current == null)
@@ -33,7 +34,8 @@ internal static class ModeCardPresentationPolicy
         var sameMode = !string.IsNullOrWhiteSpace(installedModeSlug)
             && string.Equals(installedModeSlug, mode.Slug, StringComparison.Ordinal);
         var policy = InstallActionPolicy.Evaluate(
-            factualState, installedModeSlug, installedPublicId, mode, current, compatibility, operationInProgress);
+            factualState, installedModeSlug, installedPublicId, mode, current,
+            compatibility, operationInProgress, allowWriteActions);
 
         if (operationInProgress)
         {

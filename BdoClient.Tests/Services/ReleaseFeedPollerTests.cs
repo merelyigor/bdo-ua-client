@@ -36,6 +36,27 @@ public class ReleaseFeedPollerTests
     }
 
     [Fact]
+    public async Task SuccessfulPoll_RaisesSuccessEvenWhenFeedIsUnchanged()
+    {
+        var feed = CreateFeed(modeA: "id1");
+        var handler = new StubHttpHandler(feed);
+        var httpClient = new HttpClient(handler);
+        var logger = new RecordingLogger();
+        var apiClient = new BdoUaApiClient(httpClient, logger);
+        var poller = new ReleaseFeedPoller(apiClient, logger, TimeSpan.FromMilliseconds(100));
+        var successCount = 0;
+        poller.OnFeedSuccess += _ => Interlocked.Increment(ref successCount);
+
+        poller.Start(feed);
+        await Task.Delay(350);
+        poller.Stop();
+        await Task.Delay(100);
+
+        Assert.True(successCount > 0);
+        poller.Dispose();
+    }
+
+    [Fact]
     public async Task NewModeAdded_NotifiesWithNewFeed()
     {
         var oldFeed = CreateFeed(modeA: "id1");

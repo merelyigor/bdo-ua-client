@@ -1,4 +1,5 @@
 using BdoClient.Api;
+using BdoClient.Models;
 using BdoClient.Services;
 using BdoClient.Storage;
 using BdoClient.Update;
@@ -60,6 +61,8 @@ public partial class MainForm
                     {
                         _apiResponse = apiResult.Response;
                         _apiLoadedSuccessfully = true;
+                        _releaseFeedSource = ReleaseFeedSource.Live;
+                        _cachedFeedSavedAtUtc = null;
                         _apiErrorMessage = null;
                         _apiErrorKind = ApiErrorKind.None;
                         BuildDynamicModes();
@@ -87,6 +90,15 @@ public partial class MainForm
             else
             {
                 SetGameNotFound("Гру не знайдено");
+            }
+
+            if (result.ApiSuccess && result.ApiResponse != null)
+            {
+                await PersistLiveFeedAsync(result.ApiResponse);
+            }
+            else
+            {
+                TryApplyCachedFeed();
             }
 
             await RefreshStateAsync();
@@ -125,5 +137,46 @@ public partial class MainForm
         {
             _logger.Warning($"Startup lifecycle maintenance failed: {ex.Message}");
         }
+    }
+
+    private void TryApplyCachedFeed()
+    {
+        var cacheLoad = _releaseFeedCacheStore.Load();
+        string? validationError = cacheLoad.Error;
+        ReleasesResponse? cachedFeed = null;
+        if (cacheLoad.Status == FileLoadStatus.Valid && cacheLoad.Value != null
+            && !ReleaseFeedCacheMapper.TryToLiveFeed(
+                cacheLoad.Value, out cachedFeed, out validationError))
+        {
+            cachedFeed = null;
+        }
+
+        if (cachedFeed == null)
+        {
+            if (validationError != null)
+                _logger.Warning($"Release feed cache unavailable: {validationError}");
+            return;
+        }
+
+        var snapshot = cacheLoad.Value;
+        if (snapshot == null)
+            return;
+
+        _apiResponse = cachedFeed;
+        _apiLoadedSuccessfully = true;
+        _releaseFeedSource = ReleaseFeedSource.Cached;
+        _cachedFeedSavedAtUtc = snapshot.SavedAtUtc;
+        _apiErrorMessage = null;
+        _apiErrorKind = ApiErrorKind.None;
+        BuildDynamicModes();
+        var config = _configStore.Load().Value ?? new Config();
+        RestoreInitialMode(config);
+        _logger.Info($"Using cached release feed saved at {_cachedFeedSavedAtUtc:O}.");
+    }
+
+    private async Task PersistLiveFeedAsync(ReleasesResponse feed)
+    {
+        if (!await _releaseFeedCacheStore.SaveAsync(feed))
+            _logger.Warning("Live release feed was accepted, but cache persistence failed.");
     }
 }

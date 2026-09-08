@@ -408,6 +408,41 @@ public partial class MainForm
         }
     }
 
+    private async void OnReleaseFeedSuccess(ReleasesResponse feed)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(() => OnReleaseFeedSuccess(feed));
+            return;
+        }
+
+        try
+        {
+            if (_closing)
+                return;
+
+            // A cached feed becomes authoritative only after a successful live
+            // response has been accepted. Unchanged responses need no UI rebuild.
+            if (_releaseFeedSource == ReleaseFeedSource.Cached
+                && !FeedChangeDetector.HasSemanticChange(_apiResponse, feed))
+            {
+                _apiResponse = feed;
+                _apiLoadedSuccessfully = true;
+                _releaseFeedSource = ReleaseFeedSource.Live;
+                _cachedFeedSavedAtUtc = null;
+                _apiErrorMessage = null;
+                _apiErrorKind = ApiErrorKind.None;
+                _poller.AcceptFeed(feed);
+                await PersistLiveFeedAsync(feed);
+                await RefreshStateAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Live feed success handler error: {ex.Message}");
+        }
+    }
+
     private async Task<bool> ApplyFeedPipelineAsync(ReleasesResponse candidate)
     {
         if (_closing) return false;
@@ -431,6 +466,10 @@ public partial class MainForm
         }
 
         await RefreshStateAsync();
+        _releaseFeedSource = ReleaseFeedSource.Live;
+        _cachedFeedSavedAtUtc = null;
+        await RefreshStateAsync();
+        await PersistLiveFeedAsync(candidate);
         return true;
     }
 
@@ -464,6 +503,8 @@ public partial class MainForm
             ClearLocalFileTracking();
             if (!_apiLoadedSuccessfully)
                 SetMessage(ApiErrorPresentation.GetUserMessage(_apiErrorKind, _apiErrorMessage));
+            else if (_releaseFeedSource == ReleaseFeedSource.Cached)
+                SetMessage(BuildCachedFeedMessage());
             else
                 SetMessage("Гру не знайдено. Натисніть \"Знайти автоматично\" або оберіть папку.");
             ScheduleContentFit();
@@ -546,16 +587,30 @@ public partial class MainForm
 
         // Ordinary card states explain themselves. The compact strip is reserved for
         // operations and important diagnostics that require global attention.
-        SetMessage(IsCriticalHeadlineState(stateResult) || !compatResult.IsAllowed
-            ? diagnostic ?? ""
-            : "");
+        if (_releaseFeedSource == ReleaseFeedSource.Cached)
+        {
+            var cachedMessage = BuildCachedFeedMessage();
+            if (!string.IsNullOrWhiteSpace(diagnostic)
+                && (IsCriticalHeadlineState(stateResult) || !compatResult.IsAllowed))
+            {
+                cachedMessage += $"{Environment.NewLine}{Environment.NewLine}{diagnostic}";
+            }
+
+            SetMessage(cachedMessage);
+        }
+        else
+        {
+            SetMessage(IsCriticalHeadlineState(stateResult) || !compatResult.IsAllowed
+                ? diagnostic ?? ""
+                : "");
+        }
 
         // Action availability
         var actionPolicy = InstallActionPolicy.Evaluate(
             stateResult.State, installedModeSlug, installedPublicId,
             selectedMode, selectedCurrent, compatResult, _operationInProgress);
 
-        SetActionsEnabled(actionPolicy.CanRestoreOriginal);
+        SetActionsEnabled(actionPolicy.CanRestoreOriginal && _releaseFeedSource == ReleaseFeedSource.Live);
         ApplyModeCardPresentations(stateResult.State, installedModeSlug, installedPublicId);
         ScheduleContentFit();
 
@@ -568,5 +623,13 @@ public partial class MainForm
 
         StartLocalFileMonitorIfEligible();
         ObserveLocalizationNotification(stateResult.State);
+    }
+
+    private string BuildCachedFeedMessage()
+    {
+        var savedAt = _cachedFeedSavedAtUtc?.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+            ?? "невідомої дати";
+        return $"Сервер недоступний. Показано останні збережені дані від {savedAt}."
+            + $"{Environment.NewLine}{Environment.NewLine}Встановлення та оновлення стануть доступні після відновлення з'єднання.";
     }
 }

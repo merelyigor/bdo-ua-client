@@ -47,6 +47,22 @@ public sealed class MainFormLifecycleIntegrationTests
     }
 
     [Fact]
+    public async Task Startup_ApiFailureWithValidCache_ShowsCachedFeedAndDisablesWrites()
+    {
+        var handler = MainFormTestFixture.CreateFailureApiHandler(HttpStatusCode.ServiceUnavailable);
+        using var fixture = await MainFormTestFixture.StartAsync(handler, seedReleaseFeedCache: true);
+
+        var startup = await fixture.WaitForStartupAsync();
+        var card = MainFormTestFixture.FindFirstModeCard(startup.Form);
+
+        Assert.True(startup.Form.IsHandleCreated);
+        Assert.Contains("Сервер недоступний.", startup.Message);
+        Assert.Contains("збережені дані", startup.Message);
+        Assert.NotNull(card);
+        Assert.False(card!.Controls.OfType<Button>().Single().Enabled);
+    }
+
+    [Fact]
     public async Task SecondaryActivationRestoresExistingBackgroundForm()
     {
         using var fixture = await MainFormTestFixture.StartAsync(
@@ -104,13 +120,22 @@ internal sealed class MainFormTestFixture : IDisposable
     private MainFormTestFixture(
         MainFormTestHttpHandler bdoHandler,
         bool startInBackground,
-        bool exitWhenShown)
+        bool exitWhenShown,
+        bool seedReleaseFeedCache)
     {
         _bdoHandler = bdoHandler;
         _githubHandler = CreateSuccessfulGitHubHandler();
         _root = Path.Combine(Path.GetTempPath(), "bdo-ua-mainform-tests", Guid.NewGuid().ToString("N"));
         _appPaths = new AppPaths(Path.Combine(_root, "appdata"));
         _appPaths.EnsureDirectories();
+
+        if (seedReleaseFeedCache)
+        {
+            var cacheStore = new ReleaseFeedCacheStore(_appPaths, new TestLogger());
+            cacheStore.SaveAsync(CreateCachedFeed(),
+                new DateTimeOffset(2026, 9, 8, 12, 0, 0, TimeSpan.Zero))
+                .GetAwaiter().GetResult();
+        }
 
         GameRoot = Path.Combine(_root, "fake-game");
         Directory.CreateDirectory(Path.Combine(GameRoot, "ads"));
@@ -145,9 +170,11 @@ internal sealed class MainFormTestFixture : IDisposable
     internal static async Task<MainFormTestFixture> StartAsync(
         MainFormTestHttpHandler bdoHandler,
         bool startInBackground = false,
-        bool exitWhenShown = false)
+        bool exitWhenShown = false,
+        bool seedReleaseFeedCache = false)
     {
-        var fixture = new MainFormTestFixture(bdoHandler, startInBackground, exitWhenShown);
+        var fixture = new MainFormTestFixture(
+            bdoHandler, startInBackground, exitWhenShown, seedReleaseFeedCache);
         fixture._uiThread.Start();
 
         try
@@ -174,6 +201,34 @@ internal sealed class MainFormTestFixture : IDisposable
     internal static MainFormTestHttpHandler CreatePendingApiHandler()
         => new(HttpStatusCode.OK, "{\"success\":true,\"data\":{\"modes\":[]}}", waitForRelease: true);
 
+    private static ReleasesResponse CreateCachedFeed() => new()
+    {
+        Success = true,
+        Data = new ReleaseData
+        {
+            OfficialPatch = 100,
+            Modes = new List<LocalizationMode>
+            {
+                new()
+                {
+                    Slug = "full-ukrainian",
+                    PublicName = "Повна українська",
+                    Description = "Cached mode",
+                    Current = new CurrentRelease
+                    {
+                        PublicId = "01CACHED",
+                        Version = 1,
+                        Patch = 100,
+                        DownloadUrl = "https://example.com/cached.loc",
+                        SizeBytes = 1024,
+                        Sha256 = new string('b', 64),
+                        CompatibleWithOfficialPatch = true
+                    }
+                }
+            }
+        }
+    };
+
     internal async Task<StartupSnapshot> WaitForStartupAsync()
     {
         await _githubHandler.RequestStarted.WaitAsync(Timeout);
@@ -183,15 +238,17 @@ internal sealed class MainFormTestFixture : IDisposable
             var gameStatus = FindControlText(form, text => text == "✓ Гру знайдено");
             var gamePath = FindControlText(form, text => text == GameRoot);
             var degraded = FindControlText(form, text => text == "Сервер повернув помилку.");
+            var cached = FindControlText(form, text => text.StartsWith("Сервер недоступний.", StringComparison.Ordinal));
 
             var success = gameStatus != null && gamePath != null;
-            var failure = success && _bdoHandler.StatusCode != HttpStatusCode.OK && degraded != null;
+            var failure = success && _bdoHandler.StatusCode != HttpStatusCode.OK
+                && (degraded != null || cached != null);
             return success && (_bdoHandler.StatusCode == HttpStatusCode.OK || failure)
                 ? new StartupSnapshot(
                     form,
                     gameStatus,
                     gamePath,
-                    degraded,
+                    cached ?? degraded,
                     _bdoHandler.RequestCount,
                     _githubHandler.RequestCount)
                 : null;
@@ -395,6 +452,21 @@ internal sealed class MainFormTestFixture : IDisposable
                 return child.Text;
 
             var nested = FindControlText(child, predicate);
+            if (nested != null)
+                return nested;
+        }
+
+        return null;
+    }
+
+    internal static LocalizationModeCard? FindFirstModeCard(Control root)
+    {
+        foreach (Control child in root.Controls)
+        {
+            if (child is LocalizationModeCard card)
+                return card;
+
+            var nested = FindFirstModeCard(child);
             if (nested != null)
                 return nested;
         }

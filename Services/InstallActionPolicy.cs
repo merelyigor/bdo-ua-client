@@ -37,7 +37,8 @@ internal static class InstallActionPolicy
         LocalizationMode? selectedMode,
         CurrentRelease? selectedCurrent,
         CompatibilityResult compatResult,
-        bool operationInProgress)
+        bool operationInProgress,
+        bool allowWriteActions = true)
     {
         bool alreadyInstalled = false;
         if (factualState == LocalizationState.UpToDate
@@ -53,12 +54,14 @@ internal static class InstallActionPolicy
         bool structurallyValid = selectedCurrent != null
             && DynamicModePolicy.IsStructurallyInstallable(selectedMode!);
 
-        var canInstall = !operationInProgress
+        var canInstall = allowWriteActions
+            && !operationInProgress
             && structurallyValid
             && compatResult.IsAllowed
             && !alreadyInstalled;
 
-        var canRestoreOriginal = !operationInProgress
+        var canRestoreOriginal = allowWriteActions
+            && !operationInProgress
             && factualState is LocalizationState.UpToDate
                 or LocalizationState.UpdateAvailable
                 or LocalizationState.WaitingForRelease

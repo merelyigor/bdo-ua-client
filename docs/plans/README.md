@@ -2,15 +2,15 @@
 
 ## Current focus
 
-**Primary:** none
-**Current phase:** no ACTIVE implementation plan
-**Next:** await explicit owner decision for the next roadmap/task
+**Primary:** offline-degraded-reliability
+**Current phase:** implementation complete / validation pending external review
+**Next:** external Architect review of offline/degraded release-feed mode
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-Немає ACTIVE планів.
+| PRIMARY | offline-degraded-reliability | [active/offline-degraded-reliability.md](active/offline-degraded-reliability.md) | implementation complete / validation pending external review | external Architect review of offline/degraded release-feed mode |
 
 ## Backlog
 

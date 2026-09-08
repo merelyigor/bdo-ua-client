@@ -264,7 +264,8 @@ public partial class MainForm
             card.ApplyPresentation(ModeCardPresentationPolicy.Create(
                 factualState, installedModeSlug, installedPublicId, card.Mode, compatibility,
                 _operationInProgress,
-                _operationInProgress && string.Equals(selectedSlug, card.ModeSlug, StringComparison.Ordinal)));
+                _operationInProgress && string.Equals(selectedSlug, card.ModeSlug, StringComparison.Ordinal),
+                allowWriteActions: _releaseFeedSource == ReleaseFeedSource.Live));
         }
         RefreshModeCardLayout();
     }

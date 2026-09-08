@@ -102,6 +102,10 @@
 
 ## Тестові патерни
 
+Storage/ReleaseFeedCacheStoreTests.cs покриває normalized cache roundtrip, UTC timestamp,
+empty feed, corruption/schema/identity rejection, atomic-preserve behavior та відсутність
+history/install_path_patterns у persisted snapshot.
+
 ### Temp directories
 
 Тести створюють тимчасові директорії через `Path.GetTempPath()` + унікальний суфікс. Кожен тест прибирає за собою в `Dispose()`.

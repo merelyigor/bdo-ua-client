@@ -32,6 +32,7 @@ public partial class MainForm : Form
     private readonly UpdateSessionStore _updateSessionStore;
     private readonly SelfUpdatePreparationService _selfUpdatePreparation;
     private readonly UpdateLifecycleService _updateLifecycle;
+    private readonly ReleaseFeedCacheStore _releaseFeedCacheStore;
 
     private const string UninstallInstructions =
         "BDO-UA Client — portable-застосунок. Він не встановлюється через Windows Installer і не має окремого деінсталятора у Windows." +
@@ -48,6 +49,8 @@ public partial class MainForm : Form
     private string? _gameRoot;
     private ReleasesResponse? _apiResponse;
     private bool _apiLoadedSuccessfully;
+    private ReleaseFeedSource _releaseFeedSource = ReleaseFeedSource.Unavailable;
+    private DateTimeOffset? _cachedFeedSavedAtUtc;
     private string? _apiErrorMessage;
     private ApiErrorKind _apiErrorKind;
     private bool _initializing;
@@ -103,6 +106,7 @@ public partial class MainForm : Form
         _gitHubClient = gitHubClient;
         _selectionPolicy = selectionPolicy;
         _appPaths = appPaths;
+        _releaseFeedCacheStore = new ReleaseFeedCacheStore(appPaths, logger);
         _autostartService = autostartService;
         _startInBackground = startInBackground;
         _singleInstanceCoordinator = singleInstanceCoordinator;
@@ -116,6 +120,7 @@ public partial class MainForm : Form
         _poller = new ReleaseFeedPoller(_apiClient, _logger);
         _feedCoordinator = new FeedApplicationCoordinator(ApplyFeedPipelineAsync, _poller, _logger);
         _poller.OnFeedCandidate += OnReleaseFeedCandidate;
+        _poller.OnFeedSuccess += OnReleaseFeedSuccess;
 
         InitializeComponent();
         InitializeTray();

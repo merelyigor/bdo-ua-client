@@ -35,6 +35,7 @@ public sealed class ReleaseFeedPoller : IDisposable
     private volatile ReleasesResponse? _acceptedFeed;
 
     public event Action<ReleasesResponse>? OnFeedCandidate;
+    public event Action<ReleasesResponse>? OnFeedSuccess;
     public event Action<string>? OnPollFailed;
 
     public ReleaseFeedPoller(
@@ -297,6 +298,7 @@ public sealed class ReleaseFeedPoller : IDisposable
         if (result.IsSuccess && result.Value?.Data?.Modes != null)
         {
             var candidate = result.Value;
+            OnFeedSuccess?.Invoke(candidate);
             var changed = FeedChangeDetector.HasSemanticChange(_acceptedFeed, candidate);
 
             if (changed)

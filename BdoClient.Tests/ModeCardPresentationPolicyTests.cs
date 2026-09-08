@@ -127,6 +127,18 @@ public sealed class ModeCardPresentationPolicyTests
         Assert.False(presentation.ActionEnabled);
     }
 
+    [Fact]
+    public void CachedFeed_ShowsActionButKeepsItDisabled()
+    {
+        var presentation = ModeCardPresentationPolicy.Create(
+            LocalizationState.NotInstalled, null, null, Mode("full", "A"),
+            CompatibilityResult.Allowed(), operationInProgress: false,
+            activeTarget: false, allowWriteActions: false);
+
+        Assert.Equal("Встановити", presentation.ActionText);
+        Assert.False(presentation.ActionEnabled);
+    }
+
     private static ModeCardPresentation Create(LocalizationState state, string? installedSlug, string? installedId, LocalizationMode mode, CompatibilityResult? compatibility = null, bool operation = false, bool activeTarget = false) =>
         ModeCardPresentationPolicy.Create(state, installedSlug, installedId, mode, compatibility ?? CompatibilityResult.Allowed(), operation, activeTarget);
 

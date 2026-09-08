@@ -92,6 +92,7 @@ BDO-PROGRAM/
 │   ├── AppPaths.cs             — Шляхи до %LocalAppData%\BDO-UA-Client\ (config, state, logs, cache, backups)
 │   ├── ConfigStore.cs          — Зчитування/збереження config.json
 │   ├── Config.cs               — Модель конфігурації (game_path тощо)
+│   ├── ReleaseFeedCache.cs     — Нормалізований last-known release feed, schema-v1, atomic best-effort cache
 │   ├── InstallationStateStore.cs — Зчитування/збереження state/installation.json
 │   ├── InstallationMetadata.cs — Метадані встановленої локалізації (public_id, version, sha256)
 │   ├── BackupStore.cs          — Управління бекапами (original snapshot + restore points)
@@ -161,6 +162,7 @@ MainForm
 ├── LocalizationInstaller ───── HttpClient, AppPaths, ILogger
 ├── BackupStore ─────────────── AppPaths, ILogger
 ├── InstallationStateStore ──── AppPaths, ILogger
+├── ReleaseFeedCacheStore ───── AppPaths, ILogger
 ├── GitHubUpdateClient ──────── GitHub HttpClient, ILogger
 ├── UpdateLifecycleService ──── GitHubUpdateClient, SelectionPolicy, PreparationService, ...
 └── ILogger (FileLogger)
@@ -183,7 +185,9 @@ FileLogger ── AppPaths.LogsDir
 │                                    (public_id, version, sha256, installed_at, mode_slug, source)
 ├── logs/
 │   └── bdo-client-YYYY-MM-DD.log — щоденні логи з ротацією
-├── cache/                         — тимчасові завантажені файли (.tmp/.download)
+├── cache/
+│   ├── release-feed.json          — нормалізований last-known feed, лише для cached read-only presentation
+│   └── *.tmp/*.download           — тимчасові завантажені файли
 └── backups/
     ├── original/                  — original snapshot (незмінна копія до першої модифікації)
     │   ├── languagedata_en.loc    — копія оригінального файлу
@@ -199,6 +203,8 @@ FileLogger ── AppPaths.LogsDir
 ```
 
 **Примітки:**
+- release-feed.json записується лише після валідного live API response, має schema version і UTC timestamp. У ньому немає history, install_path_patterns або transient diagnostics.
+- Cached feed використовується тільки для карток і локального read-only state resolution. Install/update/switch/restore original вимагають нового live API response; помилка кешу не робить live startup невдалим.
 - `config.json` зберігає шлях до гри, знайдений через auto-detection або ручний вибір.
 - `installation.json` оновлюється ТІЛЬКИ після успішного встановлення (post-verify).
 - `backups/original/` створюється один раз і ніколи не перезаписується.

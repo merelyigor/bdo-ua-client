@@ -113,6 +113,21 @@ public class InstallActionPolicyTests
     }
 
     [Fact]
+    public void CachedFeed_DisablesAllWriteActions()
+    {
+        var selectedMode = MakeMode("full-ukrainian", current: MakeCurrent());
+        var selectedCurrent = selectedMode.Current;
+
+        var policy = InstallActionPolicy.Evaluate(
+            LocalizationState.UpdateAvailable, "full-ukrainian", "01OLD",
+            selectedMode, selectedCurrent, CompatibilityResult.Allowed(), false,
+            allowWriteActions: false);
+
+        Assert.False(policy.CanInstall);
+        Assert.False(policy.CanRestoreOriginal);
+    }
+
+    [Fact]
     public void SelectedMalformed_CanInstallFalse()
     {
         var selectedMode = MakeMode("", current: MakeCurrent(publicId: ""));
