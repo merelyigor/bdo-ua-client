@@ -117,20 +117,25 @@ public partial class MainForm
 
     private void SetGameFound(string path, DetectionSource? source)
     {
-        var status = source == DetectionSource.Manual
-            ? "✓ Гру знайдено вручну"
-            : "✓ Гру знайдено";
-        var patch = AdsFilesPatchReader.TryReadPatch(path);
-        gameStatusLabel.Text = patch is > 0
-            ? $"{status} • patch {patch.Value}"
-            : status;
-        gameStatusLabel.ForeColor = UiTheme.Success;
+        var installedPatch = AdsFilesPatchReader.TryReadPatch(path);
+        int? latestKnownPatch = _apiResponse?.Data?.OfficialPatch > 0
+            ? _apiResponse.Data.OfficialPatch
+            : null;
+        var presentation = GamePatchPresentationPolicy.Create(
+            source, installedPatch, latestKnownPatch);
+
+        _gamePatchStatus = presentation.Status;
+        gameStatusLabel.Text = presentation.Text;
+        gameStatusLabel.ForeColor = presentation.Status == GamePatchStatus.Outdated
+            ? UiTheme.Accent
+            : UiTheme.Success;
         gamePathLabel.Text = path;
         detectGameButton.Text = "Перевірити";
     }
 
     private void SetGameNotFound(string reason)
     {
+        _gamePatchStatus = GamePatchStatus.Unknown;
         gameStatusLabel.Text = reason;
         gameStatusLabel.ForeColor = UiTheme.SecondaryText;
         gamePathLabel.Text = "";
@@ -139,6 +144,7 @@ public partial class MainForm
 
     private void SetGameSearching()
     {
+        _gamePatchStatus = GamePatchStatus.Unknown;
         gameStatusLabel.Text = "Пошук гри...";
         gameStatusLabel.ForeColor = UiTheme.SecondaryText;
         gamePathLabel.Text = "";
@@ -265,7 +271,8 @@ public partial class MainForm
                 factualState, installedModeSlug, installedPublicId, card.Mode, compatibility,
                 _operationInProgress,
                 _operationInProgress && string.Equals(selectedSlug, card.ModeSlug, StringComparison.Ordinal),
-                allowWriteActions: _releaseFeedSource == ReleaseFeedSource.Live));
+                allowWriteActions: _releaseFeedSource == ReleaseFeedSource.Live
+                    && _gamePatchStatus != GamePatchStatus.Outdated));
         }
         RefreshModeCardLayout();
     }

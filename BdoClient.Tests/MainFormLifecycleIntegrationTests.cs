@@ -63,6 +63,26 @@ public sealed class MainFormLifecycleIntegrationTests
     }
 
     [Fact]
+    public async Task Startup_OutdatedGame_ShowsWarningWithInstalledAndLatestPatches()
+    {
+        using var fixture = await MainFormTestFixture.StartAsync(
+            MainFormTestFixture.CreateSuccessfulApiHandler(401),
+            gamePatch: 399);
+
+        string? status = null;
+        await fixture.WaitForAsync(form =>
+        {
+            status = MainFormTestFixture.FindControlText(
+                form, text => text.StartsWith("⚠ Потрібно оновити гру", StringComparison.Ordinal));
+            return status != null;
+        });
+
+        Assert.Equal(
+            $"⚠ Потрібно оновити гру{Environment.NewLine}Встановлено: patch 399 • актуальний: patch 401",
+            status);
+    }
+
+    [Fact]
     public async Task SecondaryActivationRestoresExistingBackgroundForm()
     {
         using var fixture = await MainFormTestFixture.StartAsync(
@@ -121,7 +141,8 @@ internal sealed class MainFormTestFixture : IDisposable
         MainFormTestHttpHandler bdoHandler,
         bool startInBackground,
         bool exitWhenShown,
-        bool seedReleaseFeedCache)
+        bool seedReleaseFeedCache,
+        int? gamePatch)
     {
         _bdoHandler = bdoHandler;
         _githubHandler = CreateSuccessfulGitHubHandler();
@@ -140,6 +161,8 @@ internal sealed class MainFormTestFixture : IDisposable
         GameRoot = Path.Combine(_root, "fake-game");
         Directory.CreateDirectory(Path.Combine(GameRoot, "ads"));
         File.WriteAllBytes(GamePaths.GetLocalizationFilePath(GameRoot), Array.Empty<byte>());
+        if (gamePatch is > 0)
+            File.WriteAllText(Path.Combine(GameRoot, "ads_files"), $"languagedata_en.loc\t{gamePatch.Value}\n");
         File.WriteAllText(
             _appPaths.ConfigFile,
             JsonSerializer.Serialize(new Config { GamePath = GameRoot }));
@@ -171,10 +194,11 @@ internal sealed class MainFormTestFixture : IDisposable
         MainFormTestHttpHandler bdoHandler,
         bool startInBackground = false,
         bool exitWhenShown = false,
-        bool seedReleaseFeedCache = false)
+        bool seedReleaseFeedCache = false,
+        int? gamePatch = null)
     {
         var fixture = new MainFormTestFixture(
-            bdoHandler, startInBackground, exitWhenShown, seedReleaseFeedCache);
+            bdoHandler, startInBackground, exitWhenShown, seedReleaseFeedCache, gamePatch);
         fixture._uiThread.Start();
 
         try
@@ -189,8 +213,8 @@ internal sealed class MainFormTestFixture : IDisposable
         }
     }
 
-    internal static MainFormTestHttpHandler CreateSuccessfulApiHandler()
-        => new(HttpStatusCode.OK, "{\"success\":true,\"data\":{\"modes\":[]}}");
+    internal static MainFormTestHttpHandler CreateSuccessfulApiHandler(int officialPatch = 0)
+        => new(HttpStatusCode.OK, $"{{\"success\":true,\"data\":{{\"official_patch\":{officialPatch},\"modes\":[]}}}}");
 
     internal static MainFormTestHttpHandler CreateSuccessfulGitHubHandler()
         => new(HttpStatusCode.OK, "[]");
@@ -444,7 +468,7 @@ internal sealed class MainFormTestFixture : IDisposable
         form.BeginInvoke(action);
     }
 
-    private static string? FindControlText(Control root, Func<string, bool> predicate)
+    internal static string? FindControlText(Control root, Func<string, bool> predicate)
     {
         foreach (Control child in root.Controls)
         {

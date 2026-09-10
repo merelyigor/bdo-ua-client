@@ -47,6 +47,7 @@ public partial class MainForm : Form
         "Важливо: видалення клієнта або його даних не відновлює і не видаляє локалізацію у Black Desert Online. Якщо потрібно повернути оригінальну локалізацію гри, спочатку використайте в клієнті дію «Відновити оригінал», а вже потім завершіть і видаліть клієнт.";
 
     private string? _gameRoot;
+    private GamePatchStatus _gamePatchStatus = GamePatchStatus.Unknown;
     private ReleasesResponse? _apiResponse;
     private bool _apiLoadedSuccessfully;
     private ReleaseFeedSource _releaseFeedSource = ReleaseFeedSource.Unavailable;

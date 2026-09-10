@@ -610,7 +610,9 @@ public partial class MainForm
             stateResult.State, installedModeSlug, installedPublicId,
             selectedMode, selectedCurrent, compatResult, _operationInProgress);
 
-        SetActionsEnabled(actionPolicy.CanRestoreOriginal && _releaseFeedSource == ReleaseFeedSource.Live);
+        SetActionsEnabled(actionPolicy.CanRestoreOriginal
+            && _releaseFeedSource == ReleaseFeedSource.Live
+            && _gamePatchStatus != GamePatchStatus.Outdated);
         ApplyModeCardPresentations(stateResult.State, installedModeSlug, installedPublicId);
         ScheduleContentFit();
 
