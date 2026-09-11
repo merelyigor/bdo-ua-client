@@ -8,7 +8,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 Стабільний реліз: **v1.2.4**. Публічний stable release опубліковано з tag v1.2.4; canonical application bundle містить один ZIP-asset. Offline/degraded release-feed implementation завершено та прийнято зовнішнім Architect; ACTIVE implementation plan немає.
 
-Поточна наступна дія: `External Architect review v15.55 hotfix, then prepare Release Candidate v1.2.5`.
+Поточна наступна дія: `Release Candidate v1.2.5, then Owner native UI smoke of both hotfixes`.
 
 ## Architecture Summary
 
@@ -49,6 +49,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - v15.52 — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**: game-found status розділяє локальний та останній відомий patch; застаріла гра показується як warning, а localization write-actions блокуються до оновлення гри. API, storage schema та install/restore transaction behavior не змінювалися.
 - v1.2.4 — **PUBLISHED / VERIFIED**: public stable release ID `386705757` опубліковано на tag `v1.2.4`, який вказує на `e2694eb6d4288d7341d11b8bc187ce2a98b1e2de`; canonical ZIP і внутрішні hashes повторно перевірено. `NEXT.json` скинуто до порожнього schema-v1 джерела.
 - v15.55 — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**: tray restore та live feed application повторно перечитують локальний game patch і повністю перераховують залежні localization state/actions; додано fail-closed recovery для malformed `ads_files` та global minimum usable MainForm width для one-mode layout. Production API, storage schema і release workflow не змінювалися.
+- v1.2.5 — **RELEASE PREPARATION / RC PENDING**: structured `NEXT.json` містить лише user-facing notes для patch refresh після tray/live feed та minimum usable width при одному localization mode; stable public release залишається `v1.2.4`.
 - `offline-degraded-reliability` — **ARCHIVED**: roadmap завершено, reviewed / accepted; активного PRIMARY немає.
 - v1.2.3 — **PUBLISHED / VERIFIED**: tag `v1.2.3` і public Release ID `384894464` опубліковано на exact approved RC SHA `ec891ea7077dd70e2aafd0c2e00674f47c45a94a`; Owner native UI smoke exact RC passed.
 
@@ -91,4 +92,4 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - Offline/degraded release-feed mode is completed, reviewed and accepted; `offline-degraded-reliability` is archived.
 - No ACTIVE/PRIMARY roadmap remains.
 - v1.2.4 release cycle completed; public Release verified and `NEXT.json` reset for the next cycle.
-- Next action: `External Architect review v15.55 hotfix, then prepare Release Candidate v1.2.5`.
+- Next action: `Release Candidate v1.2.5, then Owner native UI smoke of both hotfixes`.
