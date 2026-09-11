@@ -6,9 +6,9 @@
 
 BDO-UA Client — Windows .NET 8 WinForms застосунок для пошуку Black Desert Online, отримання українських локалізацій через `bdo-ua.com.ua`, безпечного встановлення, оновлення та відновлення файлів гри.
 
-Стабільний реліз: **v1.2.3**. Публічний stable release опубліковано з tag v1.2.3; canonical application bundle містить один ZIP-asset. Offline/degraded release-feed implementation завершено та прийнято зовнішнім Architect; ACTIVE implementation plan немає.
+Стабільний реліз: **v1.2.4**. Публічний stable release опубліковано з tag v1.2.4; canonical application bundle містить один ZIP-asset. Offline/degraded release-feed implementation завершено та прийнято зовнішнім Architect; ACTIVE implementation plan немає.
 
-Поточна наступна дія: `Release Candidate v1.2.4, then Owner validation and final publication`.
+Поточна наступна дія: `External Architect final release review, then WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`.
 
 ## Architecture Summary
 
@@ -47,7 +47,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - v15.49 — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**: portable Architect bootstrap скорочено до 3505 UTF-16 code units, додано hard limit gate `7500` і його normal CI перевірку; production та release behavior не змінювалися.
 - v15.51 — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**: repository rules зафіксували дозволене використання локально автентифікованого GitHub CLI для task-authorized repository/CI operations із перевіркою target SHA та без persistence credentials.
 - v15.52 — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**: game-found status розділяє локальний та останній відомий patch; застаріла гра показується як warning, а localization write-actions блокуються до оновлення гри. API, storage schema та install/restore transaction behavior не змінювалися.
-- v1.2.4 — **RELEASE PREPARATION**: patch compatibility UX fix підготовлено до Release Candidate; structured `NEXT.json` містить лише user-facing опис виправлення. Фінальні tag і GitHub Release ще не створені.
+- v1.2.4 — **PUBLISHED / VERIFIED**: public stable release ID `386705757` опубліковано на tag `v1.2.4`, який вказує на `e2694eb6d4288d7341d11b8bc187ce2a98b1e2de`; canonical ZIP і внутрішні hashes повторно перевірено. `NEXT.json` скинуто до порожнього schema-v1 джерела.
 - `offline-degraded-reliability` — **ARCHIVED**: roadmap завершено, reviewed / accepted; активного PRIMARY немає.
 - v1.2.3 — **PUBLISHED / VERIFIED**: tag `v1.2.3` і public Release ID `384894464` опубліковано на exact approved RC SHA `ec891ea7077dd70e2aafd0c2e00674f47c45a94a`; Owner native UI smoke exact RC passed.
 
@@ -80,7 +80,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - [`docs/plans/archive/release-experience-polish.md`](../plans/archive/release-experience-polish.md) — completed archived plan
 - [`docs/ai-workflow/README.md`](../ai-workflow/README.md) — canonical orchestration, prompt, review та handoff contract
 - [`docs/plans/archive/code-quality-ux-improvements.md`](../plans/archive/code-quality-ux-improvements.md) — completed archived roadmap
-- [`docs/releases/v1.2.3.md`](../releases/v1.2.3.md) — current stable release archive
+- [`docs/releases/v1.2.4.md`](../releases/v1.2.4.md) — current stable release archive
 - [`history/2026-09.md`](history/2026-09.md) — recent engineering journal
 
 ## Current Task Handoff
@@ -88,4 +88,5 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - v1.2.3 release cycle is completed and archived.
 - Offline/degraded release-feed mode is completed, reviewed and accepted; `offline-degraded-reliability` is archived.
 - No ACTIVE/PRIMARY roadmap remains.
-- Next action: `Release Candidate v1.2.4, then Owner validation and final publication`.
+- v1.2.4 release cycle completed; public Release verified and `NEXT.json` reset for the next cycle.
+- Next action: `External Architect final release review, then WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`.

@@ -2,10 +2,7 @@
   "schema_version": 1,
   "summary": "",
   "new": [],
-  "fixed": [
-    "Correctly detects an outdated game patch compared with the current available patch.",
-    "Shows that the game must be updated before localization can be installed or updated."
-  ],
+  "fixed": [],
   "reliability": [],
   "performance": [],
   "changes": [],
