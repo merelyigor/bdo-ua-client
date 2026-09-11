@@ -25,6 +25,17 @@ public sealed class GamePatchPresentationPolicyTests
     }
 
     [Fact]
+    public void NewerInstalledPatchThanLocalization_BlocksPositiveGameStatus()
+    {
+        var presentation = GamePatchPresentationPolicy.Create(null, 402, 401, 401);
+
+        Assert.Equal(GamePatchStatus.NewerThanLatestLocalization, presentation.Status);
+        Assert.Equal(
+            $"⚠ Гра новіша за доступну локалізацію{Environment.NewLine}Встановлено: patch 402 • локалізація: patch 401",
+            presentation.Text);
+    }
+
+    [Fact]
     public void ManualDetection_PreservesManualStatus()
     {
         var presentation = GamePatchPresentationPolicy.Create(DetectionSource.Manual, 401, 401);

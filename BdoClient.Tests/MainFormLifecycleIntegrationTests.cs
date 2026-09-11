@@ -63,6 +63,26 @@ public sealed class MainFormLifecycleIntegrationTests
     }
 
     [Fact]
+    public async Task CachedFeedMatchingGamePatchRemainsDisplayOnly()
+    {
+        var handler = MainFormTestFixture.CreateFailureApiHandler(HttpStatusCode.ServiceUnavailable);
+        using var fixture = await MainFormTestFixture.StartAsync(
+            handler,
+            seedReleaseFeedCache: true,
+            gamePatch: 100);
+
+        await fixture.WaitForAsync(form =>
+            MainFormTestFixture.FindFirstModeCard(form) != null
+            && MainFormTestFixture.FindControlText(
+                form,
+                text => text == "✓ Гру знайдено • patch 100") != null);
+
+        var card = MainFormTestFixture.FindFirstModeCard(fixture.Form);
+        Assert.NotNull(card);
+        Assert.False(card!.Controls.OfType<Button>().Single().Enabled);
+    }
+
+    [Fact]
     public async Task Startup_OutdatedGame_ShowsWarningWithInstalledAndLatestPatches()
     {
         using var fixture = await MainFormTestFixture.StartAsync(
@@ -98,6 +118,178 @@ public sealed class MainFormLifecycleIntegrationTests
         await fixture.WaitForAsync(form => form.Visible && form.WindowState == FormWindowState.Normal);
 
         Assert.Same(originalForm, fixture.Form);
+    }
+
+    [Fact]
+    public async Task SecondaryActivationRefreshesGamePatchAfterExternalUpdate()
+    {
+        using var fixture = await MainFormTestFixture.StartAsync(
+            MainFormTestFixture.CreateSingleModeApiHandler(401),
+            startInBackground: true,
+            gamePatch: 399);
+
+        await fixture.WaitForAsync(form =>
+            MainFormTestFixture.FindControlText(
+                form,
+                text => text.StartsWith("⚠ Потрібно оновити гру", StringComparison.Ordinal)) != null);
+
+        var outdatedCard = MainFormTestFixture.FindFirstModeCard(fixture.Form);
+        Assert.NotNull(outdatedCard);
+        Assert.False(outdatedCard!.Controls.OfType<Button>().Single().Enabled);
+
+        fixture.UpdateGamePatch(401);
+        fixture.SignalSecondaryActivation();
+
+        await fixture.WaitForAsync(form =>
+            form.Visible
+            && MainFormTestFixture.FindControlText(
+                form,
+                text => text == "✓ Гру знайдено • patch 401") != null);
+
+        var currentCard = MainFormTestFixture.FindFirstModeCard(fixture.Form);
+        Assert.NotNull(currentCard);
+        Assert.True(currentCard!.Controls.OfType<Button>().Single().Enabled);
+        Assert.Null(fixture.HostException);
+    }
+
+    [Fact]
+    public async Task RepeatedSecondaryActivationDoesNotOverlapGamePatchRefresh()
+    {
+        using var fixture = await MainFormTestFixture.StartAsync(
+            MainFormTestFixture.CreateSuccessfulApiHandler(401),
+            startInBackground: true,
+            gamePatch: 399);
+
+        await fixture.WaitForAsync(form =>
+            MainFormTestFixture.FindControlText(
+                form,
+                text => text.StartsWith("⚠ Потрібно оновити гру", StringComparison.Ordinal)) != null);
+
+        fixture.UpdateGamePatch(401);
+        fixture.SignalSecondaryActivation();
+        fixture.SignalSecondaryActivation();
+
+        await fixture.WaitForAsync(form =>
+            form.Visible
+            && MainFormTestFixture.FindControlText(
+                form,
+                text => text == "✓ Гру знайдено • patch 401") != null);
+
+        Assert.Null(fixture.HostException);
+    }
+
+    [Fact]
+    public async Task SingleLocalizationModePreservesMinimumWidthForGlobalStatusUi()
+    {
+        using var fixture = await MainFormTestFixture.StartAsync(
+            MainFormTestFixture.CreateSingleModeApiHandler(401),
+            gamePatch: 401);
+
+        await fixture.WaitForAsync(form =>
+            MainFormTestFixture.FindFirstModeCard(form) != null
+            && MainFormTestFixture.FindControlText(
+                form,
+                text => text == "✓ Гру знайдено • patch 401") != null);
+
+        var card = MainFormTestFixture.FindFirstModeCard(fixture.Form);
+
+        Assert.NotNull(card);
+        Assert.True(fixture.Form.ClientSize.Width >= UiTheme.Scale(fixture.Form, 960));
+        Assert.True(fixture.Form.MinimumSize.Width >= UiTheme.Scale(fixture.Form, 960));
+        Assert.True(card!.Width < fixture.Form.ClientSize.Width);
+    }
+
+    [Fact]
+    public async Task NewerGameThanAvailableLocalizationKeepsWriteActionsDisabled()
+    {
+        using var fixture = await MainFormTestFixture.StartAsync(
+            MainFormTestFixture.CreateSingleModeApiHandler(401),
+            gamePatch: 402);
+
+        await fixture.WaitForAsync(form =>
+            MainFormTestFixture.FindControlText(
+                form,
+                text => text.StartsWith("⚠ Гра новіша за доступну локалізацію", StringComparison.Ordinal)) != null);
+
+        var card = MainFormTestFixture.FindFirstModeCard(fixture.Form);
+        Assert.NotNull(card);
+        Assert.False(card!.Controls.OfType<Button>().Single().Enabled);
+    }
+
+    [Fact]
+    public async Task MalformedGamePatchReadFailsClosedAndSuccessfulRefreshRecovers()
+    {
+        using var fixture = await MainFormTestFixture.StartAsync(
+            MainFormTestFixture.CreateSingleModeApiHandler(401),
+            startInBackground: true,
+            gamePatch: 401);
+
+        await fixture.WaitForAsync(form =>
+            MainFormTestFixture.FindControlText(
+                form,
+                text => text == "✓ Гру знайдено • patch 401") != null);
+
+        fixture.UpdateGamePatchRaw("not-a-patch");
+        fixture.SignalSecondaryActivation();
+
+        await fixture.WaitForAsync(form =>
+            form.Visible
+            && MainFormTestFixture.FindControlText(
+                form,
+                text => text == "✓ Гру знайдено") != null);
+
+        var failedCard = MainFormTestFixture.FindFirstModeCard(fixture.Form);
+        Assert.NotNull(failedCard);
+        Assert.False(failedCard!.Controls.OfType<Button>().Single().Enabled);
+
+        fixture.UpdateGamePatch(401);
+        fixture.SignalSecondaryActivation();
+
+        await fixture.WaitForAsync(form =>
+            MainFormTestFixture.FindControlText(
+                form,
+                text => text == "✓ Гру знайдено • patch 401") != null);
+
+        var recoveredCard = MainFormTestFixture.FindFirstModeCard(fixture.Form);
+        Assert.NotNull(recoveredCard);
+        Assert.True(recoveredCard!.Controls.OfType<Button>().Single().Enabled);
+    }
+
+    [Fact]
+    public async Task LiveFeedPatchChangeRefreshesPresentationAndRuntimeCardLayout()
+    {
+        var handler = MainFormTestFixture.CreateModesApiHandler(401, 1);
+        using var fixture = await MainFormTestFixture.StartAsync(handler, gamePatch: 401);
+
+        await fixture.WaitForAsync(form =>
+            MainFormTestFixture.CountModeCards(form) == 1
+            && MainFormTestFixture.FindControlText(
+                form,
+                text => text == "✓ Гру знайдено • patch 401") != null);
+
+        var updatedFeed = JsonSerializer.Deserialize<ReleasesResponse>(
+            MainFormTestFixture.CreateFeedJson(402, 2))!;
+        await fixture.ApplyFeedCandidateAsync(updatedFeed);
+
+        await fixture.WaitForAsync(form =>
+            MainFormTestFixture.CountModeCards(form) == 2
+            && MainFormTestFixture.FindControlText(
+                form,
+                text => text.StartsWith("⚠ Потрібно оновити гру", StringComparison.Ordinal)) != null);
+
+        Assert.True(fixture.Form.ClientSize.Width >= UiTheme.Scale(fixture.Form, 960));
+
+        var restoredFeed = JsonSerializer.Deserialize<ReleasesResponse>(
+            MainFormTestFixture.CreateFeedJson(401, 1))!;
+        await fixture.ApplyFeedCandidateAsync(restoredFeed);
+
+        await fixture.WaitForAsync(form =>
+            MainFormTestFixture.CountModeCards(form) == 1
+            && MainFormTestFixture.FindControlText(
+                form,
+                text => text == "✓ Гру знайдено • patch 401") != null);
+
+        Assert.True(fixture.Form.ClientSize.Width >= UiTheme.Scale(fixture.Form, 960));
     }
 
     [Fact]
@@ -190,6 +382,38 @@ internal sealed class MainFormTestFixture : IDisposable
 
     internal bool IsHostAlive => _uiThread.IsAlive;
 
+    internal void UpdateGamePatch(int patch)
+    {
+        File.WriteAllText(Path.Combine(GameRoot, "ads_files"), $"languagedata_en.loc\t{patch}\n");
+    }
+
+    internal void UpdateGamePatchRaw(string content)
+    {
+        File.WriteAllText(Path.Combine(GameRoot, "ads_files"), content);
+    }
+
+    internal async Task ApplyFeedCandidateAsync(ReleasesResponse candidate)
+    {
+        var completion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        PostToUi(async () =>
+        {
+            try
+            {
+                var apply = typeof(MainForm).GetMethod(
+                    "ApplyFeedPipelineAsync",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                var task = (Task<bool>)apply!.Invoke(Form, new object[] { candidate })!;
+                Assert.True(await task);
+                completion.TrySetResult(null);
+            }
+            catch (Exception ex)
+            {
+                completion.TrySetException(ex);
+            }
+        });
+        await completion.Task.WaitAsync(Timeout);
+    }
+
     internal static async Task<MainFormTestFixture> StartAsync(
         MainFormTestHttpHandler bdoHandler,
         bool startInBackground = false,
@@ -215,6 +439,19 @@ internal sealed class MainFormTestFixture : IDisposable
 
     internal static MainFormTestHttpHandler CreateSuccessfulApiHandler(int officialPatch = 0)
         => new(HttpStatusCode.OK, $"{{\"success\":true,\"data\":{{\"official_patch\":{officialPatch},\"modes\":[]}}}}");
+
+    internal static MainFormTestHttpHandler CreateSingleModeApiHandler(int officialPatch)
+        => new(HttpStatusCode.OK, CreateFeedJson(officialPatch, 1));
+
+    internal static MainFormTestHttpHandler CreateModesApiHandler(int officialPatch, int modeCount)
+        => new(HttpStatusCode.OK, CreateFeedJson(officialPatch, modeCount));
+
+    internal static string CreateFeedJson(int officialPatch, int modeCount)
+    {
+        var modes = string.Join(",", Enumerable.Range(1, modeCount).Select(index =>
+            $"{{\"slug\":\"full-ukrainian-{index}\",\"public_name\":\"Повна українська {index}\",\"description\":\"Тестовий режим локалізації\",\"current\":{{\"public_id\":\"01TESTMODE{index}\",\"version\":1,\"filename\":\"languagedata_en.loc\",\"download_url\":\"https://example.com/test{index}.loc\",\"size_bytes\":1,\"sha256\":\"{new string('a', 64)}\",\"patch\":{officialPatch},\"compatible_with_official_patch\":true}}}}"));
+        return $"{{\"success\":true,\"data\":{{\"official_patch\":{officialPatch},\"modes\":[{modes}]}}}}";
+    }
 
     internal static MainFormTestHttpHandler CreateSuccessfulGitHubHandler()
         => new(HttpStatusCode.OK, "[]");
@@ -496,6 +733,14 @@ internal sealed class MainFormTestFixture : IDisposable
         }
 
         return null;
+    }
+
+    internal static int CountModeCards(Control root)
+    {
+        var count = root.Controls.OfType<LocalizationModeCard>().Count();
+        foreach (Control child in root.Controls)
+            count += CountModeCards(child);
+        return count;
     }
 
     internal sealed record StartupSnapshot(

@@ -150,8 +150,6 @@ public partial class MainForm
         var path = GetCurrentLocalizationFilePath();
         if (path == null)
             return;
-        if (!HasValidApiManagedMetadata())
-            return;
 
         if (_feedCoordinator.IsApplying)
         {
@@ -159,28 +157,40 @@ public partial class MainForm
             return;
         }
 
-        if (!LocalizationFileFingerprint.TryCapture(path, out var current, out var captureError))
+        bool patchPresentationChanged = RefreshKnownGamePatchPresentation();
+        bool hasValidMetadata = HasValidApiManagedMetadata();
+        bool fileChanged = false;
+        string? captureError = null;
+
+        if (hasValidMetadata
+            && LocalizationFileFingerprint.TryCapture(path, out var current, out captureError))
+        {
+            // With a committed baseline for this exact path, only a real fingerprint change
+            // requires reconciliation. Without a baseline we cannot prove the current file
+            // matches the displayed state, so one RefreshStateAsync establishes it. We never
+            // adopt the current fingerprint silently; the baseline is committed only by the
+            // existing RefreshStateAsync integration after a successful resolution.
+            bool hasBaseline = _localFileChangeTracker.HasBaselineFor(path);
+            if (hasBaseline)
+            {
+                fileChanged = _localFileChangeTracker.HasChanged(path, current);
+                if (fileChanged)
+                    _logger.Info("Localization file fingerprint changed; refreshing state.");
+            }
+            else
+            {
+                fileChanged = true;
+                _logger.Info("Local file monitor baseline unavailable; refreshing state to establish it.");
+            }
+        }
+        else if (hasValidMetadata && !patchPresentationChanged)
         {
             _logger.Warning($"Local file fingerprint capture failed: {captureError}");
             return;
         }
 
-        // With a committed baseline for this exact path, only a real fingerprint change
-        // requires reconciliation. Without a baseline we cannot prove the current file
-        // matches the displayed state, so one RefreshStateAsync establishes it. We never
-        // adopt the current fingerprint silently; the baseline is committed only by the
-        // existing RefreshStateAsync integration after a successful resolution.
-        bool hasBaseline = _localFileChangeTracker.HasBaselineFor(path);
-        if (hasBaseline)
-        {
-            if (!_localFileChangeTracker.HasChanged(path, current))
-                return;
-            _logger.Info("Localization file fingerprint changed; refreshing state.");
-        }
-        else
-        {
-            _logger.Info("Local file monitor baseline unavailable; refreshing state to establish it.");
-        }
+        if (!patchPresentationChanged && !fileChanged)
+            return;
 
         _localFileCheckInProgress = true;
         try
@@ -195,6 +205,10 @@ public partial class MainForm
             try
             {
                 await RefreshStateAsync();
+                // Re-read after the asynchronous state resolution so a newer local game
+                // patch cannot be hidden by a refresh that started with an older value.
+                if (RefreshKnownGamePatchPresentation())
+                    await RefreshStateAsync();
                 await _feedCoordinator.ApplyPendingIfAnyAsync();
             }
             finally
@@ -210,6 +224,27 @@ public partial class MainForm
         {
             _localFileCheckInProgress = false;
         }
+    }
+
+    private bool RefreshKnownGamePatchPresentation()
+    {
+        if (_gameRoot == null)
+            return false;
+
+        var previousStatus = _gamePatchStatus;
+        var previousText = gameStatusLabel.Text;
+        var previousRefreshFailed = _gamePatchRefreshFailed;
+        var installedPatch = AdsFilesPatchReader.TryReadPatch(_gameRoot);
+
+        _gamePatchRefreshFailed = installedPatch is null;
+        if (_gamePatchRefreshFailed)
+            _logger.Warning("Local game patch refresh failed; localization write actions remain disabled.");
+
+        ApplyGamePatchPresentation(_gameRoot, installedPatch);
+
+        return previousStatus != _gamePatchStatus
+            || !string.Equals(previousText, gameStatusLabel.Text, StringComparison.Ordinal)
+            || previousRefreshFailed != _gamePatchRefreshFailed;
     }
 
     /// <summary>

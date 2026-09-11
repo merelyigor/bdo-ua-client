@@ -434,6 +434,7 @@ public partial class MainForm
                 _apiErrorKind = ApiErrorKind.None;
                 _poller.AcceptFeed(feed);
                 await PersistLiveFeedAsync(feed);
+                RefreshKnownGamePatchPresentation();
                 await RefreshStateAsync();
             }
         }
@@ -465,6 +466,7 @@ public partial class MainForm
             _suppressModeChanged = false;
         }
 
+        RefreshKnownGamePatchPresentation();
         await RefreshStateAsync();
         _releaseFeedSource = ReleaseFeedSource.Live;
         _cachedFeedSavedAtUtc = null;
@@ -612,7 +614,7 @@ public partial class MainForm
 
         SetActionsEnabled(actionPolicy.CanRestoreOriginal
             && _releaseFeedSource == ReleaseFeedSource.Live
-            && _gamePatchStatus != GamePatchStatus.Outdated);
+            && AllowsLocalizationWriteActions());
         ApplyModeCardPresentations(stateResult.State, installedModeSlug, installedPublicId);
         ScheduleContentFit();
 

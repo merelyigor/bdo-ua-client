@@ -9,8 +9,11 @@ public partial class MainForm
 {
     // --- Theme / shell layout ---
 
+    private const int GlobalMinimumClientWidth = 960;
+
     private void ApplyTheme()
     {
+        EnsureMinimumUsableWidth();
         mainLayoutPanel.Width = Math.Max(0, rootScrollPanel.ClientSize.Width);
         BackColor = UiTheme.Background;
         ForeColor = UiTheme.PrimaryText;
@@ -60,8 +63,22 @@ public partial class MainForm
 
     private void RootScrollPanel_Resize(object? sender, EventArgs e)
     {
+        EnsureMinimumUsableWidth();
         mainLayoutPanel.Width = Math.Max(0, rootScrollPanel.ClientSize.Width);
         ScheduleContentFit();
+    }
+
+    private void EnsureMinimumUsableWidth()
+    {
+        var minimumClientWidth = UiTheme.Scale(this, GlobalMinimumClientWidth);
+        var nonClientWidth = Math.Max(0, Width - ClientSize.Width);
+        var minimumOuterWidth = minimumClientWidth + nonClientWidth;
+
+        if (MinimumSize.Width < minimumOuterWidth)
+            MinimumSize = new Size(minimumOuterWidth, MinimumSize.Height);
+
+        if (ClientSize.Width < minimumClientWidth)
+            ClientSize = new Size(minimumClientWidth, ClientSize.Height);
     }
 
     private void ScheduleContentFit()
@@ -117,12 +134,22 @@ public partial class MainForm
 
     private void SetGameFound(string path, DetectionSource? source)
     {
+        _gameDetectionSource = source;
+        _gamePatchRefreshFailed = false;
         var installedPatch = AdsFilesPatchReader.TryReadPatch(path);
+        ApplyGamePatchPresentation(path, installedPatch);
+    }
+
+    private void ApplyGamePatchPresentation(string path, int? installedPatch)
+    {
         int? latestKnownPatch = _apiResponse?.Data?.OfficialPatch > 0
             ? _apiResponse.Data.OfficialPatch
             : null;
         var presentation = GamePatchPresentationPolicy.Create(
-            source, installedPatch, latestKnownPatch);
+            _gameDetectionSource,
+            installedPatch,
+            latestKnownPatch,
+            GetLatestKnownLocalizationPatch());
 
         _gamePatchStatus = presentation.Status;
         gameStatusLabel.Text = presentation.Text;
@@ -131,10 +158,17 @@ public partial class MainForm
             : UiTheme.Success;
         gamePathLabel.Text = path;
         detectGameButton.Text = "Перевірити";
+
+        if (_apiLoadedSuccessfully)
+        {
+            ApplyModeCardPresentations(_lastResolvedState, _lastInstalledModeSlug, _lastInstalledPublicId);
+        }
     }
 
     private void SetGameNotFound(string reason)
     {
+        _gameDetectionSource = null;
+        _gamePatchRefreshFailed = false;
         _gamePatchStatus = GamePatchStatus.Unknown;
         gameStatusLabel.Text = reason;
         gameStatusLabel.ForeColor = UiTheme.SecondaryText;
@@ -144,11 +178,29 @@ public partial class MainForm
 
     private void SetGameSearching()
     {
+        _gameDetectionSource = null;
+        _gamePatchRefreshFailed = false;
         _gamePatchStatus = GamePatchStatus.Unknown;
         gameStatusLabel.Text = "Пошук гри...";
         gameStatusLabel.ForeColor = UiTheme.SecondaryText;
         gamePathLabel.Text = "";
         detectGameButton.Text = "Пошук...";
+    }
+
+    private int? GetLatestKnownLocalizationPatch()
+    {
+        var patches = _apiResponse?.Data?.Modes?
+            .Select(mode => mode.Current?.Patch ?? 0)
+            .Where(patch => patch > 0)
+            .ToList();
+
+        return patches is { Count: > 0 } ? patches.Max() : null;
+    }
+
+    private bool AllowsLocalizationWriteActions()
+    {
+        return !_gamePatchRefreshFailed
+            && _gamePatchStatus is not (GamePatchStatus.Outdated or GamePatchStatus.NewerThanLatestLocalization);
     }
 
     // --- Operation/control presentation ---
@@ -272,7 +324,7 @@ public partial class MainForm
                 _operationInProgress,
                 _operationInProgress && string.Equals(selectedSlug, card.ModeSlug, StringComparison.Ordinal),
                 allowWriteActions: _releaseFeedSource == ReleaseFeedSource.Live
-                    && _gamePatchStatus != GamePatchStatus.Outdated));
+                    && AllowsLocalizationWriteActions()));
         }
         RefreshModeCardLayout();
     }

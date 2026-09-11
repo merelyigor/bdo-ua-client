@@ -4,7 +4,8 @@ internal enum GamePatchStatus
 {
     Unknown,
     Current,
-    Outdated
+    Outdated,
+    NewerThanLatestLocalization
 }
 
 internal sealed record GamePatchPresentation(GamePatchStatus Status, string Text);
@@ -14,11 +15,20 @@ internal static class GamePatchPresentationPolicy
     public static GamePatchPresentation Create(
         DetectionSource? source,
         int? installedPatch,
-        int? latestKnownPatch)
+        int? latestKnownPatch,
+        int? latestKnownLocalizationPatch = null)
     {
         var foundText = source == DetectionSource.Manual
             ? "✓ Гру знайдено вручну"
             : "✓ Гру знайдено";
+
+        if (installedPatch is > 0 && latestKnownLocalizationPatch is > 0
+            && installedPatch.Value > latestKnownLocalizationPatch.Value)
+        {
+            return new(
+                GamePatchStatus.NewerThanLatestLocalization,
+                $"⚠ Гра новіша за доступну локалізацію{Environment.NewLine}Встановлено: patch {installedPatch.Value} • локалізація: patch {latestKnownLocalizationPatch.Value}");
+        }
 
         if (installedPatch is > 0 && latestKnownPatch is > 0
             && installedPatch.Value < latestKnownPatch.Value)
