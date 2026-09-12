@@ -8,11 +8,16 @@ public sealed class LocalizationStateService
 {
     private readonly InstallationStateStore _stateStore;
     private readonly ILogger _logger;
+    private readonly BdoGameDefinition _gameDefinition;
 
-    public LocalizationStateService(InstallationStateStore stateStore, ILogger logger)
+    public LocalizationStateService(
+        InstallationStateStore stateStore,
+        ILogger logger,
+        BdoGameDefinition? gameDefinition = null)
     {
         _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _gameDefinition = gameDefinition ?? BdoGameDefinition.Default;
     }
 
     public async Task<LocalizationStateResult> ResolveAsync(
@@ -38,7 +43,7 @@ public sealed class LocalizationStateService
         var metadata = loadResult.Value!;
 
         var installedPatch = metadata.GamePatch is > 0 ? metadata.GamePatch : null;
-        var localPatch = AdsFilesPatchReader.TryReadPatch(gameRoot ?? DeriveGameRoot(gameLocFilePath));
+        var localPatch = _gameDefinition.TryReadInstalledPatch(gameRoot ?? DeriveGameRoot(gameLocFilePath));
 
         if (metadata.Source == InstallationSource.Official)
         {

@@ -33,6 +33,7 @@
 | Файл | Що тестує |
 |------|-----------|
 | `Services/GameDetectorTests.cs` | Path validation, Steam parsing, manual resolution, registry fallback, Unicode/пробіли |
+| `Services/BdoGameDefinitionTests.cs` | BDO identity, canonical localization target/validation та `ads_files` patch ownership |
 | `Services/LocalizationInstallerTests.cs` | Download, SHA-256 перевірка, retry з backoff, progress reporting, cancellation |
 | `Services/LocalizationInstallServiceTests.cs` | Transactional install, rollback при помилці, cancellation |
 | `Services/LocalizationStateServiceTests.cs` | State resolution: усі значення `LocalizationState` + patch transitions |

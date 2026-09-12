@@ -11,19 +11,22 @@ public sealed class LocalizationInstallService
     private readonly InstallationStateStore _stateStore;
     private readonly ILogger _logger;
     private readonly string _gameRoot;
+    private readonly BdoGameDefinition _gameDefinition;
 
     public LocalizationInstallService(
         LocalizationInstaller installer,
         BackupStore backupStore,
         InstallationStateStore stateStore,
         ILogger logger,
-        string gameRoot)
+        string gameRoot,
+        BdoGameDefinition? gameDefinition = null)
     {
         _installer = installer ?? throw new ArgumentNullException(nameof(installer));
         _backupStore = backupStore ?? throw new ArgumentNullException(nameof(backupStore));
         _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _gameRoot = gameRoot ?? throw new ArgumentNullException(nameof(gameRoot));
+        _gameDefinition = gameDefinition ?? BdoGameDefinition.Default;
     }
 
     public async Task<InstallResult> InstallReleaseAsync(
@@ -35,7 +38,7 @@ public sealed class LocalizationInstallService
         _logger.Info($"Install transaction started: mode={modeSlug}, public_id={release.PublicId}");
 
         // --- Phase 1: Input validation ---
-        var gameLocFilePath = GamePaths.GetLocalizationFilePath(_gameRoot);
+        var gameLocFilePath = _gameDefinition.GetLocalizationFilePath(_gameRoot);
 
         if (!File.Exists(gameLocFilePath))
         {
@@ -330,7 +333,7 @@ public sealed class LocalizationInstallService
         var gameRestored = false;
         if (restorePointDir != null)
         {
-            var rpFile = Path.Combine(restorePointDir, GamePaths.LocalizationFileName);
+            var rpFile = Path.Combine(restorePointDir, _gameDefinition.LocalizationFileName);
             if (File.Exists(rpFile))
             {
                 try

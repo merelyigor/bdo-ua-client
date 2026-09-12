@@ -69,7 +69,7 @@ public partial class MainForm
                 installedModeCurrent = installedApiMode?.Current;
             }
 
-            var gameLocPath = GamePaths.GetLocalizationFilePath(_gameRoot);
+            var gameLocPath = _gameDefinition.GetLocalizationFilePath(_gameRoot);
             var factualState = await _stateService.ResolveAsync(installedModeCurrent, gameLocPath, gameRoot: _gameRoot);
 
             // Abort before any install transaction if a real application shutdown
@@ -104,7 +104,7 @@ public partial class MainForm
             UpdateCancelButtonVisibility(_operationState);
 
             var service = new LocalizationInstallService(
-                _localizationInstaller, _backupStore, _stateStore, _logger, _gameRoot);
+                _localizationInstaller, _backupStore, _stateStore, _logger, _gameRoot, _gameDefinition);
 
             var progress = new Progress<DownloadProgress>(OnDownloadProgress);
 
@@ -232,7 +232,7 @@ public partial class MainForm
 
             var service = new RestoreOriginalService(
                 _localizationInstaller, _backupStore, _stateStore, _logger,
-                _gameRoot, officialSourceUrl ?? "", officialPatch);
+                _gameRoot, officialSourceUrl ?? "", officialPatch, _gameDefinition);
 
             var result = await service.RestoreOriginalAsync(_operationCts.Token);
 

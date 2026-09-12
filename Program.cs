@@ -125,6 +125,7 @@ static class Program
         ILogger logger = new FileLogger(appPaths.LogsDir);
         var configStore = new ConfigStore(appPaths, logger);
         var stateStore = new InstallationStateStore(appPaths, logger);
+        var gameDefinition = BdoGameDefinition.Default;
         var appVersionInfo = AppVersionInfo.Detect();
         var httpClient = Api.BdoUaHttpClientConfiguration.CreateHttpClient(
             appVersionInfo,
@@ -133,9 +134,9 @@ static class Program
 
         var apiClient = new Api.BdoUaApiClient(httpClient, logger);
         var localizationInstaller = new LocalizationInstaller(httpClient, appPaths, logger);
-        var backupStore = new BackupStore(appPaths, logger);
-        var gameDetector = new GameDetector(configStore, logger);
-        var stateService = new LocalizationStateService(stateStore, logger);
+        var backupStore = new BackupStore(appPaths, logger, gameDefinition);
+        var gameDetector = new GameDetector(configStore, logger, gameDefinition);
+        var stateService = new LocalizationStateService(stateStore, logger, gameDefinition);
         var compatService = new LocalizationCompatibilityService();
 
         logger.Info($"Application started. version={appVersionInfo.RawVersion}");
@@ -155,7 +156,7 @@ static class Program
         try
         {
             Application.Run(new MainForm(
-                configStore, apiClient, gameDetector,
+                configStore, apiClient, gameDetector, gameDefinition,
                 stateService, compatService,
                 localizationInstaller, backupStore, stateStore, logger,
                 appVersionInfo, gitHubClient, selectionPolicy, appPaths,

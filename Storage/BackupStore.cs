@@ -17,6 +17,7 @@ public class BackupStore
 
     private readonly AppPaths _paths;
     private readonly ILogger _logger;
+    private readonly BdoGameDefinition _gameDefinition;
 
     // Test seam: called between File.Replace and post-replace verification.
     // When set, tests inject cancellation/failure at the destructive boundary.
@@ -28,17 +29,18 @@ public class BackupStore
 
     private const int MaxRetainedRestorePoints = 3;
 
-    public BackupStore(AppPaths paths, ILogger logger)
+    public BackupStore(AppPaths paths, ILogger logger, BdoGameDefinition? gameDefinition = null)
     {
         _paths = paths ?? throw new ArgumentNullException(nameof(paths));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _gameDefinition = gameDefinition ?? BdoGameDefinition.Default;
     }
 
     // --- Original snapshot ---
 
     public async Task<(bool exists, bool isValid, RestoreError? error)> CheckOriginalSnapshotAsync(CancellationToken cancellationToken = default)
     {
-        var snapshotPath = Path.Combine(_paths.OriginalBackupDir, GamePaths.LocalizationFileName);
+        var snapshotPath = Path.Combine(_paths.OriginalBackupDir, _gameDefinition.LocalizationFileName);
         var metadataPath = Path.Combine(_paths.OriginalBackupDir, MetadataFile);
 
         var hasFile = File.Exists(snapshotPath);
@@ -81,7 +83,7 @@ public class BackupStore
     public virtual async Task<RestoreResult> CreateOriginalSnapshotAsync(
         string gameRoot, int? trustedGamePatch, CancellationToken cancellationToken = default)
     {
-        var sourceGameFilePath = GamePaths.GetLocalizationFilePath(gameRoot);
+        var sourceGameFilePath = _gameDefinition.GetLocalizationFilePath(gameRoot);
 
         var (exists, isValid, _) = await CheckOriginalSnapshotAsync(cancellationToken).ConfigureAwait(false);
         if (exists && isValid)
@@ -104,7 +106,7 @@ public class BackupStore
                 $"Source file not found: {sourceGameFilePath}");
         }
 
-        var snapshotPath = Path.Combine(_paths.OriginalBackupDir, GamePaths.LocalizationFileName);
+        var snapshotPath = Path.Combine(_paths.OriginalBackupDir, _gameDefinition.LocalizationFileName);
         var metadataPath = Path.Combine(_paths.OriginalBackupDir, MetadataFile);
         var tempPath = snapshotPath + ".tmp";
         var tempMetadataPath = metadataPath + ".tmp";
@@ -160,7 +162,7 @@ public class BackupStore
 
     public async Task<(string? snapshotPath, BackupMetadata? metadata, RestoreError? error)> LoadOriginalSnapshotAsync(CancellationToken cancellationToken = default)
     {
-        var snapshotPath = Path.Combine(_paths.OriginalBackupDir, GamePaths.LocalizationFileName);
+        var snapshotPath = Path.Combine(_paths.OriginalBackupDir, _gameDefinition.LocalizationFileName);
         var metadataPath = Path.Combine(_paths.OriginalBackupDir, MetadataFile);
 
         if (!File.Exists(snapshotPath) || !File.Exists(metadataPath))
@@ -221,7 +223,7 @@ public class BackupStore
 
         var dirName = $"{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}_{Guid.NewGuid():N}".Substring(0, 35);
         var restorePointDir = Path.Combine(_paths.RestorePointsDir, dirName);
-        var fileCopyPath = Path.Combine(restorePointDir, GamePaths.LocalizationFileName);
+        var fileCopyPath = Path.Combine(restorePointDir, _gameDefinition.LocalizationFileName);
         var metadataPath = Path.Combine(restorePointDir, MetadataFile);
         var stateSnapshotPath = Path.Combine(restorePointDir, "installation-state.json");
         var tempCopyPath = fileCopyPath + ".tmp";
@@ -396,7 +398,7 @@ public class BackupStore
 
         var allowedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            GamePaths.LocalizationFileName,
+            _gameDefinition.LocalizationFileName,
             MetadataFile,
             "installation-state.json"
         };
@@ -431,7 +433,7 @@ public class BackupStore
         string restorePointDir, CancellationToken cancellationToken = default)
     {
         var metadataPath = Path.Combine(restorePointDir, MetadataFile);
-        var gameFilePath = Path.Combine(restorePointDir, GamePaths.LocalizationFileName);
+        var gameFilePath = Path.Combine(restorePointDir, _gameDefinition.LocalizationFileName);
         var stateFilePath = Path.Combine(restorePointDir, "installation-state.json");
 
         if (!File.Exists(metadataPath) || !File.Exists(gameFilePath))
@@ -594,7 +596,7 @@ public class BackupStore
     public virtual async Task<RestoreResult> RecoverFromRestorePointAsync(
         string targetPath, string restorePointDir, CancellationToken cancellationToken = default)
     {
-        var restoreFile = Path.Combine(restorePointDir, GamePaths.LocalizationFileName);
+        var restoreFile = Path.Combine(restorePointDir, _gameDefinition.LocalizationFileName);
         if (!File.Exists(restoreFile))
         {
             _logger.Error("Recovery failed: restore point file not found");

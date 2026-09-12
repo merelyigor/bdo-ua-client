@@ -27,6 +27,7 @@ public partial class MainForm
         modeGroupBox.BackColor = UiTheme.Background;
         modeGroupBox.ForeColor = UiTheme.PrimaryText;
         headerTitleLabel.ForeColor = UiTheme.PrimaryText;
+        headerSubtitleLabel.Text = $"Українська локалізація {_gameDefinition.DisplayName}";
         headerSubtitleLabel.ForeColor = UiTheme.SecondaryText;
         headerAccentLine.BackColor = UiTheme.Accent;
         gameSectionCaptionLabel.ForeColor = UiTheme.SecondaryText;
@@ -136,7 +137,7 @@ public partial class MainForm
     {
         _gameDetectionSource = source;
         _gamePatchRefreshFailed = false;
-        var installedPatch = AdsFilesPatchReader.TryReadPatch(path);
+        var installedPatch = _gameDefinition.TryReadInstalledPatch(path);
         ApplyGamePatchPresentation(path, installedPatch);
     }
 

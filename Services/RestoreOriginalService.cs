@@ -14,6 +14,7 @@ public sealed class RestoreOriginalService
     private readonly string _gameLocFilePath;
     private readonly string _officialSourceUrl;
     private readonly int? _currentOfficialPatch;
+    private readonly BdoGameDefinition _gameDefinition;
 
     public RestoreOriginalService(
         LocalizationInstaller installer,
@@ -22,14 +23,16 @@ public sealed class RestoreOriginalService
         ILogger logger,
         string gameRoot,
         string officialSourceUrl,
-        int? currentOfficialPatch)
+        int? currentOfficialPatch,
+        BdoGameDefinition? gameDefinition = null)
     {
         _installer = installer ?? throw new ArgumentNullException(nameof(installer));
         _backupStore = backupStore ?? throw new ArgumentNullException(nameof(backupStore));
         _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _gameRoot = gameRoot ?? throw new ArgumentNullException(nameof(gameRoot));
-        _gameLocFilePath = GamePaths.GetLocalizationFilePath(gameRoot);
+        _gameDefinition = gameDefinition ?? BdoGameDefinition.Default;
+        _gameLocFilePath = _gameDefinition.GetLocalizationFilePath(gameRoot);
         _officialSourceUrl = officialSourceUrl ?? throw new ArgumentNullException(nameof(officialSourceUrl));
         _currentOfficialPatch = currentOfficialPatch;
     }

@@ -82,7 +82,8 @@ BDO-PROGRAM/
 │   └── ForegroundWindowHelper.cs — Допоміжний клас для фокусу вікон
 │   ├── LocalizationStatePresentation.cs — UI-тексти станів локалізації
 │   ├── ApiErrorPresentation.cs — ApiErrorKind → українські UI повідомлення
-│   ├── AdsFilesPatchReader.cs  — Читання патчу гри з ads_files
+│   ├── BdoGameDefinition.cs    — Explicit BDO identity, target, validation, detection facts and patch ownership
+│   ├── AdsFilesPatchReader.cs  — Concrete BDO ads_files patch reader composed by BdoGameDefinition
 │   ├── ReleaseFeedPoller.cs    — Background polling /releases (15 с)
 │   ├── FeedChangeDetector.cs   — Семантичне порівняння feed-кандидатів
 │   ├── FeedApplicationCoordinator.cs — Застосування feed-змін (pending черга)
@@ -133,14 +134,15 @@ Program.Main()
 │   ├─ BdoUaApiClient(httpClient, logger)
 │   └─ LocalizationInstaller(httpClient, appPaths, logger)
 │
-├─ GameDetector(configStore, logger)
-├─ LocalizationStateService(stateStore, logger)
+├─ BdoGameDefinition.Default — concrete current-game boundary
+├─ GameDetector(configStore, logger, gameDefinition)
+├─ LocalizationStateService(stateStore, logger, gameDefinition)
 ├─ LocalizationCompatibilityService()   — stateless, не потребує залежностей
 │
 ├─ GitHub HttpClient           — ОКРЕМИЙ HttpClient (UseProxy = false):
 │   └─ GitHubUpdateClient → UpdateSelectionPolicy
 │
-└─ MainForm(configStore, apiClient, gameDetector,
+└─ MainForm(configStore, apiClient, gameDetector, gameDefinition,
             stateService, compatService,
             localizationInstaller, backupStore, stateStore, logger,
             appVersionInfo, gitHubClient, selectionPolicy, appPaths)
@@ -156,11 +158,12 @@ MainForm всередині себе додатково створює: `UpdateS
 MainForm
 ├── ConfigStore ─────────────── AppPaths, ILogger
 ├── BdoUaApiClient ──────────── HttpClient, ILogger
-├── GameDetector ────────────── ConfigStore, ILogger
-├── LocalizationStateService ── InstallationStateStore, ILogger
+├── BdoGameDefinition ──────── BDO identity, target/validation, detection facts, patch reader
+├── GameDetector ────────────── ConfigStore, ILogger, BdoGameDefinition
+├── LocalizationStateService ── InstallationStateStore, ILogger, BdoGameDefinition
 ├── LocalizationCompatibilityService (stateless)
 ├── LocalizationInstaller ───── HttpClient, AppPaths, ILogger
-├── BackupStore ─────────────── AppPaths, ILogger
+├── BackupStore ─────────────── AppPaths, ILogger, BdoGameDefinition
 ├── InstallationStateStore ──── AppPaths, ILogger
 ├── ReleaseFeedCacheStore ───── AppPaths, ILogger
 ├── GitHubUpdateClient ──────── GitHub HttpClient, ILogger

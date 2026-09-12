@@ -8,39 +8,25 @@ namespace BdoClient.Services;
 
 public sealed class GameDetector
 {
-    private const string AppManifestFile = "appmanifest_582660.acf";
-    private const string LibraryFoldersFile = "libraryfolders.vdf";
-    private const string SteamAppsDir = "steamapps";
-    private const string CommonDir = "common";
-
-    private static readonly string[] SteamDefaultPaths = new[]
-    {
-        @"C:\Program Files (x86)\Steam",
-        @"C:\Program Files\Steam"
-    };
-
     private readonly ConfigStore _configStore;
     private readonly ILogger _logger;
+    private readonly BdoGameDefinition _gameDefinition;
 
-    public GameDetector(ConfigStore configStore, ILogger logger)
+    public GameDetector(ConfigStore configStore, ILogger logger, BdoGameDefinition? gameDefinition = null)
     {
         _configStore = configStore ?? throw new ArgumentNullException(nameof(configStore));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _gameDefinition = gameDefinition ?? BdoGameDefinition.Default;
     }
 
     public static bool ValidateGamePath(string gamePath)
-    {
-        try
-        {
-            var fullPath = Path.GetFullPath(gamePath);
-            var locFile = GamePaths.GetLocalizationFilePath(fullPath);
-            return File.Exists(locFile);
-        }
-        catch
-        {
-            return false;
-        }
-    }
+        => BdoGameDefinition.Default.ValidateGamePath(gamePath);
+
+    public bool IsValidGamePath(string gamePath)
+        => _gameDefinition.ValidateGamePath(gamePath);
+
+    public ManualResolveResult ResolveManualGameRootForSelection(string selectedPath)
+        => ResolveManualGameRootCore(selectedPath, _gameDefinition);
 
     public async Task<DetectionResult> DetectAsync(
         IReadOnlyList<InstallPathPattern>? apiPatterns = null,
@@ -93,7 +79,7 @@ public sealed class GameDetector
     {
         _logger.Debug($"Validating manual path: {gamePath}");
 
-        if (!ValidateGamePath(gamePath))
+        if (!_gameDefinition.ValidateGamePath(gamePath))
         {
             _logger.Warning($"Manual path validation failed: {gamePath}");
             return DetectionResult.NotFound();
@@ -121,14 +107,7 @@ public sealed class GameDetector
         {
             var fullPath = Path.GetFullPath(expandedPath);
 
-            if (fullPath.TrimEnd('\\', '/').EndsWith(GamePaths.AdsDirName, StringComparison.OrdinalIgnoreCase))
-            {
-                var parent = Path.GetDirectoryName(fullPath.TrimEnd('\\', '/'));
-                if (!string.IsNullOrEmpty(parent))
-                    return parent;
-            }
-
-            return fullPath;
+            return BdoGameDefinition.Default.NormalizeApiPathToGameRoot(fullPath);
         }
         catch
         {
@@ -137,6 +116,10 @@ public sealed class GameDetector
     }
 
     public static ManualResolveResult ResolveManualGameRoot(string selectedPath)
+        => ResolveManualGameRootCore(selectedPath, BdoGameDefinition.Default);
+
+    private static ManualResolveResult ResolveManualGameRootCore(
+        string selectedPath, BdoGameDefinition gameDefinition)
     {
         if (string.IsNullOrWhiteSpace(selectedPath))
             return ManualResolveResult.NotFound();
@@ -146,7 +129,7 @@ public sealed class GameDetector
             var fullPath = Path.GetFullPath(selectedPath);
 
             // 1. Exact root
-            if (ValidateGamePath(fullPath))
+            if (gameDefinition.ValidateGamePath(fullPath))
                 return ManualResolveResult.Found(fullPath);
 
             // 2. Immediate child directories
@@ -165,7 +148,7 @@ public sealed class GameDetector
             {
                 try
                 {
-                    if (ValidateGamePath(child))
+                    if (gameDefinition.ValidateGamePath(child))
                         validChildren.Add(Path.GetFullPath(child));
                 }
                 catch
@@ -206,7 +189,7 @@ public sealed class GameDetector
                 return Task.FromResult<DetectionResult?>(null);
             }
 
-            if (ValidateGamePath(gamePath))
+            if (_gameDefinition.ValidateGamePath(gamePath))
             {
                 _logger.Debug($"Saved path validated: {gamePath}");
                 return Task.FromResult<DetectionResult?>(
@@ -280,7 +263,7 @@ public sealed class GameDetector
                     var displayName = subKey.GetValue("DisplayName") as string;
                     if (string.IsNullOrEmpty(displayName)) continue;
 
-                    if (!IsBlackDesertEntry(displayName))
+                    if (!_gameDefinition.IsRegistryDisplayName(displayName))
                     {
                         _logger.Debug($"Skipping non-BDO registry entry: {displayName}");
                         continue;
@@ -294,7 +277,7 @@ public sealed class GameDetector
                     }
 
                     var path = installLocation.Trim('"').TrimEnd('\\', '/');
-                    if (ValidateGamePath(path))
+                    if (_gameDefinition.ValidateGamePath(path))
                     {
                         _logger.Debug($"Found via registry: {path} ({displayName}, {hive}\\{view})");
                         return DetectionResult.Found(Path.GetFullPath(path), DetectionSource.Registry);
@@ -316,11 +299,6 @@ public sealed class GameDetector
         return null;
     }
 
-    private static bool IsBlackDesertEntry(string displayName)
-    {
-        return displayName.Contains("Black Desert", StringComparison.OrdinalIgnoreCase);
-    }
-
     private async Task<DetectionResult?> DetectFromSteamAsync(CancellationToken cancellationToken)
     {
         var steamPaths = GetSteamPaths();
@@ -331,23 +309,26 @@ public sealed class GameDetector
 
             try
             {
-                var steamAppsPath = Path.Combine(steamPath, SteamAppsDir);
+                var steamAppsPath = Path.Combine(steamPath, _gameDefinition.SteamAppsDirectoryName);
                 if (!Directory.Exists(steamAppsPath)) continue;
 
-                var libraryFoldersPath = Path.Combine(steamAppsPath, LibraryFoldersFile);
+                var libraryFoldersPath = Path.Combine(steamAppsPath, _gameDefinition.SteamLibraryFoldersFileName);
                 var libraries = ParseLibraryFolders(libraryFoldersPath);
 
                 foreach (var library in libraries)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    var appManifestPath = Path.Combine(library, SteamAppsDir, AppManifestFile);
+                    var appManifestPath = Path.Combine(
+                        library, _gameDefinition.SteamAppsDirectoryName, _gameDefinition.SteamAppManifestFileName);
                     var installdir = ParseAppManifest(appManifestPath);
 
                     if (string.IsNullOrEmpty(installdir)) continue;
 
-                    var candidate = Path.Combine(library, SteamAppsDir, CommonDir, installdir);
-                    if (ValidateGamePath(candidate))
+                    var candidate = Path.Combine(
+                        library, _gameDefinition.SteamAppsDirectoryName,
+                        _gameDefinition.SteamCommonDirectoryName, installdir);
+                    if (_gameDefinition.ValidateGamePath(candidate))
                     {
                         var fullPath = Path.GetFullPath(candidate);
                         _logger.Debug($"Found via Steam: {fullPath}");
@@ -369,7 +350,7 @@ public sealed class GameDetector
     {
         var paths = new List<string>();
 
-        foreach (var defaultPath in SteamDefaultPaths)
+        foreach (var defaultPath in _gameDefinition.SteamDefaultPaths)
         {
             if (Directory.Exists(defaultPath))
                 paths.Add(defaultPath);
@@ -522,14 +503,14 @@ public sealed class GameDetector
                     var expanded = ExpandApiPattern(pattern.Pattern, drive);
                     if (expanded == null) continue;
 
-                    var gameRoot = NormalizeApiPathToGameRoot(expanded);
+                    var gameRoot = _gameDefinition.NormalizeApiPathToGameRoot(expanded);
                     if (gameRoot == null)
                     {
                         _logger.Debug($"API pattern normalized to null: {expanded}");
                         continue;
                     }
 
-                    if (ValidateGamePath(gameRoot))
+                    if (_gameDefinition.ValidateGamePath(gameRoot))
                     {
                         var fullPath = Path.GetFullPath(gameRoot);
                         _logger.Debug($"Found via API pattern: {fullPath}");

@@ -2,15 +2,15 @@
 
 ## Current focus
 
-**Primary:** none
-**Current phase:** no ACTIVE implementation plan
-**Next:** `WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`
+**Primary:** `game-boundary-refactoring`
+**Current phase:** Stage 1 — Explicit Game Boundary (`IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW`)
+**Next:** `External Architect review Stage 1; after acceptance, explicit Stage 2 authorization`
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| PRIMARY | `game-boundary-refactoring` | [active/game-boundary-refactoring.md](active/game-boundary-refactoring.md) | Stage 1 — Explicit Game Boundary (`IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW`) | External Architect review Stage 1; after acceptance, explicit Stage 2 authorization |
 
 ## Backlog
 

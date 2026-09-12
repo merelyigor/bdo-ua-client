@@ -14,6 +14,7 @@ public partial class MainForm : Form
     private readonly ConfigStore _configStore;
     private readonly BdoUaApiClient _apiClient;
     private readonly GameDetector _gameDetector;
+    private readonly BdoGameDefinition _gameDefinition;
     private readonly LocalizationStateService _stateService;
     private readonly LocalizationCompatibilityService _compatService;
     private readonly LocalizationInstaller _localizationInstaller;
@@ -82,6 +83,7 @@ public partial class MainForm : Form
         ConfigStore configStore,
         BdoUaApiClient apiClient,
         GameDetector gameDetector,
+        BdoGameDefinition gameDefinition,
         LocalizationStateService stateService,
         LocalizationCompatibilityService compatService,
         LocalizationInstaller localizationInstaller,
@@ -99,6 +101,7 @@ public partial class MainForm : Form
         _configStore = configStore;
         _apiClient = apiClient;
         _gameDetector = gameDetector;
+        _gameDefinition = gameDefinition ?? throw new ArgumentNullException(nameof(gameDefinition));
         _stateService = stateService;
         _compatService = compatService;
         _localizationInstaller = localizationInstaller;

@@ -16,7 +16,7 @@ public partial class MainForm
     private const int LocalFileMonitorIntervalMilliseconds = 300000; // ~5 minutes, hidden/background only
 
     private string? GetCurrentLocalizationFilePath()
-        => _gameRoot == null ? null : GamePaths.GetLocalizationFilePath(_gameRoot);
+        => _gameRoot == null ? null : _gameDefinition.GetLocalizationFilePath(_gameRoot);
 
     private bool HasValidApiManagedMetadata()
     {
@@ -234,7 +234,7 @@ public partial class MainForm
         var previousStatus = _gamePatchStatus;
         var previousText = gameStatusLabel.Text;
         var previousRefreshFailed = _gamePatchRefreshFailed;
-        var installedPatch = AdsFilesPatchReader.TryReadPatch(_gameRoot);
+        var installedPatch = _gameDefinition.TryReadInstalledPatch(_gameRoot);
 
         _gamePatchRefreshFailed = installedPatch is null;
         if (_gamePatchRefreshFailed)

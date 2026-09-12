@@ -19,7 +19,7 @@
 ```csharp
 public sealed class GameDetector
 {
-    public GameDetector(ConfigStore configStore, ILogger logger);
+    public GameDetector(ConfigStore configStore, ILogger logger, BdoGameDefinition? gameDefinition = null);
 
     public static bool ValidateGamePath(string gamePath);
 
@@ -407,7 +407,7 @@ public sealed class LocalizationStateService
 }
 ```
 
-`gameRoot` — опціональний корінь гри; якщо переданий, сервіс читає локальний патч через `AdsFilesPatchReader.TryReadPatch(gameRoot)` для визначення patch transition.
+`gameRoot` — опціональний корінь гри; якщо переданий, сервіс читає локальний патч через BDO boundary (`BdoGameDefinition.TryReadInstalledPatch(gameRoot)`) для визначення patch transition.
 
 ### Логіка `ResolveAsync`
 
@@ -672,7 +672,7 @@ public sealed class FeedApplicationCoordinator
 
 ## 16. AdsFilesPatchReader
 
-`public static class`. Читає файл `{gameRoot}\ads_files` та витягує версію патчу гри з рядка `languagedata_en.loc <patch>`.
+Concrete BDO reader, composed by `BdoGameDefinition`. Читає файл `{gameRoot}\ads_files` та витягує версію патчу гри з рядка `languagedata_en.loc <patch>`. Legacy static `TryReadPatch` delegates to the default BDO definition.
 
 ```csharp
 public static int? TryReadPatch(string? gameRoot);

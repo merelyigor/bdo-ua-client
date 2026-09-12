@@ -19,7 +19,7 @@ public partial class MainForm
 
         if (installable.Count == 0)
         {
-            var localPatch = AdsFilesPatchReader.TryReadPatch(_gameRoot);
+            var localPatch = _gameDefinition.TryReadInstalledPatch(_gameRoot);
             var officialPatch = _apiResponse?.Data?.OfficialPatch;
             var patch = localPatch ?? (officialPatch > 0 ? officialPatch : null);
             var label = new Label
@@ -228,7 +228,7 @@ public partial class MainForm
         catch (Exception ex)
         {
             _logger.Error($"Detection error: {ex.Message}");
-            if (previousGameRoot != null && GameDetector.ValidateGamePath(previousGameRoot))
+            if (previousGameRoot != null && _gameDetector.IsValidGamePath(previousGameRoot))
             {
                 _gameRoot = previousGameRoot;
                 SetGameFound(previousGameRoot, null);
@@ -255,13 +255,13 @@ public partial class MainForm
         {
             using var dialog = new FolderBrowserDialog
             {
-                Description = "Оберіть папку гри Black Desert Online або її батьківську папку"
+                Description = $"Оберіть папку гри {_gameDefinition.DisplayName} або її батьківську папку"
             };
 
             if (dialog.ShowDialog(this) != DialogResult.OK)
                 return;
 
-            var resolved = GameDetector.ResolveManualGameRoot(dialog.SelectedPath);
+            var resolved = _gameDetector.ResolveManualGameRootForSelection(dialog.SelectedPath);
 
             if (resolved.Status == ManualResolveStatus.Found && resolved.GamePath != null)
             {
@@ -297,7 +297,7 @@ public partial class MainForm
 
     private void SetManualFailureMessage(string message)
     {
-        if (_gameRoot != null && GameDetector.ValidateGamePath(_gameRoot))
+        if (_gameRoot != null && _gameDetector.IsValidGamePath(_gameRoot))
         {
             // Keep existing valid game status, show transient error only
             SetMessage(message);
@@ -542,7 +542,7 @@ public partial class MainForm
             installedModeCurrent = installedApiMode?.Current;
         }
 
-        var gameLocPath = GamePaths.GetLocalizationFilePath(_gameRoot);
+        var gameLocPath = _gameDefinition.GetLocalizationFilePath(_gameRoot);
         LocalizationFileFingerprint.TryCapture(gameLocPath, out var capturedFingerprint, out var captureError);
         bool fingerprintCaptured = captureError == null;
         var stateResult = await _stateService.ResolveAsync(installedModeCurrent, gameLocPath, gameRoot: _gameRoot);

@@ -10,6 +10,7 @@ public sealed class RestoreBackupService
     private readonly InstallationStateStore _stateStore;
     private readonly ILogger _logger;
     private readonly string _gameRoot;
+    private readonly BdoGameDefinition _gameDefinition;
 
     // Test seam: called after successful game replace, before state apply.
     internal Action? OnPostGameReplaceHook { get; set; }
@@ -18,18 +19,20 @@ public sealed class RestoreBackupService
         BackupStore backupStore,
         InstallationStateStore stateStore,
         ILogger logger,
-        string gameRoot)
+        string gameRoot,
+        BdoGameDefinition? gameDefinition = null)
     {
         _backupStore = backupStore ?? throw new ArgumentNullException(nameof(backupStore));
         _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _gameRoot = gameRoot ?? throw new ArgumentNullException(nameof(gameRoot));
+        _gameDefinition = gameDefinition ?? BdoGameDefinition.Default;
     }
 
     public async Task<RestoreResult> RestoreAsync(
         string restorePointId, CancellationToken cancellationToken = default)
     {
-        var gameLocFilePath = GamePaths.GetLocalizationFilePath(_gameRoot);
+        var gameLocFilePath = _gameDefinition.GetLocalizationFilePath(_gameRoot);
 
         if (!File.Exists(gameLocFilePath))
         {
@@ -49,7 +52,7 @@ public sealed class RestoreBackupService
                 $"Restore point not found or invalid: {restorePointId}");
         }
 
-        var selectedGameFile = Path.Combine(restorePointDir, GamePaths.LocalizationFileName);
+        var selectedGameFile = Path.Combine(restorePointDir, _gameDefinition.LocalizationFileName);
         var selectedStateFile = Path.Combine(restorePointDir, "installation-state.json");
         bool hasStateFile = File.Exists(selectedStateFile);
 

@@ -2,13 +2,26 @@ using System.Text.RegularExpressions;
 
 namespace BdoClient.Services;
 
-public static class AdsFilesPatchReader
+public sealed class AdsFilesPatchReader
 {
     private static readonly Regex EntryLine = new(
         @"^\s*(\S+)(?:\s+(.*?))?\s*$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    private readonly string _adsFilesName;
+    private readonly string _localizationFileName;
+
+    internal AdsFilesPatchReader(string adsFilesName, string localizationFileName)
+    {
+        _adsFilesName = adsFilesName;
+        _localizationFileName = localizationFileName;
+    }
+
+    // Compatibility entry point for existing BDO-focused callers and tests.
     public static int? TryReadPatch(string? gameRoot)
+        => BdoGameDefinition.Default.TryReadInstalledPatch(gameRoot);
+
+    internal int? ReadPatch(string? gameRoot)
     {
         if (string.IsNullOrWhiteSpace(gameRoot) || !Path.IsPathRooted(gameRoot))
             return null;
@@ -16,7 +29,7 @@ public static class AdsFilesPatchReader
         try
         {
             var root = Path.GetFullPath(gameRoot);
-            var path = Path.Combine(root, "ads_files");
+            var path = Path.Combine(root, _adsFilesName);
             if (!File.Exists(path))
                 return null;
 
@@ -25,7 +38,7 @@ public static class AdsFilesPatchReader
             foreach (var line in File.ReadLines(path))
             {
                 var match = EntryLine.Match(line);
-                if (!match.Success || !string.Equals(match.Groups[1].Value, GamePaths.LocalizationFileName, StringComparison.Ordinal))
+                if (!match.Success || !string.Equals(match.Groups[1].Value, _localizationFileName, StringComparison.Ordinal))
                     continue;
 
                 entryCount++;

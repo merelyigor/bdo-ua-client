@@ -352,7 +352,7 @@ internal sealed class MainFormTestFixture : IDisposable
 
         GameRoot = Path.Combine(_root, "fake-game");
         Directory.CreateDirectory(Path.Combine(GameRoot, "ads"));
-        File.WriteAllBytes(GamePaths.GetLocalizationFilePath(GameRoot), Array.Empty<byte>());
+        File.WriteAllBytes(BdoGameDefinition.Default.GetLocalizationFilePath(GameRoot), Array.Empty<byte>());
         if (gamePatch is > 0)
             File.WriteAllText(Path.Combine(GameRoot, "ads_files"), $"languagedata_en.loc\t{gamePatch.Value}\n");
         File.WriteAllText(
@@ -608,9 +608,10 @@ internal sealed class MainFormTestFixture : IDisposable
             var stateStore = new InstallationStateStore(_appPaths, logger);
             var apiClient = new BdoUaApiClient(_bdoHttpClient, logger);
             var localizationInstaller = new LocalizationInstaller(_bdoHttpClient, _appPaths, logger);
-            var backupStore = new BackupStore(_appPaths, logger);
-            var gameDetector = new GameDetector(configStore, logger);
-            var stateService = new LocalizationStateService(stateStore, logger);
+            var gameDefinition = BdoGameDefinition.Default;
+            var backupStore = new BackupStore(_appPaths, logger, gameDefinition);
+            var gameDetector = new GameDetector(configStore, logger, gameDefinition);
+            var stateService = new LocalizationStateService(stateStore, logger, gameDefinition);
             var compatService = new LocalizationCompatibilityService();
             var appVersionInfo = AppVersionInfo.FromRawVersion("1.2.2");
             var githubClient = new GitHubUpdateClient(_githubHttpClient, logger);
@@ -622,6 +623,7 @@ internal sealed class MainFormTestFixture : IDisposable
                 configStore,
                 apiClient,
                 gameDetector,
+                gameDefinition,
                 stateService,
                 compatService,
                 localizationInstaller,
