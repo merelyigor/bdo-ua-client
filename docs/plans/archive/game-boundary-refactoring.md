@@ -1,11 +1,11 @@
 # Game Boundary Refactoring
 
 Plan ID: `game-boundary-refactoring`
-Status: ACTIVE
-Focus: PRIMARY
-Implementation authorization: **YES**
-Current phase: Stage 2 — Per-Game Persistence Isolation (`IMPLEMENTED / VALIDATED / PENDING EXTERNAL PRE-COMMIT REVIEW`)
-Next action: External Architect pre-commit review Stage 2; commit/push/CI only after explicit acceptance
+Status: ARCHIVED
+Focus: —
+Implementation authorization: **NO**
+Current phase: roadmap completed / reviewed / accepted — Stage 1 and Stage 2 finalized
+Next action: none; no remaining implementation action
 Dependencies: none
 
 ## Goal
@@ -40,7 +40,7 @@ Status: **REVIEWED / ACCEPTED**
 
 ### Stage 2 — Per-Game Persistence Isolation
 
-Status: **IMPLEMENTED / VALIDATED / PENDING EXTERNAL PRE-COMMIT REVIEW**
+Status: **REVIEWED / ACCEPTED**
 
 - `GamePersistencePaths` володіє canonical game-scoped config, installation
   state та backup paths під `games/<stable-game-id>/`; application config, logs,
@@ -66,5 +66,8 @@ controller/presenter redesign.
 
 Stage 1 Release build, focused game-boundary/detection/install/restore/lifecycle
 tests та повний Release suite були green перед acceptance. Stage 2 є
-persistence/data-migration change: Implementation Agent зупиняється перед
-commit/push і не може самостійно позначити його `REVIEWED / ACCEPTED`.
+persistence/data-migration change; exact reviewed implementation commit
+`81823e6` passed normal CI #202 (`34841029682`). External Architect
+pre-commit review completed with acceptance. The roadmap is complete and
+archived; there is no Stage 3, Game B, feed abstraction or follow-up
+refactoring action.

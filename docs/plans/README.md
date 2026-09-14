@@ -2,15 +2,15 @@
 
 ## Current focus
 
-**Primary:** `game-boundary-refactoring`
-**Current phase:** Stage 2 — Per-Game Persistence Isolation (`IMPLEMENTED / VALIDATED / PENDING EXTERNAL PRE-COMMIT REVIEW`)
-**Next:** `External Architect pre-commit review Stage 2; commit/push/CI only after explicit acceptance`
+**Primary:** none
+**Current phase:** no ACTIVE implementation plan
+**Next:** await explicit Owner decision for the next roadmap/task
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| PRIMARY | `game-boundary-refactoring` | [active/game-boundary-refactoring.md](active/game-boundary-refactoring.md) | Stage 2 — Per-Game Persistence Isolation (`IMPLEMENTED / VALIDATED / PENDING EXTERNAL PRE-COMMIT REVIEW`) | External Architect pre-commit review Stage 2; commit/push/CI only after explicit acceptance |
+| — | — | — | — | — |
 
 ## Backlog
 
@@ -28,6 +28,7 @@
 | `code-quality-ux-improvements` | [archive/code-quality-ux-improvements.md](archive/code-quality-ux-improvements.md) | Roadmap completed, reviewed, accepted and released in stable v1.2.1 |
 | `release-experience-polish` | [archive/release-experience-polish.md](archive/release-experience-polish.md) | R1–R3 completed, reviewed, accepted and released in stable v1.2.2 |
 | `offline-degraded-reliability` | [archive/offline-degraded-reliability.md](archive/offline-degraded-reliability.md) | Offline/degraded release-feed roadmap completed, reviewed, accepted; v15.46 released in stable v1.2.3 |
+| `game-boundary-refactoring` | [archive/game-boundary-refactoring.md](archive/game-boundary-refactoring.md) | Stage 1–2 completed, reviewed, accepted; roadmap completed and archived; stable release remains v1.2.5 |
 
 ## Rules / lifecycle
 

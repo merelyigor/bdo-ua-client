@@ -8,7 +8,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 Стабільний реліз: **v1.2.5**. Публічний stable release опубліковано з tag v1.2.5; canonical application bundle містить один ZIP-asset. Offline/degraded release-feed implementation завершено та прийнято зовнішнім Architect.
 
-Поточна наступна дія: `External Architect pre-commit review Stage 2 game persistence isolation`.
+Поточна наступна дія: `WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`.
 
 ## Architecture Summary
 
@@ -52,7 +52,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - v1.2.5 — **PUBLISHED / VERIFIED**: public stable release ID `386734323` опубліковано на tag `v1.2.5`, який вказує на approved RC SHA `fd17f4346159234c8165c2b808b5c16309076e2e`; canonical ZIP і внутрішні hashes повторно перевірено, Owner native UI smoke exact RC пройдено. `NEXT.json` скинуто до порожнього schema-v1 джерела.
 - `offline-degraded-reliability` — **ARCHIVED**: roadmap завершено, reviewed / accepted; archived plans залишаються історичними.
 - v1.2.3 — **PUBLISHED / VERIFIED**: tag `v1.2.3` і public Release ID `384894464` опубліковано на exact approved RC SHA `ec891ea7077dd70e2aafd0c2e00674f47c45a94a`; Owner native UI smoke exact RC passed.
-- `game-boundary-refactoring` — **ACTIVE / PRIMARY**: Stage 1 **REVIEWED / ACCEPTED**; Stage 2 per-game persistence isolation **IMPLEMENTED / VALIDATED / PENDING EXTERNAL PRE-COMMIT REVIEW**.
+- `game-boundary-refactoring` — **ARCHIVED**: Stage 1 і Stage 2 **REVIEWED / ACCEPTED**; roadmap **COMPLETED / ARCHIVED**, без Stage 3.
 
 ## Validation / Release Facts
 
@@ -94,6 +94,6 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 - v1.2.3 release cycle is completed and archived.
 - Offline/degraded release-feed mode is completed, reviewed and accepted; `offline-degraded-reliability` is archived.
-- `game-boundary-refactoring` is the sole ACTIVE PRIMARY roadmap; Stage 1 is reviewed/accepted and Stage 2 is pending external pre-commit review.
+- `game-boundary-refactoring` is archived; Stage 1 and Stage 2 are reviewed/accepted, and no ACTIVE PRIMARY roadmap remains.
 - v1.2.5 release cycle completed; public Release verified and `NEXT.json` reset for the next cycle.
-- Next action: `External Architect pre-commit review Stage 2 game persistence isolation; commit/push/CI only after explicit acceptance`.
+- Next action: `WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`.
