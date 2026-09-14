@@ -1,6 +1,6 @@
 # Current Engineering Context
 
-Оновлено: 2026-09-11
+Оновлено: 2026-09-14
 
 ## Project Purpose / Status
 
@@ -8,7 +8,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 Стабільний реліз: **v1.2.5**. Публічний stable release опубліковано з tag v1.2.5; canonical application bundle містить один ZIP-asset. Offline/degraded release-feed implementation завершено та прийнято зовнішнім Architect.
 
-Поточна наступна дія: `Release Candidate v1.2.6, then Owner native UI smoke`.
+Поточна наступна дія: `Owner native UI smoke of the exact v1.2.6 RC artifact, then final tag/publication`.
 
 ## Architecture Summary
 
@@ -53,7 +53,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - `offline-degraded-reliability` — **ARCHIVED**: roadmap завершено, reviewed / accepted; archived plans залишаються історичними.
 - v1.2.3 — **PUBLISHED / VERIFIED**: tag `v1.2.3` і public Release ID `384894464` опубліковано на exact approved RC SHA `ec891ea7077dd70e2aafd0c2e00674f47c45a94a`; Owner native UI smoke exact RC passed.
 - `game-boundary-refactoring` — **ARCHIVED**: Stage 1 і Stage 2 **REVIEWED / ACCEPTED**; roadmap **COMPLETED / ARCHIVED**, без Stage 3.
-- v1.2.6 — **RELEASE PREPARATION / RC PENDING**: release notes описують game-scoped persistence migration та відновлення off-screen background-вікна; stable public release залишається v1.2.5.
+- v1.2.6 — **RC READY / OWNER NATIVE SMOKE REQUIRED**: RC #34 / run `34873972036` успішний на exact source SHA `daba3b6aa861f072b382a3b1f92a24d52b94763f`; stable public release залишається v1.2.5, final tag і GitHub Release ще не створені.
 
 ## Validation / Release Facts
 
@@ -68,6 +68,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - v1.2.5 validation: RC #33 / run `34550224363`, public Release ID `386734323`, canonical asset `BDO-UA-Client-v1.2.5-win-x64.zip` (asset ID `556244252`, 67,905,838 bytes, SHA-256 `e505971b3ed7946d085ce1fe169c9ab45cd73689f49c71393ab49ca65e7e8b7d`), internal EXE SHA-256 `f0a89d1348e66fa2cadae41d37a8c945282bb7753737d0593d1a8114df7cf5e3`; public asset downloaded back and verified, Owner native UI smoke passed.
 - Stage 1 game-boundary validation: Release build — 0 warnings / 0 errors; full Release suite — 940 passed / 0 failed / 0 skipped; focused boundary/detection/install/restore/lifecycle suite — 216 passed; `git diff --check` passed.
 - Stage 2 persistence validation: focused migration/isolation suite — 15 passed; relevant install/restore/detection/state/MainForm lifecycle suites — 170 passed; Release build — 0 warnings / 0 errors; full Release suite — 957 passed / 0 failed / 0 skipped; `git diff --check` passed. MainForm off-screen background restore regression coverage and native secondary-activation validation passed.
+- v1.2.6 RC validation: normal CI #204 / run `34873696880` and RC #34 / run `34873972036` succeeded; RC artifact `BDO-UA-Client-v1.2.6-win-x64` contains four flat files, ZIP size `67,914,367` bytes, ZIP SHA-256 `cf999c7059c8c1eecb2ff68053feb59410c30c3956a1a8e214bd078240c1c435`, EXE SHA-256 `65dfb3d2e76e011e256e3d6f6c7d27994a8ac54f89d6e64dbb86e9e9328fcd35`, manifest schema 2 and version 1.2.6.
 
 ## Important Invariants
 
@@ -97,4 +98,4 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - Offline/degraded release-feed mode is completed, reviewed and accepted; `offline-degraded-reliability` is archived.
 - `game-boundary-refactoring` is archived; Stage 1 and Stage 2 are reviewed/accepted, and no ACTIVE PRIMARY roadmap remains. v1.2.6 release preparation is the current bounded release task.
 - v1.2.5 release cycle completed; public Release verified and `NEXT.json` reset for the next cycle.
-- Next action: `Release Candidate v1.2.6, then Owner native UI smoke of the exact RC artifact`.
+- Next action: `Owner native UI smoke of the exact v1.2.6 RC artifact, then final tag/publication`.
