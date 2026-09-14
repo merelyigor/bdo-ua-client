@@ -176,11 +176,14 @@ public partial class MainForm
     {
         if (IsDisposed || Disposing) return;
 
+        ShowInTaskbar = true;
+        Show();
+
         if (WindowState == FormWindowState.Minimized)
             WindowState = FormWindowState.Normal;
 
-        ShowInTaskbar = true;
-        Show();
+        EnsureWindowIsVisibleOnScreen();
+
         Activate();
         BringToFront();
 
@@ -196,6 +199,22 @@ public partial class MainForm
 
         BeginInvoke(new Action(ReconcileLayoutAfterRestore));
         ScheduleLocalFileCheckAfterRestore();
+    }
+
+    private void EnsureWindowIsVisibleOnScreen()
+    {
+        if (Screen.AllScreens.Any(screen => screen.WorkingArea.IntersectsWith(Bounds)))
+            return;
+
+        var workArea = Screen.PrimaryScreen?.WorkingArea
+            ?? new Rectangle(0, 0, Math.Max(Width, 800), Math.Max(Height, 600));
+        var width = Math.Min(Width, workArea.Width);
+        var height = Math.Min(Height, workArea.Height);
+
+        StartPosition = FormStartPosition.Manual;
+        Location = new Point(
+            workArea.Left + Math.Max(0, (workArea.Width - width) / 2),
+            workArea.Top + Math.Max(0, (workArea.Height - height) / 2));
     }
 
     private void ReconcileLayoutAfterRestore()
@@ -292,7 +311,7 @@ public partial class MainForm
             if (_autostartService.IsEnabled())
                 return;
 
-            var load = _configStore.Load();
+            var load = _applicationConfigStore.Load();
             if (load.Status == FileLoadStatus.Invalid)
             {
                 _logger.Warning("Config invalid; skipping autostart prompt.");
@@ -360,19 +379,19 @@ public partial class MainForm
 
     private async Task MarkAutostartPromptDismissedAsync()
     {
-        var load = _configStore.Load();
+        var load = _applicationConfigStore.Load();
         if (load.Status == FileLoadStatus.Invalid)
         {
             _logger.Warning("Config invalid; not saving autostart prompt dismissal.");
             return;
         }
 
-        var config = load.Value ?? new Config();
+        var config = load.Value ?? new ApplicationConfig();
         if (config.AutostartPromptDismissed)
             return;
 
         config.AutostartPromptDismissed = true;
-        await _configStore.SaveAsync(config);
+        await _applicationConfigStore.SaveAsync(config);
     }
 
     private void ShowAutostartWarning(string message)

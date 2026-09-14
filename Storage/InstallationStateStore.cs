@@ -11,24 +11,40 @@ public sealed class InstallationStateStore
         PropertyNameCaseInsensitive = true
     };
 
-    private readonly AppPaths _paths;
+    private readonly string _stateDir;
+    private readonly string _installationFile;
     private readonly ILogger _logger;
 
     // Test seam: called instead of real save. Allows tests to inject cancellation/failure.
     internal Func<InstallationMetadata, CancellationToken, Task>? OnSaveAsync { get; set; }
 
-    internal string StateDir => _paths.StateDir;
-    internal string InstallationFile => _paths.InstallationFile;
+    internal string StateDir => _stateDir;
+    internal string InstallationFile => _installationFile;
 
-    public InstallationStateStore(AppPaths paths, ILogger logger)
+    // Legacy-layout adapter is retained only for compatibility fixtures and
+    // bounded migration tests; production composition uses GamePersistencePaths.
+    internal InstallationStateStore(AppPaths paths, ILogger logger)
+        : this(paths?.StateDir ?? throw new ArgumentNullException(nameof(paths)),
+            paths.InstallationFile, logger)
     {
-        _paths = paths ?? throw new ArgumentNullException(nameof(paths));
+    }
+
+    public InstallationStateStore(GamePersistencePaths paths, ILogger logger)
+        : this(paths?.StateDir ?? throw new ArgumentNullException(nameof(paths)),
+            paths.InstallationFile, logger)
+    {
+    }
+
+    private InstallationStateStore(string stateDir, string installationFile, ILogger logger)
+    {
+        _stateDir = stateDir;
+        _installationFile = installationFile;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public FileLoadResult<InstallationMetadata> Load()
     {
-        if (!File.Exists(_paths.InstallationFile))
+        if (!File.Exists(_installationFile))
         {
             _logger.Debug("Installation metadata not found");
             return FileLoadResult<InstallationMetadata>.Missing();
@@ -36,7 +52,7 @@ public sealed class InstallationStateStore
 
         try
         {
-            var json = File.ReadAllText(_paths.InstallationFile);
+            var json = File.ReadAllText(_installationFile);
             var metadata = JsonSerializer.Deserialize<InstallationMetadata>(json, JsonOptions);
 
             if (metadata == null)
@@ -68,8 +84,8 @@ public sealed class InstallationStateStore
 
     internal byte[]? CaptureRawState()
     {
-        return File.Exists(_paths.InstallationFile)
-            ? File.ReadAllBytes(_paths.InstallationFile)
+        return File.Exists(_installationFile)
+            ? File.ReadAllBytes(_installationFile)
             : null;
     }
 
@@ -78,28 +94,28 @@ public sealed class InstallationStateStore
     {
         if (stateBytes == null)
         {
-            if (!File.Exists(_paths.InstallationFile))
+            if (!File.Exists(_installationFile))
                 return true;
 
-            File.Delete(_paths.InstallationFile);
-            return !File.Exists(_paths.InstallationFile);
+            File.Delete(_installationFile);
+            return !File.Exists(_installationFile);
         }
 
-        var tempFile = Path.Combine(_paths.StateDir, $"installation.raw-restore.{Guid.NewGuid():N}.tmp");
+        var tempFile = Path.Combine(_stateDir, $"installation.raw-restore.{Guid.NewGuid():N}.tmp");
         try
         {
             await File.WriteAllBytesAsync(tempFile, stateBytes, cancellationToken).ConfigureAwait(false);
 
-            if (File.Exists(_paths.InstallationFile))
+            if (File.Exists(_installationFile))
             {
-                File.Replace(tempFile, _paths.InstallationFile, null);
+                File.Replace(tempFile, _installationFile, null);
             }
             else
             {
-                File.Move(tempFile, _paths.InstallationFile, overwrite: false);
+                File.Move(tempFile, _installationFile, overwrite: false);
             }
 
-            var restoredBytes = await File.ReadAllBytesAsync(_paths.InstallationFile, cancellationToken)
+            var restoredBytes = await File.ReadAllBytesAsync(_installationFile, cancellationToken)
                 .ConfigureAwait(false);
             return restoredBytes.Length == stateBytes.Length
                 && restoredBytes.AsSpan().SequenceEqual(stateBytes);
@@ -122,19 +138,19 @@ public sealed class InstallationStateStore
         }
 
         var json = JsonSerializer.Serialize(metadata, JsonOptions);
-        var tempFile = _paths.InstallationFile + ".tmp";
+        var tempFile = _installationFile + ".tmp";
 
         try
         {
             await File.WriteAllTextAsync(tempFile, json, cancellationToken).ConfigureAwait(false);
 
-            if (File.Exists(_paths.InstallationFile))
+            if (File.Exists(_installationFile))
             {
-                File.Replace(tempFile, _paths.InstallationFile, null);
+                File.Replace(tempFile, _installationFile, null);
             }
             else
             {
-                File.Move(tempFile, _paths.InstallationFile);
+                File.Move(tempFile, _installationFile);
             }
 
             _logger.Debug("Installation metadata saved successfully");
@@ -151,9 +167,9 @@ public sealed class InstallationStateStore
     {
         try
         {
-            if (File.Exists(_paths.InstallationFile))
+            if (File.Exists(_installationFile))
             {
-                File.Delete(_paths.InstallationFile);
+                File.Delete(_installationFile);
                 _logger.Debug("Installation metadata cleared");
             }
         }

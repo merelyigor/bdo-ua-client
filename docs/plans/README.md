@@ -3,14 +3,14 @@
 ## Current focus
 
 **Primary:** `game-boundary-refactoring`
-**Current phase:** Stage 1 — Explicit Game Boundary (`IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW`)
-**Next:** `External Architect review Stage 1; after acceptance, explicit Stage 2 authorization`
+**Current phase:** Stage 2 — Per-Game Persistence Isolation (`IMPLEMENTED / VALIDATED / PENDING EXTERNAL PRE-COMMIT REVIEW`)
+**Next:** `External Architect pre-commit review Stage 2; commit/push/CI only after explicit acceptance`
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| PRIMARY | `game-boundary-refactoring` | [active/game-boundary-refactoring.md](active/game-boundary-refactoring.md) | Stage 1 — Explicit Game Boundary (`IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW`) | External Architect review Stage 1; after acceptance, explicit Stage 2 authorization |
+| PRIMARY | `game-boundary-refactoring` | [active/game-boundary-refactoring.md](active/game-boundary-refactoring.md) | Stage 2 — Per-Game Persistence Isolation (`IMPLEMENTED / VALIDATED / PENDING EXTERNAL PRE-COMMIT REVIEW`) | External Architect pre-commit review Stage 2; commit/push/CI only after explicit acceptance |
 
 ## Backlog
 

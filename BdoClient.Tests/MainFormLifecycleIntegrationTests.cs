@@ -1,4 +1,5 @@
 using System.Net;
+using System.Drawing;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -111,13 +112,33 @@ public sealed class MainFormLifecycleIntegrationTests
 
         await fixture.WaitForStartupAsync();
         await fixture.WaitForAsync(form => !form.Visible && form.WindowState == FormWindowState.Minimized);
-
         var originalForm = fixture.Form;
         fixture.SignalSecondaryActivation();
 
         await fixture.WaitForAsync(form => form.Visible && form.WindowState == FormWindowState.Normal);
 
         Assert.Same(originalForm, fixture.Form);
+    }
+
+    [Fact]
+    public async Task SecondaryActivationRestoresBackgroundFormFromOffscreenBounds()
+    {
+        using var fixture = await MainFormTestFixture.StartAsync(
+            MainFormTestFixture.CreateSuccessfulApiHandler(),
+            startInBackground: true);
+
+        await fixture.WaitForStartupAsync();
+        await fixture.WaitForAsync(form => !form.Visible && form.WindowState == FormWindowState.Minimized);
+        await fixture.MoveFormOffScreenAsync();
+
+        fixture.SignalSecondaryActivation();
+
+        await fixture.WaitForAsync(form =>
+            form.Visible
+            && form.WindowState == FormWindowState.Normal
+            && Screen.AllScreens.Any(screen => screen.WorkingArea.IntersectsWith(form.Bounds)));
+
+        Assert.False(fixture.Form.IsDisposed);
     }
 
     [Fact]
@@ -319,6 +340,8 @@ internal sealed class MainFormTestFixture : IDisposable
     private readonly HttpClient _githubHttpClient;
     private readonly MainFormTestHttpHandler _bdoHandler;
     private readonly MainFormTestHttpHandler _githubHandler;
+    private readonly string _mutexName;
+    private readonly string _eventName;
     private readonly TaskCompletionSource<MainForm> _formReady =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource<object?> _hostCompleted =
@@ -362,9 +385,9 @@ internal sealed class MainFormTestFixture : IDisposable
         _bdoHttpClient = new HttpClient(_bdoHandler);
         _githubHttpClient = new HttpClient(_githubHandler);
 
-        var mutexName = $@"Local\BdoClient.Tests.{Guid.NewGuid():N}.Mutex";
-        var eventName = $@"Local\BdoClient.Tests.{Guid.NewGuid():N}.Activate";
-        _singleInstanceCoordinator = new SingleInstanceCoordinator(mutexName, eventName);
+        _mutexName = $@"Local\BdoClient.Tests.{Guid.NewGuid():N}.Mutex";
+        _eventName = $@"Local\BdoClient.Tests.{Guid.NewGuid():N}.Activate";
+        _singleInstanceCoordinator = new SingleInstanceCoordinator(_mutexName, _eventName);
 
         _uiThread = new Thread(() => RunUiLoop(startInBackground, exitWhenShown))
         {
@@ -552,7 +575,28 @@ internal sealed class MainFormTestFixture : IDisposable
 
     internal void SignalSecondaryActivation()
     {
-        _singleInstanceCoordinator.SignalActivation();
+        using var secondary = new SingleInstanceCoordinator(_mutexName, _eventName);
+        secondary.SignalActivation();
+    }
+
+    internal async Task MoveFormOffScreenAsync()
+    {
+        var completion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        PostToUi(() =>
+        {
+            try
+            {
+                Form.StartPosition = FormStartPosition.Manual;
+                Form.Location = new Point(-32000, -32000);
+                completion.TrySetResult(null);
+            }
+            catch (Exception ex)
+            {
+                completion.TrySetException(ex);
+            }
+        });
+
+        await completion.Task.WaitAsync(Timeout);
     }
 
     internal async Task WaitForHostExitAsync()
@@ -573,7 +617,7 @@ internal sealed class MainFormTestFixture : IDisposable
         {
             try
             {
-                PostToUi(Application.ExitThread);
+                PostToUi(ExitFormForTestHostShutdown);
                 if (!_uiThread.Join(Timeout))
                     throw new TimeoutException("MainForm test UI thread did not terminate.");
             }
@@ -596,6 +640,14 @@ internal sealed class MainFormTestFixture : IDisposable
             Directory.Delete(_root, recursive: true);
     }
 
+    private void ExitFormForTestHostShutdown()
+    {
+        var exit = typeof(MainForm).GetMethod(
+            "ExitFromTray",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        exit!.Invoke(Form, null);
+    }
+
     private void RunUiLoop(bool startInBackground, bool exitWhenShown)
     {
         try
@@ -605,6 +657,7 @@ internal sealed class MainFormTestFixture : IDisposable
 
             var logger = new TestLogger();
             var configStore = new ConfigStore(_appPaths, logger);
+            var applicationConfigStore = new ApplicationConfigStore(_appPaths, logger);
             var stateStore = new InstallationStateStore(_appPaths, logger);
             var apiClient = new BdoUaApiClient(_bdoHttpClient, logger);
             var localizationInstaller = new LocalizationInstaller(_bdoHttpClient, _appPaths, logger);
@@ -621,6 +674,7 @@ internal sealed class MainFormTestFixture : IDisposable
 
             _form = new MainForm(
                 configStore,
+                applicationConfigStore,
                 apiClient,
                 gameDetector,
                 gameDefinition,

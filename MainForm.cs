@@ -12,6 +12,7 @@ namespace BdoClient;
 public partial class MainForm : Form
 {
     private readonly ConfigStore _configStore;
+    private readonly ApplicationConfigStore _applicationConfigStore;
     private readonly BdoUaApiClient _apiClient;
     private readonly GameDetector _gameDetector;
     private readonly BdoGameDefinition _gameDefinition;
@@ -81,6 +82,7 @@ public partial class MainForm : Form
 
     public MainForm(
         ConfigStore configStore,
+        ApplicationConfigStore applicationConfigStore,
         BdoUaApiClient apiClient,
         GameDetector gameDetector,
         BdoGameDefinition gameDefinition,
@@ -99,6 +101,7 @@ public partial class MainForm : Form
         SingleInstanceCoordinator singleInstanceCoordinator)
     {
         _configStore = configStore;
+        _applicationConfigStore = applicationConfigStore;
         _apiClient = apiClient;
         _gameDetector = gameDetector;
         _gameDefinition = gameDefinition ?? throw new ArgumentNullException(nameof(gameDefinition));

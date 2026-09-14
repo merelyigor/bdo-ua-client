@@ -11,18 +11,30 @@ public sealed class ConfigStore
         PropertyNameCaseInsensitive = true
     };
 
-    private readonly AppPaths _paths;
+    private readonly string _configFile;
     private readonly ILogger _logger;
 
-    public ConfigStore(AppPaths paths, ILogger logger)
+    // Legacy-layout adapter is retained only for compatibility fixtures and
+    // bounded migration tests; production composition uses GamePersistencePaths.
+    internal ConfigStore(AppPaths paths, ILogger logger)
+        : this(paths?.ConfigFile ?? throw new ArgumentNullException(nameof(paths)), logger)
     {
-        _paths = paths ?? throw new ArgumentNullException(nameof(paths));
+    }
+
+    public ConfigStore(GamePersistencePaths paths, ILogger logger)
+        : this(paths?.ConfigFile ?? throw new ArgumentNullException(nameof(paths)), logger)
+    {
+    }
+
+    private ConfigStore(string configFile, ILogger logger)
+    {
+        _configFile = configFile;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public FileLoadResult<Config> Load()
     {
-        if (!File.Exists(_paths.ConfigFile))
+        if (!File.Exists(_configFile))
         {
             _logger.Debug("Config file not found, using defaults");
             return FileLoadResult<Config>.Missing(new Config());
@@ -30,7 +42,7 @@ public sealed class ConfigStore
 
         try
         {
-            var json = File.ReadAllText(_paths.ConfigFile);
+            var json = File.ReadAllText(_configFile);
             var config = JsonSerializer.Deserialize<Config>(json, JsonOptions);
 
             if (config == null)
@@ -58,19 +70,19 @@ public sealed class ConfigStore
         ArgumentNullException.ThrowIfNull(config);
 
         var json = JsonSerializer.Serialize(config, JsonOptions);
-        var tempFile = _paths.ConfigFile + ".tmp";
+        var tempFile = _configFile + ".tmp";
 
         try
         {
             await File.WriteAllTextAsync(tempFile, json, cancellationToken).ConfigureAwait(false);
 
-            if (File.Exists(_paths.ConfigFile))
+            if (File.Exists(_configFile))
             {
-                File.Replace(tempFile, _paths.ConfigFile, null);
+                File.Replace(tempFile, _configFile, null);
             }
             else
             {
-                File.Move(tempFile, _paths.ConfigFile);
+                File.Move(tempFile, _configFile);
             }
 
             _logger.Debug("Config saved successfully");

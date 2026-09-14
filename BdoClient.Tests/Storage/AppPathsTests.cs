@@ -55,4 +55,18 @@ public class AppPathsTests : IDisposable
 
         Assert.True(Directory.Exists(paths.StateDir));
     }
+
+    [Fact]
+    public void EnsureGlobalDirectories_DoesNotCreateLegacyGameStateDirectories()
+    {
+        var paths = new AppPaths(_tempDir);
+
+        paths.EnsureGlobalDirectories();
+
+        Assert.True(Directory.Exists(paths.LogsDir));
+        Assert.True(Directory.Exists(paths.CacheDir));
+        Assert.True(Directory.Exists(paths.UpdatesDir));
+        Assert.False(Directory.Exists(paths.StateDir));
+        Assert.False(Directory.Exists(paths.BackupsDir));
+    }
 }

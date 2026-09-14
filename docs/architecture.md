@@ -90,9 +90,13 @@ BDO-PROGRAM/
 │   └── StartupCoordinator.cs   — Паралельний startup: API + local detection
 │
 ├── Storage/
-│   ├── AppPaths.cs             — Шляхи до %LocalAppData%\BDO-UA-Client\ (config, state, logs, cache, backups)
+│   ├── AppPaths.cs             — Application-global шляхи %LocalAppData%\BDO-UA-Client\
+│   ├── GamePersistencePaths.cs — Canonical game-scoped config/state/backups paths
+│   ├── LegacyBdoPersistenceMigrator.cs — Bounded migration старого BDO layout
 │   ├── ConfigStore.cs          — Зчитування/збереження config.json
 │   ├── Config.cs               — Модель конфігурації (game_path тощо)
+│   ├── ApplicationConfigStore.cs — Global application settings
+│   ├── ApplicationConfig.cs     — Модель global settings
 │   ├── ReleaseFeedCache.cs     — Нормалізований last-known release feed, schema-v1, atomic best-effort cache
 │   ├── InstallationStateStore.cs — Зчитування/збереження state/installation.json
 │   ├── InstallationMetadata.cs — Метадані встановленої локалізації (public_id, version, sha256)
@@ -121,20 +125,24 @@ Program.Main()
 ├─ ApplicationCommandLine.Parse(args)
 │   └─ --apply-update <session-id> → RunHelperMode() (див. docs/update.md)
 │
-├─ AppPaths                    — базові шляхи (%LocalAppData%\BDO-UA-Client\)
-│   └─ EnsureDirectories()     — створення каталогів якщо відсутні
+├─ AppPaths                    — application-global шляхи (%LocalAppData%\BDO-UA-Client\)
+│   └─ EnsureGlobalDirectories() — logs/cache/updates
+├─ BdoGameDefinition.Default   — stable BDO game identity
+├─ LegacyBdoPersistenceMigrator — legacy BDO layout → canonical game scope
+├─ GamePersistencePaths         — games/black-desert-online/{config,state,backups}
+│   └─ EnsureDirectories()
 │
 ├─ FileLogger(appPaths)        — єдиний логер для всього застосунку
 │
-├─ ConfigStore(appPaths, logger)
-├─ InstallationStateStore(appPaths, logger)
+├─ ConfigStore(gamePaths, logger)
+├─ ApplicationConfigStore(appPaths, logger)
+├─ InstallationStateStore(gamePaths, logger)
 ├─ AppVersionInfo.Detect()     — версія поточного EXE
 │
 ├─ HttpClient                  — ОДИН екземпляр через BdoUaHttpClientConfiguration:
 │   ├─ BdoUaApiClient(httpClient, logger)
 │   └─ LocalizationInstaller(httpClient, appPaths, logger)
 │
-├─ BdoGameDefinition.Default — concrete current-game boundary
 ├─ GameDetector(configStore, logger, gameDefinition)
 ├─ LocalizationStateService(stateStore, logger, gameDefinition)
 ├─ LocalizationCompatibilityService()   — stateless, не потребує залежностей
@@ -156,21 +164,24 @@ MainForm всередині себе додатково створює: `UpdateS
 
 ```
 MainForm
-├── ConfigStore ─────────────── AppPaths, ILogger
+├── ConfigStore ─────────────── GamePersistencePaths, ILogger
+├── ApplicationConfigStore ──── AppPaths, ILogger (global settings)
 ├── BdoUaApiClient ──────────── HttpClient, ILogger
 ├── BdoGameDefinition ──────── BDO identity, target/validation, detection facts, patch reader
 ├── GameDetector ────────────── ConfigStore, ILogger, BdoGameDefinition
 ├── LocalizationStateService ── InstallationStateStore, ILogger, BdoGameDefinition
 ├── LocalizationCompatibilityService (stateless)
 ├── LocalizationInstaller ───── HttpClient, AppPaths, ILogger
-├── BackupStore ─────────────── AppPaths, ILogger, BdoGameDefinition
-├── InstallationStateStore ──── AppPaths, ILogger
+├── BackupStore ─────────────── GamePersistencePaths, ILogger, BdoGameDefinition
+├── InstallationStateStore ──── GamePersistencePaths, ILogger
 ├── ReleaseFeedCacheStore ───── AppPaths, ILogger
 ├── GitHubUpdateClient ──────── GitHub HttpClient, ILogger
 ├── UpdateLifecycleService ──── GitHubUpdateClient, SelectionPolicy, PreparationService, ...
 └── ILogger (FileLogger)
 
-AppPaths ─── (no dependencies, reads %LocalAppData%)
+AppPaths ─── (no dependencies, reads %LocalAppData%; global + legacy compatibility paths)
+GamePersistencePaths ─── AppPaths.Root + stable game id
+LegacyBdoPersistenceMigrator ─── legacy AppPaths → GamePersistencePaths
 FileLogger ── AppPaths.LogsDir
 ```
 
@@ -182,23 +193,20 @@ FileLogger ── AppPaths.LogsDir
 
 ```
 %LocalAppData%\BDO-UA-Client\
-├── config.json                    — налаштування користувача (game_path)
-├── state/
-│   └── installation.json          — стан встановленої локалізації
-│                                    (public_id, version, sha256, installed_at, mode_slug, source)
+├── games/
+│   └── black-desert-online/
+│       ├── config.json             — BDO game_path
+│       ├── state/
+│       │   └── installation.json   — BDO localization state
+│       └── backups/
+│           ├── original/           — незмінний BDO original snapshot
+│           └── restore-points/      — BDO pre-operation restore points
+├── application-config.json          — application-global settings
 ├── logs/
 │   └── bdo-client-YYYY-MM-DD.log — щоденні логи з ротацією
 ├── cache/
 │   ├── release-feed.json          — нормалізований last-known feed, лише для cached read-only presentation
 │   └── *.tmp/*.download           — тимчасові завантажені файли
-└── backups/
-    ├── original/                  — original snapshot (незмінна копія до першої модифікації)
-    │   ├── languagedata_en.loc    — копія оригінального файлу
-    │   └── metadata.json          — created_at, sha256, size_bytes
-    └── restore-points/            — попередні встановлені локалізації
-        └── {public_id}/
-            ├── languagedata_en.loc
-            └── metadata.json
 └── updates/                          — self-update сесії (Stage 13)
     └── {GUID}/                       — одна сесія оновлення
         ├── update-session.json       — стан сесії (див. docs/update.md)
@@ -208,10 +216,17 @@ FileLogger ── AppPaths.LogsDir
 **Примітки:**
 - release-feed.json записується лише після валідного live API response, має schema version і UTC timestamp. У ньому немає history, install_path_patterns або transient diagnostics.
 - Cached feed використовується тільки для карток і локального read-only state resolution. Install/update/switch/restore original вимагають нового live API response; помилка кешу не робить live startup невдалим.
-- `config.json` зберігає шлях до гри, знайдений через auto-detection або ручний вибір.
-- `installation.json` оновлюється ТІЛЬКИ після успішного встановлення (post-verify).
-- `backups/original/` створюється один раз і ніколи не перезаписується.
-- `backups/restore-points/` — попередні версії локалізації для rollback.
+- `games/black-desert-online/` є canonical BDO persistence scope; шлях до гри,
+  installation state та backups належать лише цьому scope.
+- При першому запуску після Stage 2 старий `{root}\config.json` розкладається
+  між game config (game path/last mode) та global `application-config.json`
+  (autostart prompt), а `{root}\state` і `{root}\backups` переносяться через
+  `LegacyBdoPersistenceMigrator`.
+  Якщо canonical item уже існує, він authoritative; merge/overwrite не виконується.
+- JSON formats і backup contents не змінюються: `installation.json` оновлюється
+  лише після успішного встановлення, original snapshot не перезаписується,
+  restore points залишаються попередніми версіями локалізації.
+- application config, logs, cache і updates залишаються application-global.
 - `updates/<GUID>/` — staged candidate нового EXE; current EXE не змінюється до повної верифікації.
 
 ---

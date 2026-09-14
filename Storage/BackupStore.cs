@@ -15,7 +15,8 @@ public class BackupStore
 
     private const string MetadataFile = "metadata.json";
 
-    private readonly AppPaths _paths;
+    private readonly string _originalBackupDir;
+    private readonly string _restorePointsDir;
     private readonly ILogger _logger;
     private readonly BdoGameDefinition _gameDefinition;
 
@@ -23,15 +24,34 @@ public class BackupStore
     // When set, tests inject cancellation/failure at the destructive boundary.
     internal Action? OnPostReplaceHook { get; set; }
 
-    internal string OriginalBackupDir => _paths.OriginalBackupDir;
-    internal string RestorePointsDir => _paths.RestorePointsDir;
+    internal string OriginalBackupDir => _originalBackupDir;
+    internal string RestorePointsDir => _restorePointsDir;
     internal Func<string, bool>? DeleteRestorePointOverride { get; set; }
 
     private const int MaxRetainedRestorePoints = 3;
 
-    public BackupStore(AppPaths paths, ILogger logger, BdoGameDefinition? gameDefinition = null)
+    // Legacy-layout adapter is retained only for compatibility fixtures and
+    // bounded migration tests; production composition uses GamePersistencePaths.
+    internal BackupStore(AppPaths paths, ILogger logger, BdoGameDefinition? gameDefinition = null)
+        : this(paths?.OriginalBackupDir ?? throw new ArgumentNullException(nameof(paths)),
+            paths.RestorePointsDir, logger, gameDefinition)
     {
-        _paths = paths ?? throw new ArgumentNullException(nameof(paths));
+    }
+
+    public BackupStore(GamePersistencePaths paths, ILogger logger, BdoGameDefinition? gameDefinition = null)
+        : this(paths?.OriginalBackupDir ?? throw new ArgumentNullException(nameof(paths)),
+            paths.RestorePointsDir, logger, gameDefinition)
+    {
+    }
+
+    private BackupStore(
+        string originalBackupDir,
+        string restorePointsDir,
+        ILogger logger,
+        BdoGameDefinition? gameDefinition)
+    {
+        _originalBackupDir = originalBackupDir;
+        _restorePointsDir = restorePointsDir;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _gameDefinition = gameDefinition ?? BdoGameDefinition.Default;
     }
@@ -40,8 +60,8 @@ public class BackupStore
 
     public async Task<(bool exists, bool isValid, RestoreError? error)> CheckOriginalSnapshotAsync(CancellationToken cancellationToken = default)
     {
-        var snapshotPath = Path.Combine(_paths.OriginalBackupDir, _gameDefinition.LocalizationFileName);
-        var metadataPath = Path.Combine(_paths.OriginalBackupDir, MetadataFile);
+        var snapshotPath = Path.Combine(_originalBackupDir, _gameDefinition.LocalizationFileName);
+        var metadataPath = Path.Combine(_originalBackupDir, MetadataFile);
 
         var hasFile = File.Exists(snapshotPath);
         var hasMetadata = File.Exists(metadataPath);
@@ -106,8 +126,8 @@ public class BackupStore
                 $"Source file not found: {sourceGameFilePath}");
         }
 
-        var snapshotPath = Path.Combine(_paths.OriginalBackupDir, _gameDefinition.LocalizationFileName);
-        var metadataPath = Path.Combine(_paths.OriginalBackupDir, MetadataFile);
+        var snapshotPath = Path.Combine(_originalBackupDir, _gameDefinition.LocalizationFileName);
+        var metadataPath = Path.Combine(_originalBackupDir, MetadataFile);
         var tempPath = snapshotPath + ".tmp";
         var tempMetadataPath = metadataPath + ".tmp";
 
@@ -162,8 +182,8 @@ public class BackupStore
 
     public async Task<(string? snapshotPath, BackupMetadata? metadata, RestoreError? error)> LoadOriginalSnapshotAsync(CancellationToken cancellationToken = default)
     {
-        var snapshotPath = Path.Combine(_paths.OriginalBackupDir, _gameDefinition.LocalizationFileName);
-        var metadataPath = Path.Combine(_paths.OriginalBackupDir, MetadataFile);
+        var snapshotPath = Path.Combine(_originalBackupDir, _gameDefinition.LocalizationFileName);
+        var metadataPath = Path.Combine(_originalBackupDir, MetadataFile);
 
         if (!File.Exists(snapshotPath) || !File.Exists(metadataPath))
             return (null, null, RestoreError.SnapshotCorrupted);
@@ -222,7 +242,7 @@ public class BackupStore
         }
 
         var dirName = $"{DateTime.UtcNow:yyyyMMdd_HHmmss_fff}_{Guid.NewGuid():N}".Substring(0, 35);
-        var restorePointDir = Path.Combine(_paths.RestorePointsDir, dirName);
+        var restorePointDir = Path.Combine(_restorePointsDir, dirName);
         var fileCopyPath = Path.Combine(restorePointDir, _gameDefinition.LocalizationFileName);
         var metadataPath = Path.Combine(restorePointDir, MetadataFile);
         var stateSnapshotPath = Path.Combine(restorePointDir, "installation-state.json");
@@ -292,13 +312,13 @@ public class BackupStore
     {
         var result = new List<RestorePointInfo>();
 
-        if (!Directory.Exists(_paths.RestorePointsDir))
+        if (!Directory.Exists(_restorePointsDir))
             return result;
 
         string[] directories;
         try
         {
-            directories = Directory.GetDirectories(_paths.RestorePointsDir);
+            directories = Directory.GetDirectories(_restorePointsDir);
         }
         catch (Exception ex)
         {
@@ -362,7 +382,7 @@ public class BackupStore
                 if (keepIds.Contains(restorePoint.Id))
                     continue;
 
-                var directory = Path.Combine(_paths.RestorePointsDir, restorePoint.Id);
+                var directory = Path.Combine(_restorePointsDir, restorePoint.Id);
                 if (!TryDeleteOwnedRestorePoint(directory))
                     _logger.Warning($"Restore point pruning retained {restorePoint.Id}");
             }
@@ -383,7 +403,7 @@ public class BackupStore
             return null;
 
         var normalized = Path.GetFullPath(restorePointDir);
-        var root = Path.GetFullPath(_paths.RestorePointsDir).TrimEnd(Path.DirectorySeparatorChar)
+        var root = Path.GetFullPath(_restorePointsDir).TrimEnd(Path.DirectorySeparatorChar)
             + Path.DirectorySeparatorChar;
         if (!normalized.StartsWith(root, StringComparison.OrdinalIgnoreCase))
             return null;
@@ -485,9 +505,9 @@ public class BackupStore
             || Path.IsPathRooted(restorePointId))
             return (null, null, RestoreError.RestorePointNotFound);
 
-        var restorePointDir = Path.Combine(_paths.RestorePointsDir, restorePointId);
+        var restorePointDir = Path.Combine(_restorePointsDir, restorePointId);
         var normalizedDir = Path.GetFullPath(restorePointDir);
-        var normalizedBase = Path.GetFullPath(_paths.RestorePointsDir);
+        var normalizedBase = Path.GetFullPath(_restorePointsDir);
 
         if (!normalizedDir.StartsWith(normalizedBase + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
             && !normalizedDir.StartsWith(normalizedBase + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))

@@ -4,8 +4,8 @@ Plan ID: `game-boundary-refactoring`
 Status: ACTIVE
 Focus: PRIMARY
 Implementation authorization: **YES**
-Current phase: Stage 1 — Explicit Game Boundary (`IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW`)
-Next action: External Architect review Stage 1; after acceptance, explicit Stage 2 authorization
+Current phase: Stage 2 — Per-Game Persistence Isolation (`IMPLEMENTED / VALIDATED / PENDING EXTERNAL PRE-COMMIT REVIEW`)
+Next action: External Architect pre-commit review Stage 2; commit/push/CI only after explicit acceptance
 Dependencies: none
 
 ## Goal
@@ -17,8 +17,8 @@ Dependencies: none
 ## Scope and invariants
 
 - Black Desert залишається єдиною реалізованою грою.
-- API contract, release feed schema, persistence schema та фізична структура
-  `%LocalAppData%\BDO-UA-Client` не змінюються.
+- API contract, release feed schema, physical localization target та runtime
+  behavior залишаються без змін.
 - Install, update, restore, detection, tray/background, offline/degraded і
   self-update semantics залишаються функціонально еквівалентними.
 - Нова абстракція додається лише там, де вона прибирає фактичне розпорошення
@@ -28,7 +28,7 @@ Dependencies: none
 
 ### Stage 1 — Explicit Game Boundary
 
-Status: **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**
+Status: **REVIEWED / ACCEPTED**
 
 - Concrete `BdoGameDefinition` володіє BDO identity, target/validation,
   detection identifiers/conventions та patch-reader composition.
@@ -40,23 +40,31 @@ Status: **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**
 
 ### Stage 2 — Per-Game Persistence Isolation
 
-Status: **NOT STARTED**
+Status: **IMPLEMENTED / VALIDATED / PENDING EXTERNAL PRE-COMMIT REVIEW**
 
-- Виділити game-scoped config/state/backups лише після concrete second-game
-  contract.
-- Зберегти backward compatibility існуючих BDO даних через explicit
-  migration/isolation/rollback tests.
+- `GamePersistencePaths` володіє canonical game-scoped config, installation
+  state та backup paths під `games/<stable-game-id>/`; application config, logs,
+  cache і self-update sessions залишаються application-global.
+- `LegacyBdoPersistenceMigrator` bounded-способом переносить історичний
+  single-game BDO config/state/backups у canonical scope через same-volume move;
+  canonical state має пріоритет, конфлікти не merge-яться, а невдала міграція
+  не виконує destructive cleanup.
+- JSON formats, backup contents, target file та transaction semantics не
+  змінюються; додано isolation, migration, idempotency/conflict/fail-closed
+  coverage.
 
-Dependency: Stage 1 external acceptance and an approved second-game contract.
+Dependency: Stage 1 acceptance and explicit Stage 2 authorization. Game B is
+not required for this persistence boundary.
 
 ## Explicit non-goals
 
 Не створювати Game B, generic plugin/module loading, feed/API adapter,
-configuration-driven game registry, database, storage migration або MainForm
-controller/presenter redesign до появи окремого approved contract.
+configuration-driven game registry, database, feed/API adapter або MainForm
+controller/presenter redesign.
 
 ## Validation / review state
 
 Stage 1 Release build, focused game-boundary/detection/install/restore/lifecycle
-tests та повний Release suite мають бути green перед commit. Implementation Agent
-не може самостійно позначити Stage 1 як `REVIEWED / ACCEPTED`.
+tests та повний Release suite були green перед acceptance. Stage 2 є
+persistence/data-migration change: Implementation Agent зупиняється перед
+commit/push і не може самостійно позначити його `REVIEWED / ACCEPTED`.

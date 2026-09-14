@@ -91,9 +91,11 @@
 | Файл | Що тестує |
 |------|-----------|
 | `Storage/BackupStoreTests.cs` | Original snapshot створення/захист, restore points каталог, replace, recovery, metadata |
-| `Storage/ConfigStoreTests.cs` | Config load/save, default values, corrupt file recovery |
+| `Storage/ConfigStoreTests.cs` | Game-scoped config load/save, default values, corrupt file recovery, application-global autostart config roundtrip |
 | `Storage/InstallationStateStoreTests.cs` | Installation state persistence, validation, migration |
 | `Storage/AppPathsTests.cs` | App paths resolution, directory structure |
+| `Storage/GamePersistencePathsTests.cs` | Stable game namespace, global paths and game-id safety |
+| `Storage/LegacyBdoPersistenceMigratorTests.cs` | Legacy BDO migration, idempotency, conflicts and fail-closed malformed state |
 
 ### Logging тести
 

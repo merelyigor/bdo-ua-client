@@ -8,35 +8,64 @@
 
 **Файл:** `Storage/AppPaths.cs`
 
-Централізований доступ до всіх шляхів застосунку. Root-директорія — `%LocalAppData%\BDO-UA-Client`.
+Централізований доступ до application-global шляхів. Root-директорія — `%LocalAppData%\BDO-UA-Client`. Game-specific config, installation state і backups належать `GamePersistencePaths`.
 
 ### Властивості
 
 | Властивість | Шлях | Призначення |
 |---|---|---|
 | `Root` | `%LocalAppData%\BDO-UA-Client` | Коренева директорія |
-| `StateDir` | `{root}\state` | Стан встановлення |
 | `LogsDir` | `{root}\logs` | Лог-файли |
 | `CacheDir` | `{root}\cache` | Тимчасові завантаження |
-| `BackupsDir` | `{root}\backups` | Базова директорія backup |
-| `OriginalBackupDir` | `{root}\backups\original` | Original snapshot |
-| `RestorePointsDir` | `{root}\backups\restore-points` | Restore points |
 | `UpdatesDir` | `{root}\updates` | Self-update сесії (staged candidate EXE, див. docs/update.md) |
-| `ConfigFile` | `{root}\config.json` | Конфігурація користувача |
-| `InstallationFile` | `{state}\installation.json` | Метадані встановленої локалізації |
+| `ApplicationConfigFile` | `{root}\application-config.json` | Application-global settings, зокрема autostart prompt state |
+| `StateDir`, `BackupsDir`, `ConfigFile`, `InstallationFile` | legacy root paths | Лише legacy BDO compatibility/migration |
 
 ### Конструктори
 
 - **`AppPaths()`** — default root = `Path.Combine(LocalAppData, "BDO-UA-Client")`
 - **`AppPaths(string root)`** — кастомний root (для тестів)
 
-### EnsureDirectories
+### EnsureGlobalDirectories
 
 ```csharp
-public void EnsureDirectories()
+public void EnsureGlobalDirectories()
 ```
 
-Створює всі необхідні піддиректорії, якщо вони не існують: `StateDir`, `LogsDir`, `CacheDir`, `OriginalBackupDir`, `RestorePointsDir`, `UpdatesDir`. Викликається при запуску застосунку.
+Створює лише global `LogsDir`, `CacheDir` та `UpdatesDir`. Викликається перед legacy migration.
+
+`EnsureDirectories()` збережено для compatibility fixtures, але production composition його не використовує.
+
+## GamePersistencePaths
+
+**Файл:** `Storage/GamePersistencePaths.cs`
+
+`new GamePersistencePaths(appPaths.Root, gameDefinition.Id)` будує canonical scope:
+
+```
+{root}\games\{stable-game-id}\
+├── config.json
+├── state\installation.json
+└── backups\
+    ├── original\
+    └── restore-points\
+```
+
+Game id перевіряється як контрольований lowercase path segment. Тому різні stable ids не можуть ділити state, а user-controlled path traversal не проходить.
+
+`ConfigStore`, `InstallationStateStore` і `BackupStore` у production отримують саме цей scope. `ApplicationConfigStore` залишається на global `application-config.json`; app-global settings не дублюються в game scopes.
+
+## ApplicationConfigStore
+
+**Файл:** `Storage/ApplicationConfigStore.cs`
+
+Зберігає лише application-global settings, які не належать окремій грі (нині — `autostart_prompt_dismissed`). Запис використовує той самий atomic tmp → replace/move pattern, але файл не входить до game scope.
+
+## LegacyBdoPersistenceMigrator
+
+**Файл:** `Storage/LegacyBdoPersistenceMigrator.cs`
+
+Історичні `{root}\config.json`, `{root}\state` та `{root}\backups` трактуються лише як BDO legacy data. Legacy `config.json` розкладається у game-scoped `config.json` (game path/last mode) і global `application-config.json` (autostart prompt). Файлові каталоги переносяться same-volume move лише коли canonical destination відсутній. Якщо обидва існують, canonical state authoritative, merge/overwrite не виконується. Malformed або unreadable legacy `config.json` зберігається без змін і логується, але не блокує незалежну міграцію валідних `state`/`backups`; canonical config з нього не створюється. Реальні filesystem failure під час write/move/verification, які роблять ownership небезпечним, залишаються fatal/fail-closed. Повторний запуск після partial або успішної міграції є idempotent.
 
 ### Updates directory (self-update)
 

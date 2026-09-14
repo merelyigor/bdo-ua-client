@@ -32,16 +32,16 @@ public class ConfigStoreTests : IDisposable
         Assert.NotNull(result.Value);
         Assert.Null(result.Value!.GamePath);
         Assert.Null(result.Value!.LastMode);
-        Assert.False(result.Value!.AutostartPromptDismissed);
     }
 
     [Fact]
     public async Task SaveAndLoad_AutostartPromptDismissedRoundtrip()
     {
-        var config = new Config { AutostartPromptDismissed = true };
+        var store = new ApplicationConfigStore(_paths, _logger);
+        var config = new ApplicationConfig { AutostartPromptDismissed = true };
 
-        await _store.SaveAsync(config);
-        var result = _store.Load();
+        await store.SaveAsync(config);
+        var result = store.Load();
 
         Assert.Equal(FileLoadStatus.Valid, result.Status);
         Assert.True(result.Value!.AutostartPromptDismissed);
@@ -54,7 +54,6 @@ public class ConfigStoreTests : IDisposable
         {
             GamePath = @"C:\Games\Black Desert Online",
             LastMode = "full-ukrainian",
-            AutostartPromptDismissed = true
         };
 
         await _store.SaveAsync(config);
@@ -63,7 +62,6 @@ public class ConfigStoreTests : IDisposable
         Assert.Equal(FileLoadStatus.Valid, result.Status);
         Assert.Equal(@"C:\Games\Black Desert Online", result.Value!.GamePath);
         Assert.Equal("full-ukrainian", result.Value!.LastMode);
-        Assert.True(result.Value!.AutostartPromptDismissed);
     }
 
     [Fact]

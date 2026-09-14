@@ -58,7 +58,7 @@ static class Program
         Application.SetCompatibleTextRenderingDefault(false);
 
         var paths = new AppPaths();
-        paths.EnsureDirectories();
+        paths.EnsureGlobalDirectories();
         ILogger log = new FileLogger(paths.LogsDir);
 
         log.Info($"Self-update helper mode: session={sessionId}");
@@ -120,12 +120,17 @@ static class Program
     private static void RunNormalMode(bool startInBackground, SingleInstanceCoordinator coordinator)
     {
         var appPaths = new AppPaths();
-        appPaths.EnsureDirectories();
+        appPaths.EnsureGlobalDirectories();
 
         ILogger logger = new FileLogger(appPaths.LogsDir);
-        var configStore = new ConfigStore(appPaths, logger);
-        var stateStore = new InstallationStateStore(appPaths, logger);
         var gameDefinition = BdoGameDefinition.Default;
+        var gamePaths = appPaths.GetGamePersistencePaths(gameDefinition.Id);
+        new LegacyBdoPersistenceMigrator(appPaths, gamePaths, logger).MigrateIfNeeded();
+        gamePaths.EnsureDirectories();
+
+        var configStore = new ConfigStore(gamePaths, logger);
+        var applicationConfigStore = new ApplicationConfigStore(appPaths, logger);
+        var stateStore = new InstallationStateStore(gamePaths, logger);
         var appVersionInfo = AppVersionInfo.Detect();
         var httpClient = Api.BdoUaHttpClientConfiguration.CreateHttpClient(
             appVersionInfo,
@@ -134,7 +139,7 @@ static class Program
 
         var apiClient = new Api.BdoUaApiClient(httpClient, logger);
         var localizationInstaller = new LocalizationInstaller(httpClient, appPaths, logger);
-        var backupStore = new BackupStore(appPaths, logger, gameDefinition);
+        var backupStore = new BackupStore(gamePaths, logger, gameDefinition);
         var gameDetector = new GameDetector(configStore, logger, gameDefinition);
         var stateService = new LocalizationStateService(stateStore, logger, gameDefinition);
         var compatService = new LocalizationCompatibilityService();
@@ -156,7 +161,7 @@ static class Program
         try
         {
             Application.Run(new MainForm(
-                configStore, apiClient, gameDetector, gameDefinition,
+                configStore, applicationConfigStore, apiClient, gameDetector, gameDefinition,
                 stateService, compatService,
                 localizationInstaller, backupStore, stateStore, logger,
                 appVersionInfo, gitHubClient, selectionPolicy, appPaths,
