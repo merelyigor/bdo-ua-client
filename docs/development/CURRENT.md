@@ -8,7 +8,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 Стабільний реліз: **v1.2.5**. Публічний stable release опубліковано з tag v1.2.5; canonical application bundle містить один ZIP-asset. Offline/degraded release-feed implementation завершено та прийнято зовнішнім Architect.
 
-Поточна наступна дія: `WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`.
+Поточна наступна дія: `Release Candidate v1.2.6, then Owner native UI smoke`.
 
 ## Architecture Summary
 
@@ -53,6 +53,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - `offline-degraded-reliability` — **ARCHIVED**: roadmap завершено, reviewed / accepted; archived plans залишаються історичними.
 - v1.2.3 — **PUBLISHED / VERIFIED**: tag `v1.2.3` і public Release ID `384894464` опубліковано на exact approved RC SHA `ec891ea7077dd70e2aafd0c2e00674f47c45a94a`; Owner native UI smoke exact RC passed.
 - `game-boundary-refactoring` — **ARCHIVED**: Stage 1 і Stage 2 **REVIEWED / ACCEPTED**; roadmap **COMPLETED / ARCHIVED**, без Stage 3.
+- v1.2.6 — **RELEASE PREPARATION / RC PENDING**: release notes описують game-scoped persistence migration та відновлення off-screen background-вікна; stable public release залишається v1.2.5.
 
 ## Validation / Release Facts
 
@@ -94,6 +95,6 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 - v1.2.3 release cycle is completed and archived.
 - Offline/degraded release-feed mode is completed, reviewed and accepted; `offline-degraded-reliability` is archived.
-- `game-boundary-refactoring` is archived; Stage 1 and Stage 2 are reviewed/accepted, and no ACTIVE PRIMARY roadmap remains.
+- `game-boundary-refactoring` is archived; Stage 1 and Stage 2 are reviewed/accepted, and no ACTIVE PRIMARY roadmap remains. v1.2.6 release preparation is the current bounded release task.
 - v1.2.5 release cycle completed; public Release verified and `NEXT.json` reset for the next cycle.
-- Next action: `WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`.
+- Next action: `Release Candidate v1.2.6, then Owner native UI smoke of the exact RC artifact`.
