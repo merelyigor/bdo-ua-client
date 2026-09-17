@@ -8,9 +8,9 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 Стабільний реліз: **v1.2.7**. Публічний stable release опубліковано з tag v1.2.7; canonical application bundle містить один ZIP-asset. Offline/degraded release-feed implementation завершено та прийнято зовнішнім Architect.
 
-Поточна наступна дія: `External Architect final release review, then WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`.
+Поточна наступна дія: `Stage 1 — Hub shell + selected-game model`.
 
-Owner approved the BACKLOG roadmap `localization-hub-multigame` for the future `Хаб українізаторів` / multi-game transition. Implementation is not active; its dependency is v1.2.7 external release acceptance and explicit Owner activation.
+Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-multigame` for the future `Хаб українізаторів` / multi-game transition. v1.2.7 external release acceptance is complete; Stage 0 is complete and Stage 1 is now the only authorized implementation scope.
 
 ## Architecture Summary
 
@@ -91,15 +91,16 @@ Owner approved the BACKLOG roadmap `localization-hub-multigame` for the future `
 - [`docs/plans/archive/release-experience-polish.md`](../plans/archive/release-experience-polish.md) — completed archived plan
 - [`docs/ai-workflow/README.md`](../ai-workflow/README.md) — canonical orchestration, prompt, review та handoff contract
 - [`docs/plans/archive/code-quality-ux-improvements.md`](../plans/archive/code-quality-ux-improvements.md) — completed archived roadmap
-- [`docs/releases/v1.2.5.md`](../releases/v1.2.5.md) — current stable release archive
+- [`docs/releases/v1.2.7.md`](../releases/v1.2.7.md) — current stable release archive
 - [`history/2026-09.md`](history/2026-09.md) — recent engineering journal
 
 ## Current Task Handoff
 
 - v1.2.3 release cycle is completed and archived.
 - Offline/degraded release-feed mode is completed, reviewed and accepted; `offline-degraded-reliability` is archived.
-- `game-boundary-refactoring` is archived; Stage 1 and Stage 2 are reviewed/accepted, and no ACTIVE PRIMARY roadmap remains. v1.2.7 is publicly verified and awaiting external release review; `localization-hub-multigame` remains BACKLOG.
+- `game-boundary-refactoring` is archived; Stage 1 and Stage 2 are reviewed/accepted. `localization-hub-multigame` is the sole ACTIVE PRIMARY roadmap; Stage 0 is complete and Stage 1 is next.
 - v1.2.5 release cycle completed; public Release verified and `NEXT.json` reset for the next cycle.
 - v15.64/v15.65 — **REVIEWED / ACCEPTED; OWNER VISUAL SMOKE ACCEPTED**: для трьох і більше режимів локалізації додано компактний minimum window width і збережено його під час semantic rebuild; single-mode global status width збережено.
-- v1.2.7 — **RELEASED / PUBLIC VERIFIED / PENDING EXTERNAL RELEASE REVIEW**: public Release ID `391117230` опубліковано на tag `v1.2.7`, який вказує на exact approved RC SHA `b21118d1ec8e6d0342fb0e47544e911fcb875739`; canonical ZIP і внутрішні hashes повторно перевірено, Owner native smoke exact RC прийнято.
-- Next action: `External Architect final release review, then WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`.
+- v1.2.7 — **RELEASED / PUBLIC VERIFIED / RELEASE REVIEWED / ACCEPTED**: public Release ID `391117230` опубліковано на tag `v1.2.7`, який вказує на exact approved RC SHA `b21118d1ec8e6d0342fb0e47544e911fcb875739`; canonical ZIP і внутрішні hashes повторно перевірено, Owner native smoke exact RC прийнято.
+- `localization-hub-multigame` — **ACTIVE / PRIMARY**: Stage 0 complete after explicit Owner activation; Stage 1 — Hub shell + selected-game model — is the exact next action. No Stage 1 production work has started.
+- Next action: `Stage 1 — Hub shell + selected-game model`.

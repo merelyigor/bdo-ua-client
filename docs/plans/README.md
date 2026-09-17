@@ -2,21 +2,21 @@
 
 ## Current focus
 
-**Primary:** none
-**Current phase:** no ACTIVE implementation plan
-**Next:** await external release review for v1.2.7; the backlog roadmap below awaits explicit Owner activation
+**Primary:** `localization-hub-multigame`
+**Current phase:** Stage 1 — Hub shell + selected-game model
+**Next:** implement Stage 1 according to the active plan
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| PRIMARY | `localization-hub-multigame` | [active/localization-hub-multigame.md](active/localization-hub-multigame.md) | Stage 1 — Hub shell + selected-game model | Stage 1 implementation |
 
 ## Backlog
 
 | Order | ID | Plan | Depends on |
 |---|---|---|---|
-| 1 | `localization-hub-multigame` | [backlog/localization-hub-multigame.md](backlog/localization-hub-multigame.md) | v1.2.7 — RELEASE REVIEWED / ACCEPTED |
+| — | — | — | — |
 
 ## Archive
 

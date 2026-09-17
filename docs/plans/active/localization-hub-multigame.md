@@ -1,12 +1,11 @@
 # Localization Hub / Multi-game Foundation
 
 Plan ID: `localization-hub-multigame`
-Status: BACKLOG
-Focus: —
-Backlog order: 1
-Implementation authorization: **NO**
-Current phase: architecture/product roadmap approved by Owner; implementation not started
-Next action: finish v1.2.7 release cycle, then explicit Owner activation moves this plan to ACTIVE / PRIMARY
+Status: ACTIVE
+Focus: PRIMARY
+Implementation authorization: **YES**
+Current phase: Stage 1 — Hub shell + selected-game model
+Next action: implement Stage 1 only
 Dependencies: v1.2.7 — RELEASE REVIEWED / ACCEPTED
 
 ## Goal
@@ -142,4 +141,4 @@ The roadmap depends on v1.2.7 release completion and explicit Owner activation. 
 
 ## Current progress
 
-Roadmap approved by Owner and stored as BACKLOG. No stage has started; no implementation authorization exists. Immediate repository work remains the v1.2.7 RC/release cycle. After that cycle, only explicit Owner activation may move this plan to ACTIVE / PRIMARY.
+Roadmap approved by Owner and activated after v1.2.7 external release acceptance. Stage 0 is complete; its dependency is satisfied, and Stage 1 is the exact next action. No Stage 1 production work has started yet. Implementation is authorized only for Stage 1 according to this plan.
