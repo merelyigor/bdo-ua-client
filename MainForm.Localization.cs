@@ -12,11 +12,10 @@ public partial class MainForm
 
     private void BuildDynamicModes()
     {
-        ClearModeControls();
-        EnsureMinimumUsableWidth();
-
         var allModes = _apiResponse?.Data?.Modes;
         var installable = DynamicModePolicy.GetInstallableModes(allModes);
+
+        ClearModeControls();
 
         if (installable.Count == 0)
         {
@@ -34,6 +33,7 @@ public partial class MainForm
                 Margin = new Padding(0)
             };
             modesFlowPanel.Controls.Add(label);
+            EnsureMinimumUsableWidth();
             ScheduleContentFit();
             return;
         }
@@ -135,6 +135,7 @@ public partial class MainForm
             Margin = new Padding(0)
         };
         modesFlowPanel.Controls.Add(label);
+        EnsureMinimumUsableWidth();
         ScheduleContentFit();
     }
 
@@ -151,6 +152,7 @@ public partial class MainForm
             Margin = new Padding(0)
         };
         modesFlowPanel.Controls.Add(label);
+        EnsureMinimumUsableWidth();
         ScheduleContentFit();
     }
 

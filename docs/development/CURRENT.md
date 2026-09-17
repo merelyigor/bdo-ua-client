@@ -53,7 +53,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - `offline-degraded-reliability` — **ARCHIVED**: roadmap завершено, reviewed / accepted; archived plans залишаються історичними.
 - v1.2.3 — **PUBLISHED / VERIFIED**: tag `v1.2.3` і public Release ID `384894464` опубліковано на exact approved RC SHA `ec891ea7077dd70e2aafd0c2e00674f47c45a94a`; Owner native UI smoke exact RC passed.
 - `game-boundary-refactoring` — **ARCHIVED**: Stage 1 і Stage 2 **REVIEWED / ACCEPTED**; roadmap **COMPLETED / ARCHIVED**, без Stage 3.
-- v1.2.6 — **RELEASED / PUBLIC VERIFIED / PENDING EXTERNAL RELEASE REVIEW**: public Release ID `388677576` опубліковано на tag `v1.2.6`, який вказує на approved RC SHA `daba3b6aa861f072b382a3b1f92a24d52b94763f`; Owner native UI smoke exact RC прийнято, canonical ZIP і внутрішні hashes повторно перевірено. `NEXT.json` скинуто до порожнього schema-v1 джерела.
+- v1.2.6 — **RELEASED / PUBLIC VERIFIED / RELEASE REVIEWED / ACCEPTED**: public Release ID `388677576` опубліковано на tag `v1.2.6`, який вказує на approved RC SHA `daba3b6aa861f072b382a3b1f92a24d52b94763f`; Owner native UI smoke exact RC прийнято, canonical ZIP і внутрішні hashes повторно перевірено. `NEXT.json` скинуто до порожнього schema-v1 джерела.
 
 ## Validation / Release Facts
 
@@ -96,7 +96,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 - v1.2.3 release cycle is completed and archived.
 - Offline/degraded release-feed mode is completed, reviewed and accepted; `offline-degraded-reliability` is archived.
-- `game-boundary-refactoring` is archived; Stage 1 and Stage 2 are reviewed/accepted, and no ACTIVE PRIMARY roadmap remains. v1.2.6 release preparation is the current bounded release task.
+- `game-boundary-refactoring` is archived; Stage 1 and Stage 2 are reviewed/accepted, and no ACTIVE PRIMARY roadmap remains. v1.2.6 release cycle is complete; v15.64 is the current bounded UI task.
 - v1.2.5 release cycle completed; public Release verified and `NEXT.json` reset for the next cycle.
 - v15.64 — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**: для трьох і більше режимів локалізації додано компактний minimum window width; single-mode global status width збережено.
 - Next action: `External Architect review of v15.64, then release-note/release-cycle decision`.

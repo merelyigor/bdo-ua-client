@@ -236,7 +236,25 @@ public sealed class MainFormLifecycleIntegrationTests
         Assert.True(fixture.Form.MinimumSize.Width >= UiTheme.Scale(fixture.Form, 820));
         Assert.True(fixture.Form.MinimumSize.Width < UiTheme.Scale(fixture.Form, 960));
 
-        var cards = MainFormTestFixture.FindModeCards(fixture.Form);
+        await fixture.SetClientWidthAsync(UiTheme.Scale(fixture.Form, 820));
+        await fixture.WaitForAsync(form =>
+            form.ClientSize.Width < UiTheme.Scale(form, 960)
+            && MainFormTestFixture.CountModeCards(form) == 3);
+        AssertThreeCardsFitOneRow(fixture.Form);
+
+        var rebuiltFeed = JsonSerializer.Deserialize<ReleasesResponse>(
+            MainFormTestFixture.CreateFeedJson(401, 3))!;
+        await fixture.ApplyFeedCandidateAsync(rebuiltFeed);
+
+        await fixture.WaitForAsync(form =>
+            MainFormTestFixture.CountModeCards(form) == 3
+            && form.ClientSize.Width < UiTheme.Scale(form, 960));
+        AssertThreeCardsFitOneRow(fixture.Form);
+    }
+
+    private static void AssertThreeCardsFitOneRow(MainForm form)
+    {
+        var cards = MainFormTestFixture.FindModeCards(form);
         Assert.Equal(3, cards.Count);
         Assert.All(cards, card => Assert.True(card.Width >= UiTheme.Scale(card, 240)));
         Assert.Equal(cards[0].Bounds.Top, cards[1].Bounds.Top);
@@ -450,6 +468,24 @@ internal sealed class MainFormTestFixture : IDisposable
                     System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
                 var task = (Task<bool>)apply!.Invoke(Form, new object[] { candidate })!;
                 Assert.True(await task);
+                completion.TrySetResult(null);
+            }
+            catch (Exception ex)
+            {
+                completion.TrySetException(ex);
+            }
+        });
+        await completion.Task.WaitAsync(Timeout);
+    }
+
+    internal async Task SetClientWidthAsync(int width)
+    {
+        var completion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        PostToUi(() =>
+        {
+            try
+            {
+                Form.ClientSize = new Size(width, Form.ClientSize.Height);
                 completion.TrySetResult(null);
             }
             catch (Exception ex)
