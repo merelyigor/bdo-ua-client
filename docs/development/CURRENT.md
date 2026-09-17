@@ -1,6 +1,6 @@
 # Current Engineering Context
 
-Оновлено: 2026-09-14
+Оновлено: 2026-09-17
 
 ## Project Purpose / Status
 
@@ -8,7 +8,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 Стабільний реліз: **v1.2.6**. Публічний stable release опубліковано з tag v1.2.6; canonical application bundle містить один ZIP-asset. Offline/degraded release-feed implementation завершено та прийнято зовнішнім Architect.
 
-Поточна наступна дія: `External Architect final release review, then WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`.
+Поточна наступна дія: `Owner visual smoke for v15.64/v15.65 compact three-mode layout, then external acceptance / cycle closure`.
 
 ## Architecture Summary
 
@@ -96,7 +96,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 - v1.2.3 release cycle is completed and archived.
 - Offline/degraded release-feed mode is completed, reviewed and accepted; `offline-degraded-reliability` is archived.
-- `game-boundary-refactoring` is archived; Stage 1 and Stage 2 are reviewed/accepted, and no ACTIVE PRIMARY roadmap remains. v1.2.6 release cycle is complete; v15.64 is the current bounded UI task.
+- `game-boundary-refactoring` is archived; Stage 1 and Stage 2 are reviewed/accepted, and no ACTIVE PRIMARY roadmap remains. v1.2.6 release cycle is complete; v15.64/v15.65 is the current bounded UI review.
 - v1.2.5 release cycle completed; public Release verified and `NEXT.json` reset for the next cycle.
-- v15.64 — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**: для трьох і більше режимів локалізації додано компактний minimum window width; single-mode global status width збережено.
-- Next action: `External Architect review of v15.64, then release-note/release-cycle decision`.
+- v15.64/v15.65 — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW + OWNER VISUAL SMOKE**: для трьох і більше режимів локалізації додано компактний minimum window width і збережено його під час semantic rebuild; single-mode global status width збережено.
+- Next action: `Owner visual smoke for v15.64/v15.65 compact three-mode layout, then external acceptance / cycle closure`.
