@@ -10,6 +10,9 @@ public partial class MainForm
     // --- Theme / shell layout ---
 
     private const int GlobalMinimumClientWidth = 960;
+    private const int CompactMultiModeMinimumClientWidth = 820;
+    private const int MinimumModeCardWidth = 240;
+    private const int ModeCardGap = 16;
 
     private void ApplyTheme()
     {
@@ -71,11 +74,15 @@ public partial class MainForm
 
     private void EnsureMinimumUsableWidth()
     {
-        var minimumClientWidth = UiTheme.Scale(this, GlobalMinimumClientWidth);
+        var modeCount = modesFlowPanel?.Controls.OfType<LocalizationModeCard>().Count() ?? 0;
+        var logicalMinimumWidth = modeCount >= 3
+            ? CompactMultiModeMinimumClientWidth
+            : GlobalMinimumClientWidth;
+        var minimumClientWidth = UiTheme.Scale(this, logicalMinimumWidth);
         var nonClientWidth = Math.Max(0, Width - ClientSize.Width);
         var minimumOuterWidth = minimumClientWidth + nonClientWidth;
 
-        if (MinimumSize.Width < minimumOuterWidth)
+        if (MinimumSize.Width != minimumOuterWidth)
             MinimumSize = new Size(minimumOuterWidth, MinimumSize.Height);
 
         if (ClientSize.Width < minimumClientWidth)

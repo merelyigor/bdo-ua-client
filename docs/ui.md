@@ -4,7 +4,7 @@
 
 ## Вікно
 
-- **ClientSize:** 1040×720, **MinimumSize:** 760×560
+- **ClientSize:** 1040×720; minimum usable client width is dynamic: 960px for up to two modes and 820px for three or more modes, so three cards fit at their compact minimum width without weakening the single-mode global status layout.
 - Стартова позиція — центр екрана
 - Контент-driven висота: форма динамічно підганяє висоту під вміст; якщо контент не вміщується — вертикальний скрол (`rootScrollPanel`, `AutoScroll = true`)
 - Custom window chrome через `WindowChromeHelper` (внутрішній static class)

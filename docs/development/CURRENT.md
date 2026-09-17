@@ -98,4 +98,5 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 - Offline/degraded release-feed mode is completed, reviewed and accepted; `offline-degraded-reliability` is archived.
 - `game-boundary-refactoring` is archived; Stage 1 and Stage 2 are reviewed/accepted, and no ACTIVE PRIMARY roadmap remains. v1.2.6 release preparation is the current bounded release task.
 - v1.2.5 release cycle completed; public Release verified and `NEXT.json` reset for the next cycle.
-- Next action: `External Architect final release review, then WORK CYCLE COMPLETE / OWNER DECISION REQUIRED`.
+- v15.64 — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**: для трьох і більше режимів локалізації додано компактний minimum window width; single-mode global status width збережено.
+- Next action: `External Architect review of v15.64, then release-note/release-cycle decision`.

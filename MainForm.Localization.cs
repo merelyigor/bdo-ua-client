@@ -13,6 +13,7 @@ public partial class MainForm
     private void BuildDynamicModes()
     {
         ClearModeControls();
+        EnsureMinimumUsableWidth();
 
         var allModes = _apiResponse?.Data?.Modes;
         var installable = DynamicModePolicy.GetInstallableModes(allModes);
@@ -44,6 +45,7 @@ public partial class MainForm
             card.ActionRequested += ModeCard_ActionRequested;
             modesFlowPanel.Controls.Add(card);
         }
+        EnsureMinimumUsableWidth();
         RefreshModeCardLayout();
         ScheduleContentFit();
     }
@@ -57,10 +59,13 @@ public partial class MainForm
             availableWidth = ClientSize.Width - mainLayoutPanel.Padding.Horizontal;
         modesFlowPanel.Width = Math.Max(UiTheme.Scale(modesFlowPanel, 240), availableWidth);
         var width = Math.Max(UiTheme.Scale(modesFlowPanel, 240), modesFlowPanel.ClientSize.Width - modesFlowPanel.Padding.Horizontal);
-        var columns = width >= UiTheme.Scale(modesFlowPanel, 900) ? 3
-            : width >= UiTheme.Scale(modesFlowPanel, 620) ? 2 : 1;
-        var gap = UiTheme.Scale(modesFlowPanel, 16);
-        var cardWidth = Math.Max(UiTheme.Scale(modesFlowPanel, 240), (width - gap * (columns - 1)) / columns);
+        var minimumCardWidth = UiTheme.Scale(modesFlowPanel, MinimumModeCardWidth);
+        var gap = UiTheme.Scale(modesFlowPanel, ModeCardGap);
+        var threeColumnWidth = minimumCardWidth * 3 + gap * 2;
+        var twoColumnWidth = minimumCardWidth * 2 + gap;
+        var columns = width >= threeColumnWidth ? 3
+            : width >= twoColumnWidth ? 2 : 1;
+        var cardWidth = Math.Max(minimumCardWidth, (width - gap * (columns - 1)) / columns);
         var cardHeight = UiTheme.Scale(modesFlowPanel, 220);
         var cards = modesFlowPanel.Controls.OfType<LocalizationModeCard>().ToList();
         foreach (var card in cards)

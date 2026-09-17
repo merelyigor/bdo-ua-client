@@ -221,6 +221,29 @@ public sealed class MainFormLifecycleIntegrationTests
     }
 
     [Fact]
+    public async Task ThreeLocalizationModesUseCompactMinimumWidth()
+    {
+        using var fixture = await MainFormTestFixture.StartAsync(
+            MainFormTestFixture.CreateModesApiHandler(401, 3),
+            gamePatch: 401);
+
+        await fixture.WaitForAsync(form =>
+            MainFormTestFixture.CountModeCards(form) == 3
+            && MainFormTestFixture.FindControlText(
+                form,
+                text => text == "✓ Гру знайдено • patch 401") != null);
+
+        Assert.True(fixture.Form.MinimumSize.Width >= UiTheme.Scale(fixture.Form, 820));
+        Assert.True(fixture.Form.MinimumSize.Width < UiTheme.Scale(fixture.Form, 960));
+
+        var cards = MainFormTestFixture.FindModeCards(fixture.Form);
+        Assert.Equal(3, cards.Count);
+        Assert.All(cards, card => Assert.True(card.Width >= UiTheme.Scale(card, 240)));
+        Assert.Equal(cards[0].Bounds.Top, cards[1].Bounds.Top);
+        Assert.Equal(cards[1].Bounds.Top, cards[2].Bounds.Top);
+    }
+
+    [Fact]
     public async Task NewerGameThanAvailableLocalizationKeepsWriteActionsDisabled()
     {
         using var fixture = await MainFormTestFixture.StartAsync(
@@ -789,6 +812,14 @@ internal sealed class MainFormTestFixture : IDisposable
         }
 
         return null;
+    }
+
+    internal static List<LocalizationModeCard> FindModeCards(Control root)
+    {
+        var cards = root.Controls.OfType<LocalizationModeCard>().ToList();
+        foreach (Control child in root.Controls)
+            cards.AddRange(FindModeCards(child));
+        return cards;
     }
 
     internal static int CountModeCards(Control root)
