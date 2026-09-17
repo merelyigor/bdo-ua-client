@@ -4,7 +4,7 @@
 
 **Primary:** none
 **Current phase:** no ACTIVE implementation plan
-**Next:** complete the v1.2.7 release cycle; the backlog roadmap below awaits explicit Owner activation
+**Next:** await external release review for v1.2.7; the backlog roadmap below awaits explicit Owner activation
 
 ## Active plans
 
