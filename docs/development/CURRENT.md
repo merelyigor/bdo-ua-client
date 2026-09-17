@@ -1,6 +1,6 @@
 # Current Engineering Context
 
-Оновлено: 2026-09-17
+Оновлено: 2026-09-18
 
 ## Project Purpose / Status
 
@@ -9,6 +9,8 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 Стабільний реліз: **v1.2.6**. Публічний stable release опубліковано з tag v1.2.6; canonical application bundle містить один ZIP-asset. Offline/degraded release-feed implementation завершено та прийнято зовнішнім Architect.
 
 Поточна наступна дія: `Owner native smoke of exact v1.2.7 Release Candidate, then final tag/publication after approval`.
+
+Owner approved the BACKLOG roadmap `localization-hub-multigame` for the future `Хаб українізаторів` / multi-game transition. Implementation is not active until the v1.2.7 release cycle is complete and Owner explicitly activates the plan.
 
 ## Architecture Summary
 

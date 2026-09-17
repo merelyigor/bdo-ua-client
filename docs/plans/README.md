@@ -4,7 +4,7 @@
 
 **Primary:** none
 **Current phase:** no ACTIVE implementation plan
-**Next:** await explicit Owner decision for the next roadmap/task
+**Next:** complete the v1.2.7 release cycle; the backlog roadmap below awaits explicit Owner activation
 
 ## Active plans
 
@@ -16,6 +16,7 @@
 
 | Order | ID | Plan | Depends on |
 |---|---|---|---|
+| 1 | `localization-hub-multigame` | [backlog/localization-hub-multigame.md](backlog/localization-hub-multigame.md) | v1.2.7 — RELEASE REVIEWED / ACCEPTED |
 
 ## Archive
 
