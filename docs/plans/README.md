@@ -4,13 +4,13 @@
 
 **Primary:** `localization-hub-multigame`
 **Current phase:** Stage 1 — Hub shell + selected-game model
-**Next:** implement Stage 1 according to the active plan
+**Next:** external Architect review + Owner visual smoke for Stage 1
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| PRIMARY | `localization-hub-multigame` | [active/localization-hub-multigame.md](active/localization-hub-multigame.md) | Stage 1 — Hub shell + selected-game model | Stage 1 implementation |
+| PRIMARY | `localization-hub-multigame` | [active/localization-hub-multigame.md](active/localization-hub-multigame.md) | Stage 1 — Hub shell + selected-game model | External review + Owner visual smoke |
 
 ## Backlog
 

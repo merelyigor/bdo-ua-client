@@ -9,6 +9,8 @@ partial class MainForm
     private Panel headerPanel = null!;
     private Label headerTitleLabel = null!;
     private Label headerSubtitleLabel = null!;
+    private Label gameSelectorLabel = null!;
+    private ComboBox gameSelectorComboBox = null!;
     private Panel headerAccentLine = null!;
     private FlowLayoutPanel rightUtilityPanel = null!;
     private Button updateButton = null!;
@@ -51,18 +53,22 @@ partial class MainForm
         MinimumSize = new Size(760, 560);
         Name = "MainForm";
         StartPosition = FormStartPosition.CenterScreen;
-        Text = "BDO UA Client";
+        Text = "Хаб українізаторів";
 
         mainLayoutPanel = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, ColumnCount = 1, RowCount = 4, Padding = new Padding(24), BackColor = Color.Transparent };
         mainLayoutPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         for (var row = 0; row < 4; row++) mainLayoutPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         headerPanel = new Panel { Dock = DockStyle.Top, AutoSize = true, Margin = new Padding(0, 0, 0, 22), BackColor = Color.Transparent };
-        var headerLayout = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 2, RowCount = 3, BackColor = Color.Transparent };
+        var headerLayout = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 2, RowCount = 4, BackColor = Color.Transparent };
         headerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F)); headerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        for (var row = 0; row < 3; row++) headerLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        headerTitleLabel = new Label { Text = "BDO UA Client", AutoSize = true, Font = new Font("Segoe UI", 20F, FontStyle.Bold), ForeColor = UiTheme.PrimaryText, Margin = new Padding(0) };
-        headerSubtitleLabel = new Label { Text = "Українська локалізація Black Desert Online", AutoSize = true, Font = new Font("Segoe UI", 9.5F), ForeColor = UiTheme.SecondaryText, Margin = new Padding(0, 3, 0, 0) };
+        for (var row = 0; row < 4; row++) headerLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        headerTitleLabel = new Label { Text = "Хаб українізаторів", AutoSize = true, Font = new Font("Segoe UI", 20F, FontStyle.Bold), ForeColor = UiTheme.PrimaryText, Margin = new Padding(0) };
+        headerSubtitleLabel = new Label { Text = "Українські локалізації для ігор", AutoSize = true, Font = new Font("Segoe UI", 9.5F), ForeColor = UiTheme.SecondaryText, Margin = new Padding(0, 3, 0, 0) };
+        gameSelectorLabel = new Label { Text = "Гра", AutoSize = true, AccessibleName = "Вибір гри", ForeColor = UiTheme.SecondaryText, Margin = new Padding(0, 8, 8, 0) };
+        gameSelectorComboBox = new ComboBox { AutoSize = true, DropDownStyle = ComboBoxStyle.DropDownList, Width = 220, AccessibleName = "Вибір гри", Margin = new Padding(0, 4, 0, 0) };
+        var gameSelectorPanel = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, BackColor = Color.Transparent, Margin = new Padding(0) };
+        gameSelectorPanel.Controls.Add(gameSelectorLabel); gameSelectorPanel.Controls.Add(gameSelectorComboBox);
         headerAccentLine = new Panel { Height = 2, Dock = DockStyle.Fill, BackColor = UiTheme.Accent, Margin = new Padding(0, 10, 0, 0) };
         rightUtilityPanel = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Anchor = AnchorStyles.Top | AnchorStyles.Right, Margin = new Padding(0, 4, 0, 0), BackColor = Color.Transparent };
         updateButton = new Button { Text = "Оновити до vX.Y.Z", AutoSize = true, Visible = false, Margin = new Padding(0, 0, 10, 0) };
@@ -81,7 +87,7 @@ partial class MainForm
         logsButton = new Button { Text = "", AutoSize = false, Size = new Size(32, 32), FlatStyle = FlatStyle.Flat, AccessibleName = "Відкрити папку журналів", Image = BuildLogsIcon(), ImageAlign = ContentAlignment.MiddleCenter, Margin = new Padding(0) };
         logsButton.FlatAppearance.BorderSize = 0;
         rightUtilityPanel.Controls.AddRange(new Control[] { updateButton, versionLabel, uninstallHelpLink, logsButton });
-        headerLayout.Controls.Add(headerTitleLabel, 0, 0); headerLayout.Controls.Add(headerSubtitleLabel, 0, 1); headerLayout.Controls.Add(headerAccentLine, 0, 2); headerLayout.Controls.Add(rightUtilityPanel, 1, 0); headerLayout.SetRowSpan(rightUtilityPanel, 3); headerPanel.Controls.Add(headerLayout);
+        headerLayout.Controls.Add(headerTitleLabel, 0, 0); headerLayout.Controls.Add(headerSubtitleLabel, 0, 1); headerLayout.Controls.Add(gameSelectorPanel, 0, 2); headerLayout.Controls.Add(headerAccentLine, 0, 3); headerLayout.Controls.Add(rightUtilityPanel, 1, 0); headerPanel.Controls.Add(headerLayout);
         components = new System.ComponentModel.Container(); logsToolTip = new ToolTip(components); logsToolTip.SetToolTip(logsButton, "Відкрити папку журналів"); logsToolTip.SetToolTip(uninstallHelpLink, "Клієнт портативний. Для видалення повністю вийдіть із програми та видаліть EXE.");
 
         gameGroupBox = new BdoSurfacePanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(20), Margin = new Padding(0, 0, 0, 24), SurfaceColor = UiTheme.SurfaceElevated };

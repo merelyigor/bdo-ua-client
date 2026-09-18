@@ -48,6 +48,35 @@ public class ConfigStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task ApplicationConfig_OldJsonWithoutSelectedGameId_LoadsAndPreservesAutostart()
+    {
+        await File.WriteAllTextAsync(_paths.ApplicationConfigFile, "{\"autostart_prompt_dismissed\":true}");
+
+        var result = new ApplicationConfigStore(_paths, _logger).Load();
+
+        Assert.Equal(FileLoadStatus.Valid, result.Status);
+        Assert.True(result.Value!.AutostartPromptDismissed);
+        Assert.Null(result.Value.SelectedGameId);
+    }
+
+    [Fact]
+    public async Task ApplicationConfig_SelectedGameIdRoundtripPreservesAutostartFlag()
+    {
+        var store = new ApplicationConfigStore(_paths, _logger);
+        await store.SaveAsync(new ApplicationConfig
+        {
+            AutostartPromptDismissed = true,
+            SelectedGameId = "black-desert-online"
+        });
+
+        var result = store.Load();
+
+        Assert.Equal(FileLoadStatus.Valid, result.Status);
+        Assert.True(result.Value!.AutostartPromptDismissed);
+        Assert.Equal("black-desert-online", result.Value.SelectedGameId);
+    }
+
+    [Fact]
     public async Task SaveAndLoad_PreservesAllFields()
     {
         var config = new Config

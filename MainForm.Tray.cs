@@ -386,7 +386,7 @@ public partial class MainForm
             return;
         }
 
-        var config = load.Value ?? new ApplicationConfig();
+        var config = load.Value ?? new ApplicationConfig { SelectedGameId = _selectedGame.Id };
         if (config.AutostartPromptDismissed)
             return;
 

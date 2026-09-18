@@ -5,7 +5,7 @@ Status: ACTIVE
 Focus: PRIMARY
 Implementation authorization: **YES**
 Current phase: Stage 1 — Hub shell + selected-game model
-Next action: implement Stage 1 only
+Next action: external Architect review + Owner visual smoke
 Dependencies: v1.2.7 — RELEASE REVIEWED / ACCEPTED
 
 ## Goal
@@ -141,4 +141,4 @@ The roadmap depends on v1.2.7 release completion and explicit Owner activation. 
 
 ## Current progress
 
-Roadmap approved by Owner and activated after v1.2.7 external release acceptance. Stage 0 is complete; its dependency is satisfied, and Stage 1 is the exact next action. No Stage 1 production work has started yet. Implementation is authorized only for Stage 1 according to this plan.
+Roadmap approved by Owner and activated after v1.2.7 external release acceptance. Stage 0 is complete and its dependency is satisfied. Stage 1 is **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW + OWNER VISUAL SMOKE**; Stage 2 has not started.

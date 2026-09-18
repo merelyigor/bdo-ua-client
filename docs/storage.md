@@ -59,7 +59,7 @@ Game id перевіряється як контрольований lowercase p
 
 **Файл:** `Storage/ApplicationConfigStore.cs`
 
-Зберігає лише application-global settings, які не належать окремій грі (нині — `autostart_prompt_dismissed`). Запис використовує той самий atomic tmp → replace/move pattern, але файл не входить до game scope.
+Зберігає лише application-global settings, які не належать окремій грі (`autostart_prompt_dismissed` і optional `selected_game_id`). Запис використовує той самий atomic tmp → replace/move pattern, але файл не входить до game scope. Відсутній ID означає зареєстровану BDO-гру; невідомий ID безпечно fallback-иться до неї та ремонтується best-effort без втрати інших settings.
 
 ## LegacyBdoPersistenceMigrator
 

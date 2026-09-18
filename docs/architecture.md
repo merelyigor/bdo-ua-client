@@ -113,6 +113,10 @@ BDO-PROGRAM/
 
 ---
 
+## Game catalog boundary
+
+`Services/GameCatalog` містить explicit compile-time application catalog. Наразі він реєструє лише `black-desert-online` з `BdoGameDefinition`; `GameDescriptor` надає stable ID і display name. Stage 1 показує selected BDO descriptor у main shell, але не реалізує runtime game switching або game-session abstraction.
+
 ## 2. Composition Root
 
 Весь граф залежностей створюється в `Program.cs` (Manual DI). DI-контейнер не використовується.

@@ -41,8 +41,9 @@
 
 ## Header
 
-- **headerTitleLabel** — «BDO UA Client», Segoe UI 20pt Bold.
-- **headerSubtitleLabel** — підзаголовок проєкту українською.
+- **headerTitleLabel** — «Хаб українізаторів», Segoe UI 20pt Bold.
+- **headerSubtitleLabel** — «Українські локалізації для ігор».
+- **gameSelectorComboBox** — native `DropDownList` selector «Гра»; production catalog currently contains only «Black Desert Online», so the selector is disabled until real game switching is implemented.
 - **headerAccentLine** — акцентна лінія 2px.
 - **rightUtilityPanel** (праворуч):
   - **updateButton** — «Оновити до vX.Y.Z». Прихований за замовчуванням; з'являється, коли знайдено candidate оновлення клієнта. Стани обчислюються через `UpdateButtonState.Compute(...)`; під час localization-операцій оновлення заблоковане (взаємовиключність, AGENTS §41.9).

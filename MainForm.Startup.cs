@@ -15,6 +15,7 @@ public partial class MainForm
         _initializing = true;
         try
         {
+            ResolveSelectedGame();
             var configLoad = _configStore.Load();
             var config = configLoad.Value ?? new Config();
 
@@ -123,6 +124,37 @@ public partial class MainForm
                     () => _closing,
                     StartApplicationUpdateMonitoring,
                     ex => _logger.Warning($"Startup lifecycle maintenance failed: {ex.Message}"));
+            }
+        }
+    }
+
+    private void ResolveSelectedGame()
+    {
+        var load = _applicationConfigStore.Load();
+        if (load.Status == FileLoadStatus.Invalid)
+        {
+            _logger.Warning("Application config invalid; using default game selection.");
+            return;
+        }
+
+        var config = load.Value ?? new ApplicationConfig();
+        var requestedId = config.SelectedGameId;
+        _selectedGame = _gameCatalog.Resolve(requestedId);
+        gameSelectorComboBox.SelectedValue = _selectedGame.Id;
+
+        if (requestedId == null || !string.Equals(requestedId, _selectedGame.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!string.IsNullOrWhiteSpace(requestedId))
+                _logger.Warning($"Unknown selected game '{requestedId}'; using default game '{_selectedGame.Id}'.");
+
+            config.SelectedGameId = _selectedGame.Id;
+            try
+            {
+                _applicationConfigStore.SaveAsync(config).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning($"Failed to persist selected game '{_selectedGame.Id}': {ex.Message}");
             }
         }
     }

@@ -30,7 +30,8 @@ public partial class MainForm
         modeGroupBox.BackColor = UiTheme.Background;
         modeGroupBox.ForeColor = UiTheme.PrimaryText;
         headerTitleLabel.ForeColor = UiTheme.PrimaryText;
-        headerSubtitleLabel.Text = $"Українська локалізація {_gameDefinition.DisplayName}";
+        headerTitleLabel.Text = "Хаб українізаторів";
+        headerSubtitleLabel.Text = "Українські локалізації для ігор";
         headerSubtitleLabel.ForeColor = UiTheme.SecondaryText;
         headerAccentLine.BackColor = UiTheme.Accent;
         gameSectionCaptionLabel.ForeColor = UiTheme.SecondaryText;
@@ -40,6 +41,9 @@ public partial class MainForm
         gamePathLabel.ForeColor = UiTheme.SecondaryText;
         progressLabel.ForeColor = UiTheme.SecondaryText;
         versionLabel.ForeColor = UiTheme.SecondaryText;
+        gameSelectorLabel.ForeColor = UiTheme.SecondaryText;
+        gameSelectorComboBox.BackColor = UiTheme.ControlBackground;
+        gameSelectorComboBox.ForeColor = UiTheme.PrimaryText;
         uninstallHelpLink.LinkColor = UiTheme.SecondaryText;
         uninstallHelpLink.ActiveLinkColor = UiTheme.PrimaryText;
         uninstallHelpLink.VisitedLinkColor = UiTheme.SecondaryText;

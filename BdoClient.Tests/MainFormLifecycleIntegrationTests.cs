@@ -29,6 +29,41 @@ public sealed class MainFormLifecycleIntegrationTests
         Assert.Equal(fixture.GameRoot, startup.GamePath);
         Assert.True(startup.ApiRequestCount >= 1);
         Assert.True(startup.GitHubRequestCount >= 1);
+        Assert.Equal("Хаб українізаторів", fixture.Form.Text);
+        Assert.Equal("Українські локалізації для ігор", MainFormTestFixture.FindControlText(fixture.Form, text => text == "Українські локалізації для ігор"));
+        Assert.Single(fixture.Form.GameSelector.Items.Cast<GameDescriptor>());
+        Assert.Equal("Black Desert Online", fixture.Form.GameSelector.Text);
+        Assert.False(fixture.Form.GameSelector.Enabled);
+    }
+
+    [Fact]
+    public async Task Startup_UnknownSelectedGameFallsBackAndPreservesApplicationSettings()
+    {
+        using var fixture = await MainFormTestFixture.StartAsync(
+            MainFormTestFixture.CreateSuccessfulApiHandler(),
+            applicationConfigJson: "{\"autostart_prompt_dismissed\":true,\"selected_game_id\":\"removed-game\"}");
+
+        await fixture.WaitForStartupAsync();
+
+        var config = new ApplicationConfigStore(fixture.AppPaths, new MainFormTestFixture.TestLogger()).Load();
+        Assert.Equal("black-desert-online", fixture.Form.SelectedGame.Id);
+        Assert.Equal("black-desert-online", config.Value!.SelectedGameId);
+        Assert.True(config.Value.AutostartPromptDismissed);
+    }
+
+    [Fact]
+    public async Task Startup_MalformedApplicationConfigDoesNotOverwriteOrBlockBdo()
+    {
+        const string malformed = "{ malformed";
+        using var fixture = await MainFormTestFixture.StartAsync(
+            MainFormTestFixture.CreateSuccessfulApiHandler(),
+            applicationConfigJson: malformed);
+
+        var startup = await fixture.WaitForStartupAsync();
+
+        Assert.Equal("✓ Гру знайдено", startup.GameStatus);
+        Assert.Equal(malformed, await File.ReadAllTextAsync(fixture.AppPaths.ApplicationConfigFile));
+        Assert.Equal("black-desert-online", fixture.Form.SelectedGame.Id);
     }
 
     [Fact]
@@ -398,13 +433,17 @@ internal sealed class MainFormTestFixture : IDisposable
         bool startInBackground,
         bool exitWhenShown,
         bool seedReleaseFeedCache,
-        int? gamePatch)
+        int? gamePatch,
+        string? applicationConfigJson)
     {
         _bdoHandler = bdoHandler;
         _githubHandler = CreateSuccessfulGitHubHandler();
         _root = Path.Combine(Path.GetTempPath(), "bdo-ua-mainform-tests", Guid.NewGuid().ToString("N"));
         _appPaths = new AppPaths(Path.Combine(_root, "appdata"));
         _appPaths.EnsureDirectories();
+
+        if (applicationConfigJson != null)
+            File.WriteAllText(_appPaths.ApplicationConfigFile, applicationConfigJson);
 
         if (seedReleaseFeedCache)
         {
@@ -439,6 +478,8 @@ internal sealed class MainFormTestFixture : IDisposable
     }
 
     internal string GameRoot { get; }
+
+    internal AppPaths AppPaths => _appPaths;
 
     internal MainForm Form => _form ?? throw new InvalidOperationException("MainForm is not ready.");
 
@@ -501,10 +542,11 @@ internal sealed class MainFormTestFixture : IDisposable
         bool startInBackground = false,
         bool exitWhenShown = false,
         bool seedReleaseFeedCache = false,
-        int? gamePatch = null)
+        int? gamePatch = null,
+        string? applicationConfigJson = null)
     {
         var fixture = new MainFormTestFixture(
-            bdoHandler, startInBackground, exitWhenShown, seedReleaseFeedCache, gamePatch);
+            bdoHandler, startInBackground, exitWhenShown, seedReleaseFeedCache, gamePatch, applicationConfigJson);
         fixture._uiThread.Start();
 
         try
@@ -721,6 +763,7 @@ internal sealed class MainFormTestFixture : IDisposable
             var apiClient = new BdoUaApiClient(_bdoHttpClient, logger);
             var localizationInstaller = new LocalizationInstaller(_bdoHttpClient, _appPaths, logger);
             var gameDefinition = BdoGameDefinition.Default;
+            var gameCatalog = GameCatalog.Create(gameDefinition);
             var backupStore = new BackupStore(_appPaths, logger, gameDefinition);
             var gameDetector = new GameDetector(configStore, logger, gameDefinition);
             var stateService = new LocalizationStateService(stateStore, logger, gameDefinition);
@@ -737,6 +780,7 @@ internal sealed class MainFormTestFixture : IDisposable
                 apiClient,
                 gameDetector,
                 gameDefinition,
+                gameCatalog,
                 stateService,
                 compatService,
                 localizationInstaller,

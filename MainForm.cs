@@ -16,6 +16,8 @@ public partial class MainForm : Form
     private readonly BdoUaApiClient _apiClient;
     private readonly GameDetector _gameDetector;
     private readonly BdoGameDefinition _gameDefinition;
+    private readonly GameCatalog _gameCatalog;
+    private GameDescriptor _selectedGame;
     private readonly LocalizationStateService _stateService;
     private readonly LocalizationCompatibilityService _compatService;
     private readonly LocalizationInstaller _localizationInstaller;
@@ -86,6 +88,7 @@ public partial class MainForm : Form
         BdoUaApiClient apiClient,
         GameDetector gameDetector,
         BdoGameDefinition gameDefinition,
+        GameCatalog gameCatalog,
         LocalizationStateService stateService,
         LocalizationCompatibilityService compatService,
         LocalizationInstaller localizationInstaller,
@@ -105,6 +108,8 @@ public partial class MainForm : Form
         _apiClient = apiClient;
         _gameDetector = gameDetector;
         _gameDefinition = gameDefinition ?? throw new ArgumentNullException(nameof(gameDefinition));
+        _gameCatalog = gameCatalog ?? throw new ArgumentNullException(nameof(gameCatalog));
+        _selectedGame = _gameCatalog.DefaultGame;
         _stateService = stateService;
         _compatService = compatService;
         _localizationInstaller = localizationInstaller;
@@ -135,6 +140,7 @@ public partial class MainForm : Form
         InitializeTray();
         rootScrollPanel.Resize += RootScrollPanel_Resize;
         ApplyTheme();
+        InitializeGameSelector();
         WireEventHandlers();
         this.Shown += MainForm_Shown;
         HandleCreated += (_, _) =>
@@ -142,6 +148,18 @@ public partial class MainForm : Form
             WindowChromeHelper.ApplyDarkCaption(this);
             RegisterSecondaryActivationListener();
         };
+    }
+
+    internal GameDescriptor SelectedGame => _selectedGame;
+    internal ComboBox GameSelector => gameSelectorComboBox;
+
+    private void InitializeGameSelector()
+    {
+        gameSelectorComboBox.DisplayMember = nameof(GameDescriptor.DisplayName);
+        gameSelectorComboBox.ValueMember = nameof(GameDescriptor.Id);
+        gameSelectorComboBox.DataSource = _gameCatalog.Games.ToList();
+        gameSelectorComboBox.SelectedValue = _selectedGame.Id;
+        gameSelectorComboBox.Enabled = _gameCatalog.Games.Count > 1;
     }
 
     private void WireEventHandlers()

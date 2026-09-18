@@ -102,5 +102,5 @@ Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-mu
 - v1.2.5 release cycle completed; public Release verified and `NEXT.json` reset for the next cycle.
 - v15.64/v15.65 — **REVIEWED / ACCEPTED; OWNER VISUAL SMOKE ACCEPTED**: для трьох і більше режимів локалізації додано компактний minimum window width і збережено його під час semantic rebuild; single-mode global status width збережено.
 - v1.2.7 — **RELEASED / PUBLIC VERIFIED / RELEASE REVIEWED / ACCEPTED**: public Release ID `391117230` опубліковано на tag `v1.2.7`, який вказує на exact approved RC SHA `b21118d1ec8e6d0342fb0e47544e911fcb875739`; canonical ZIP і внутрішні hashes повторно перевірено, Owner native smoke exact RC прийнято.
-- `localization-hub-multigame` — **ACTIVE / PRIMARY**: Stage 0 complete after explicit Owner activation; Stage 1 — Hub shell + selected-game model — is the exact next action. No Stage 1 production work has started.
-- Next action: `Stage 1 — Hub shell + selected-game model`.
+- `localization-hub-multigame` — **ACTIVE / PRIMARY**: Stage 0 complete; Stage 1 — Hub shell + selected-game model — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW + OWNER VISUAL SMOKE**. Stage 2 has not started.
+- Next action: `External Architect review + Owner visual smoke for Stage 1`.

@@ -124,6 +124,7 @@ static class Program
 
         ILogger logger = new FileLogger(appPaths.LogsDir);
         var gameDefinition = BdoGameDefinition.Default;
+        var gameCatalog = GameCatalog.Create(gameDefinition);
         var gamePaths = appPaths.GetGamePersistencePaths(gameDefinition.Id);
         new LegacyBdoPersistenceMigrator(appPaths, gamePaths, logger).MigrateIfNeeded();
         gamePaths.EnsureDirectories();
@@ -161,7 +162,7 @@ static class Program
         try
         {
             Application.Run(new MainForm(
-                configStore, applicationConfigStore, apiClient, gameDetector, gameDefinition,
+                configStore, applicationConfigStore, apiClient, gameDetector, gameDefinition, gameCatalog,
                 stateService, compatService,
                 localizationInstaller, backupStore, stateStore, logger,
                 appVersionInfo, gitHubClient, selectionPolicy, appPaths,
