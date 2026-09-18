@@ -8,9 +8,9 @@
 
 Стабільний реліз: **v1.2.8**. Публічний stable release опубліковано з tag v1.2.8; canonical application bundle містить один ZIP-asset. Offline/degraded release-feed implementation завершено та прийнято зовнішнім Architect.
 
-Поточна наступна дія: external Architect review + Owner visual smoke для Stage 8A.
+Поточна наступна дія: OWNER DECISION REQUIRED; Stage 8A завершено, подальший implementation stage не авторизовано.
 
-Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-multigame` for the `Хаб українізаторів` multi-game transition. v1.2.7 external release acceptance is complete; Stage 0 through Stage 7 are reviewed/accepted. Stage 8A now presents both product targets without adding WWM runtime support; external Architect review and Owner visual smoke remain pending.
+Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-multigame` for the `Хаб українізаторів` multi-game transition. v1.2.7 external release acceptance is complete; Stage 0 through Stage 8A are reviewed/accepted. Stage 8A presents both product targets without adding WWM runtime support. No further implementation stage is authorized; Owner decision is required.
 
 ## Architecture Summary
 
@@ -125,10 +125,10 @@ Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-mu
 
 - v1.2.3 release cycle is completed and archived.
 - Offline/degraded release-feed mode is completed, reviewed and accepted; `offline-degraded-reliability` is archived.
-- `game-boundary-refactoring` is archived; Stage 1 and Stage 2 are reviewed/accepted. `localization-hub-multigame` is the sole ACTIVE PRIMARY roadmap; Stage 0 through Stage 6 are reviewed/accepted, and Stage 7 is current.
+- `game-boundary-refactoring` is archived; Stage 1 and Stage 2 are reviewed/accepted. `localization-hub-multigame` is the sole ACTIVE PRIMARY roadmap; Stage 0 through Stage 8A are reviewed/accepted, with no further authorized implementation stage.
 - v1.2.5 release cycle completed; public Release verified and `NEXT.json` reset for the next cycle.
 - v15.64/v15.65 — **REVIEWED / ACCEPTED; OWNER VISUAL SMOKE ACCEPTED**: для трьох і більше режимів локалізації додано компактний minimum window width і збережено його під час semantic rebuild; single-mode global status width збережено.
 - v1.2.7 — **RELEASED / PUBLIC VERIFIED / RELEASE REVIEWED / ACCEPTED**: public Release ID `391117230` опубліковано на tag `v1.2.7`, який вказує на exact approved RC SHA `b21118d1ec8e6d0342fb0e47544e911fcb875739`; canonical ZIP і внутрішні hashes повторно перевірено, Owner native smoke exact RC прийнято.
 - v1.2.8 — **RELEASED / PUBLIC VERIFIED**: public Release ID `391585430` опубліковано на tag `v1.2.8`, який вказує на exact RC SHA `7cb740d55bc7baeb5aa9f91365114e68bb88eff9`; public asset повторно завантажено й перевірено. Owner live legacy update accepted.
-- `localization-hub-multigame` — **ACTIVE / PRIMARY**: Stage 0 complete; Stage 1 — **REVIEWED / ACCEPTED**; Stage 2 — **REVIEWED / ACCEPTED**; Stage 3 — **REVIEWED / ACCEPTED**; Stage 4 — **REVIEWED / ACCEPTED**; Stage 5 — **REVIEWED / ACCEPTED**; Stage 6 — **REVIEWED / ACCEPTED**; Stage 7 — **REVIEWED / ACCEPTED**; Stage 8A — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL ARCHITECT REVIEW / OWNER VISUAL SMOKE PENDING**. Stage 8B remains optional/not started; Stage 9 waits for Where Winds Meet / Winds4UA technical integration data.
-- Next action: external Architect review + Owner visual smoke для Stage 8A.
+- `localization-hub-multigame` — **ACTIVE / PRIMARY**: Stage 0 complete; Stage 1 — **REVIEWED / ACCEPTED**; Stage 2 — **REVIEWED / ACCEPTED**; Stage 3 — **REVIEWED / ACCEPTED**; Stage 4 — **REVIEWED / ACCEPTED**; Stage 5 — **REVIEWED / ACCEPTED**; Stage 6 — **REVIEWED / ACCEPTED**; Stage 7 — **REVIEWED / ACCEPTED**; Stage 8A — **REVIEWED / ACCEPTED**. Stage 8B remains **OPTIONAL / NOT STARTED**; Stage 9 remains **WAITING ON TECHNICAL INTEGRATION DATA** for Where Winds Meet / Winds4UA (W4U); Stage 10 is **NOT STARTED**.
+- Next action: OWNER DECISION REQUIRED; no further implementation stage is authorized.

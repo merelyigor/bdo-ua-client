@@ -4,8 +4,8 @@ Plan ID: `localization-hub-multigame`
 Status: ACTIVE
 Focus: PRIMARY
 Implementation authorization: **YES**
-Current phase: Stage 8A — Explicit supported-project UI
-Next action: external Architect review + Owner visual smoke
+Current phase: Stage 8A complete — no further authorized implementation work
+Next action: OWNER DECISION REQUIRED
 Dependencies: v1.2.7 — RELEASE REVIEWED / ACCEPTED
 
 ## Goal
@@ -127,11 +127,13 @@ Current state: **REVIEWED / ACCEPTED**. External Architect final review accepted
 
 Make the application visibly communicate both target projects without pretending that Where Winds Meet is runnable. Show Black Desert Online — BDO UA Translate as available and Where Winds Meet — Winds4UA (W4U) as integration planned. Do not register WWM in the runtime catalog or invent an API/install contract.
 
-Current state: **IMPLEMENTED / VALIDATED / PENDING EXTERNAL ARCHITECT REVIEW / OWNER VISUAL SMOKE PENDING**. The main shell names both target games and projects, while the production runtime catalog remains BDO-only and the active-game selector remains a disabled one-item selector.
+Current state: **REVIEWED / ACCEPTED**. External Architect review accepted the implementation with BLOCKER `0` and IMPORTANT `0`; Owner visual smoke accepted the target-project presentation and layout. The main shell names both target games and projects, while the production runtime catalog remains BDO-only and the active-game selector remains a disabled one-item selector.
 
 ### Stage 8B — Optional physical EXE/package/autostart migration
 
 Only if still desired: support legacy and new artifact identities, migrate autostart add-new/verify/remove-old, and test updates from a legacy EXE. Do not automatically rename LocalAppData.
+
+Current state: **OPTIONAL / NOT STARTED**.
 
 ### Stage 9 — Where Winds Meet integration contract analysis
 
@@ -140,6 +142,8 @@ WAITING ON TECHNICAL INTEGRATION DATA. Perform read-only analysis of the actual 
 ### Stage 10 — Real Where Winds Meet implementation
 
 Register and implement Where Winds Meet / Winds4UA (W4U) through the proven runtime boundary only after Stage 9 supplies its real contract, then validate selector behavior, BDO ↔ WWM ↔ BDO lifecycle, cross-game isolation and game-file rollback safety.
+
+Current state: **NOT STARTED**.
 
 ## Acceptance criteria
 
@@ -164,4 +168,4 @@ The roadmap depends on v1.2.7 release completion and explicit Owner activation. 
 
 ## Current progress
 
-Roadmap approved by Owner and activated after v1.2.7 external release acceptance. Stage 0 is complete and its dependency is satisfied. Stage 1 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 2 is **REVIEWED / ACCEPTED** after external pre-commit Architect review, commit and CI success. Stage 3 is **REVIEWED / ACCEPTED**; Stage 4 is **REVIEWED / ACCEPTED**; Stage 5 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 6 is **REVIEWED / ACCEPTED** after external pre-commit Architect review. Stage 7 is **REVIEWED / ACCEPTED** after final external Architect review of the post-rename normalization. Stage 8A is **IMPLEMENTED / VALIDATED / PENDING EXTERNAL ARCHITECT REVIEW / OWNER VISUAL SMOKE PENDING**; Stage 8B is **OPTIONAL / NOT STARTED**; Stage 9 is **WAITING ON TECHNICAL INTEGRATION DATA** for Where Winds Meet / Winds4UA (W4U), and Stage 10 is not started.
+Roadmap approved by Owner and activated after v1.2.7 external release acceptance. Stage 0 is complete and its dependency is satisfied. Stage 1 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 2 is **REVIEWED / ACCEPTED** after external pre-commit Architect review, commit and CI success. Stage 3 is **REVIEWED / ACCEPTED**; Stage 4 is **REVIEWED / ACCEPTED**; Stage 5 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 6 is **REVIEWED / ACCEPTED** after external pre-commit Architect review. Stage 7 is **REVIEWED / ACCEPTED** after final external Architect review of the post-rename normalization. Stage 8A is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 8B is **OPTIONAL / NOT STARTED**; Stage 9 is **WAITING ON TECHNICAL INTEGRATION DATA** for Where Winds Meet / Winds4UA (W4U); Stage 10 is **NOT STARTED**. No further implementation stage is authorized; the next action is **OWNER DECISION REQUIRED**.
