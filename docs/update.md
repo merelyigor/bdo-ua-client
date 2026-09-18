@@ -96,3 +96,9 @@ UI — `UpdateApplyingForm`.
 - Ніякого UAC elevation (Stage 13).
 - Ніякого permanent Updater.exe, PowerShell/BAT updater, Windows Service — тільки internal helper mode.
 - TLS verification ніколи не вимикається.
+
+## Repository discovery bridge
+
+Поточний updater зберігає legacy repository `merelyigor/bdo-ua-client` як перший endpoint. Якщо цей endpoint повертає HTTP 404, bounded discovery один раз пробує майбутній target `merelyigor/ua-localization-hub`. Успішна відповідь legacy repository не викликає другий endpoint; 401/403/rate-limit, 5xx, network failure та malformed JSON залишаються звичайною помилкою discovery. Asset download URLs не переписуються й використовуються в тому вигляді, у якому їх повернув GitHub.
+
+Stage 6 централізує ці compatibility identities, але фізично зберігає `BDO-UA-Client.exe`, `BDO-UA-Client-vX.Y.Z-win-x64.zip`, autostart value `BDO-UA-Client` і `%LocalAppData%\\BDO-UA-Client`. Фактичне перейменування repository є окремим Owner operational gate Stage 7.

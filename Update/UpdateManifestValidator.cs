@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using BdoClient;
 using BdoClient.Logging;
 
 namespace BdoClient.Update;
@@ -64,7 +65,7 @@ public sealed class UpdateManifestValidator
             return UpdateManifestValidationResult.Failure("Missing asset_name");
         }
 
-        const string expectedAssetName = "BDO-UA-Client.exe";
+        const string expectedAssetName = ApplicationTechnicalIdentity.ExecutableFileName;
         if (!string.Equals(manifest.AssetName, expectedAssetName, StringComparison.Ordinal))
         {
             _logger.Warning($"Manifest: asset_name '{manifest.AssetName}' != expected '{expectedAssetName}'");
@@ -87,7 +88,7 @@ public sealed class UpdateManifestValidator
 
         if (hasPackageName && !rejectPackageFields)
         {
-            var expectedPackageName = $"BDO-UA-Client-v{candidate.Version}-win-x64.zip";
+            var expectedPackageName = ApplicationTechnicalIdentity.BuildPackageFileName(candidate.Version.ToString());
             if (!string.Equals(manifest.PackageName, expectedPackageName, StringComparison.Ordinal))
                 return UpdateManifestValidationResult.Failure("Package name mismatch");
             if (!Sha256HexRegex.IsMatch(manifest.PackageSha256!))

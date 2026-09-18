@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using BdoClient.Logging;
+using BdoClient;
 using BdoClient.Services;
 
 namespace BdoClient.Update;
@@ -82,7 +83,7 @@ public sealed class SelfUpdateApplier
             return ExitCodeInvalidArgs;
         }
 
-        var expectedHelperPath = Path.GetFullPath(Path.Combine(_sessionStore.GetSessionDir(sessionId), "BDO-UA-Client.exe"));
+        var expectedHelperPath = Path.GetFullPath(Path.Combine(_sessionStore.GetSessionDir(sessionId), ApplicationTechnicalIdentity.ExecutableFileName));
         var actualHelperPath = Path.GetFullPath(currentPath);
         if (!string.Equals(actualHelperPath, expectedHelperPath, StringComparison.OrdinalIgnoreCase))
         {

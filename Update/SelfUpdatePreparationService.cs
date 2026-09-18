@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using BdoClient.Logging;
+using BdoClient;
 using BdoClient.Services;
 
 namespace BdoClient.Update;
@@ -49,7 +50,7 @@ public sealed class SelfUpdatePreparationService
 
         // 2. Verify staged EXE exists
         var stagedDir = _sessionStore.GetSessionDir(sessionId);
-        var stagedExePath = Path.Combine(stagedDir, "BDO-UA-Client.exe");
+        var stagedExePath = Path.Combine(stagedDir, ApplicationTechnicalIdentity.ExecutableFileName);
 
         if (!File.Exists(stagedExePath))
         {

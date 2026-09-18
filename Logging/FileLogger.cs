@@ -1,12 +1,13 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using BdoClient;
 
 namespace BdoClient.Logging;
 
 public sealed class FileLogger : ILogger
 {
     private const int RetentionDays = 15;
-    private static readonly Regex LogFilePattern = new(@"^bdo-ua-client_(\d{4}-\d{2}-\d{2})\.log$", RegexOptions.Compiled);
+    private static readonly Regex LogFilePattern = new($"^{ApplicationTechnicalIdentity.LogFilePrefix}_(\\d{{4}}-\\d{{2}}-\\d{{2}})\\.log$", RegexOptions.Compiled);
 
     private readonly string _logsDirectory;
     private readonly object _sync = new();
@@ -35,7 +36,7 @@ public sealed class FileLogger : ILogger
             var now = overrideNow ?? _clock?.Invoke() ?? DateTime.Now;
             var cutoff = now.Date.AddDays(-(RetentionDays - 1));
 
-            foreach (var file in Directory.EnumerateFiles(_logsDirectory, "bdo-ua-client_*.log"))
+            foreach (var file in Directory.EnumerateFiles(_logsDirectory, $"{ApplicationTechnicalIdentity.LogFilePrefix}_*.log"))
             {
                 var fileName = Path.GetFileName(file);
                 var match = LogFilePattern.Match(fileName);
@@ -72,7 +73,7 @@ public sealed class FileLogger : ILogger
                 Directory.CreateDirectory(_logsDirectory);
                 var path = Path.Combine(
                     _logsDirectory,
-                    $"bdo-ua-client_{timestamp:yyyy-MM-dd}.log");
+                    $"{ApplicationTechnicalIdentity.LogFilePrefix}_{timestamp:yyyy-MM-dd}.log");
 
                 File.AppendAllText(
                     path,

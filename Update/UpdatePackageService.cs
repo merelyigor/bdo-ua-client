@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using BdoClient;
 using BdoClient.Logging;
 using BdoClient.Services;
 using BdoClient.Storage;
@@ -10,9 +11,9 @@ namespace BdoClient.Update;
 
 public sealed class UpdatePackageService
 {
-    private const string ExeFileName = "BDO-UA-Client.exe";
+    private const string ExeFileName = ApplicationTechnicalIdentity.ExecutableFileName;
     private const string ManifestFileName = "release-manifest.json";
-    private const string PackageEntryName = "BDO-UA-Client.exe";
+    private const string PackageEntryName = ApplicationTechnicalIdentity.ExecutableFileName;
     public const long ZipMaxBytes = 100_000_000;
 
     private readonly GitHubUpdateClient _gitHubClient;
@@ -85,7 +86,7 @@ public sealed class UpdatePackageService
                 string.Equals(a.Name, ManifestFileName, StringComparison.Ordinal)) ?? 0;
             if (manifestAssetCount == 0)
             {
-                var bundleName = $"BDO-UA-Client-v{candidate.Version}-win-x64.zip";
+                var bundleName = ApplicationTechnicalIdentity.BuildPackageFileName(candidate.Version.ToString());
                 var packageAsset = FindExactlyOneAsset(candidate, bundleName);
                 if (packageAsset == null)
                     return UpdatePackageResult.Failure(UpdatePackageError.AssetMissing, "Canonical bundle not found or ambiguous");
@@ -244,7 +245,7 @@ public sealed class UpdatePackageService
                 return (false, "ZIP must contain exactly one entry");
             var entry = archive.Entries[0];
             if (!string.Equals(entry.FullName, PackageEntryName, StringComparison.Ordinal) || entry.FullName.Contains('/') || entry.FullName.Contains('\\'))
-                return (false, "ZIP entry must be exactly BDO-UA-Client.exe at archive root");
+                return (false, $"ZIP entry must be exactly {ApplicationTechnicalIdentity.ExecutableFileName} at archive root");
             if (entry.Length <= 0 || entry.Length > GitHubUpdateClient.ExeMaxBytes)
                 return (false, "ZIP EXE entry size is invalid");
             using var input = entry.Open();

@@ -1,10 +1,11 @@
 using BdoClient.Storage;
+using BdoClient;
 
 namespace BdoClient.Update;
 
 internal sealed class ReplacementWorkspace
 {
-    private const string FallbackDirectoryName = ".bdo-ua-client-update";
+    private const string FallbackDirectoryName = ApplicationTechnicalIdentity.ReplacementWorkspaceDirectoryName;
 
     public string DirectoryPath { get; }
     public string CandidatePath { get; }

@@ -213,7 +213,7 @@ public partial class MainForm
                 // Derive staged helper path from session store
                 var stagedHelperPath = Path.Combine(
                     _updateSessionStore.GetSessionDir(result.Session!.SessionId),
-                    "BDO-UA-Client.exe");
+                    ApplicationTechnicalIdentity.ExecutableFileName);
 
                 if (!File.Exists(stagedHelperPath))
                 {

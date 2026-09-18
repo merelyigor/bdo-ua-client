@@ -3,14 +3,14 @@
 ## Current focus
 
 **Primary:** `localization-hub-multigame`
-**Current phase:** Stage 5 — Full visible rebrand
-**Next:** external Architect review + Owner visual smoke
+**Current phase:** Stage 7 — Repository rename bridge release + rename
+**Next:** prepare and validate the bridge release; repository rename remains an explicit Owner operational gate
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| PRIMARY | `localization-hub-multigame` | [active/localization-hub-multigame.md](active/localization-hub-multigame.md) | Stage 5 — Full visible rebrand | External Architect review + Owner visual smoke |
+| PRIMARY | `localization-hub-multigame` | [active/localization-hub-multigame.md](active/localization-hub-multigame.md) | Stage 7 — Repository rename bridge release + rename | Prepare and validate bridge release; repository rename remains Owner gate |
 
 ## Backlog
 

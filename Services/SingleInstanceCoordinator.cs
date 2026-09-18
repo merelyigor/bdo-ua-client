@@ -1,5 +1,6 @@
 using System;
 using System.Threading;
+using BdoClient;
 
 namespace BdoClient.Services;
 
@@ -11,8 +12,8 @@ namespace BdoClient.Services;
 /// </summary>
 public sealed class SingleInstanceCoordinator : IDisposable
 {
-    private const string DefaultMutexName = @"Local\BDO-UA-Client.SingleInstance";
-    private const string DefaultActivationEventName = @"Local\BDO-UA-Client.Activate";
+    private const string DefaultMutexName = @"Local\" + ApplicationTechnicalIdentity.SingleInstanceNamePrefix + ".SingleInstance";
+    private const string DefaultActivationEventName = @"Local\" + ApplicationTechnicalIdentity.SingleInstanceNamePrefix + ".Activate";
 
     private readonly Mutex _mutex;
     private readonly bool _ownsMutex;

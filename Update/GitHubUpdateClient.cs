@@ -4,14 +4,13 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using BdoClient;
 using BdoClient.Logging;
 
 namespace BdoClient.Update;
 
 public sealed class GitHubUpdateClient
 {
-    private const string ReleasesUrl = "https://api.github.com/repos/merelyigor/bdo-ua-client/releases?per_page=100";
-    private const string UserAgent = "BDO-UA-Client";
     private const string ApiVersion = "2022-11-28";
     private const int DiscoveryTimeoutSeconds = 15;
     private const int ManifestTimeoutSeconds = 15;
@@ -41,46 +40,67 @@ public sealed class GitHubUpdateClient
 
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, ReleasesUrl);
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-            request.Headers.UserAgent.ParseAdd(UserAgent);
-            request.Headers.Add("X-GitHub-Api-Version", ApiVersion);
-
-            using var response = await _httpClient
-                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linkedCts.Token)
-                .ConfigureAwait(false);
-
-            if (!response.IsSuccessStatusCode)
+            var repositories = new[]
             {
-                var statusCode = (int)response.StatusCode;
-                var error = $"GitHub HTTP {statusCode}";
-                _logger.Warning($"GitHub update: {error}");
-                return GitHubResult<List<GitHubRelease>>.Failure(error);
-            }
+                ApplicationTechnicalIdentity.LegacyRepositoryName,
+                ApplicationTechnicalIdentity.FutureRepositoryName
+            };
 
-            var content = await response.Content.ReadAsStringAsync(linkedCts.Token).ConfigureAwait(false);
-
-            List<GitHubRelease>? releases;
-            try
+            for (var repositoryIndex = 0; repositoryIndex < repositories.Length; repositoryIndex++)
             {
-                releases = JsonSerializer.Deserialize<List<GitHubRelease>>(content, new JsonSerializerOptions
+                var repositoryName = repositories[repositoryIndex];
+                using var request = new HttpRequestMessage(
+                    HttpMethod.Get,
+                    ApplicationTechnicalIdentity.BuildReleasesApiUrl(repositoryName));
+                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+                request.Headers.UserAgent.ParseAdd(ApplicationTechnicalIdentity.UserAgent);
+                request.Headers.Add("X-GitHub-Api-Version", ApiVersion);
+
+                using var response = await _httpClient
+                    .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linkedCts.Token)
+                    .ConfigureAwait(false);
+
+                if (response.StatusCode == HttpStatusCode.NotFound && repositoryIndex == 0)
                 {
-                    PropertyNameCaseInsensitive = true
-                });
-            }
-            catch (JsonException ex)
-            {
-                _logger.Warning($"GitHub update: JSON error: {ex.Message}");
-                return GitHubResult<List<GitHubRelease>>.Failure($"JSON error: {ex.Message}");
+                    _logger.Warning($"GitHub update: legacy repository {ApplicationTechnicalIdentity.LegacyRepositorySlug} was not found; trying bridge target {ApplicationTechnicalIdentity.FutureRepositorySlug}");
+                    continue;
+                }
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var statusCode = (int)response.StatusCode;
+                    var error = $"GitHub HTTP {statusCode}";
+                    _logger.Warning($"GitHub update: {error} from {repositoryName}");
+                    return GitHubResult<List<GitHubRelease>>.Failure(error);
+                }
+
+                var content = await response.Content.ReadAsStringAsync(linkedCts.Token).ConfigureAwait(false);
+
+                List<GitHubRelease>? releases;
+                try
+                {
+                    releases = JsonSerializer.Deserialize<List<GitHubRelease>>(content, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                }
+                catch (JsonException ex)
+                {
+                    _logger.Warning($"GitHub update: JSON error from {repositoryName}: {ex.Message}");
+                    return GitHubResult<List<GitHubRelease>>.Failure($"JSON error: {ex.Message}");
+                }
+
+                sw.Stop();
+                _logger.Debug($"GitHub update: fetched {releases?.Count ?? 0} releases from {repositoryName} in {sw.ElapsedMilliseconds}ms");
+
+                if (releases == null)
+                    return GitHubResult<List<GitHubRelease>>.Failure("Deserialized null");
+
+                return GitHubResult<List<GitHubRelease>>.Success(releases);
             }
 
             sw.Stop();
-            _logger.Debug($"GitHub update: fetched {releases?.Count ?? 0} releases in {sw.ElapsedMilliseconds}ms");
-
-            if (releases == null)
-                return GitHubResult<List<GitHubRelease>>.Failure("Deserialized null");
-
-            return GitHubResult<List<GitHubRelease>>.Success(releases);
+            return GitHubResult<List<GitHubRelease>>.Failure("GitHub repository discovery failed");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -137,7 +157,7 @@ public sealed class GitHubUpdateClient
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, uri);
-            request.Headers.UserAgent.ParseAdd(UserAgent);
+            request.Headers.UserAgent.ParseAdd(ApplicationTechnicalIdentity.UserAgent);
 
             using var response = await _httpClient
                 .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linkedCts.Token)
@@ -305,7 +325,7 @@ public sealed class GitHubUpdateClient
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
-        request.Headers.UserAgent.ParseAdd(UserAgent);
+        request.Headers.UserAgent.ParseAdd(ApplicationTechnicalIdentity.UserAgent);
 
         using var response = await _httpClient
             .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linkedCts.Token)

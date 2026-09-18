@@ -8,9 +8,9 @@
 
 Стабільний реліз: **v1.2.7**. Публічний stable release опубліковано з tag v1.2.7; canonical application bundle містить один ZIP-asset. Offline/degraded release-feed implementation завершено та прийнято зовнішнім Architect.
 
-Поточна наступна дія: external Architect review + Owner visual smoke для Stage 5 full visible rebrand.
+Поточна наступна дія: prepare and validate the Stage 7 bridge release; repository rename remains an explicit Owner operational gate.
 
-Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-multigame` for the future `Хаб українізаторів` / multi-game transition. v1.2.7 external release acceptance is complete; Stage 0 is complete, Stage 1, Stage 2, Stage 3 and Stage 4 are reviewed/accepted, and Stage 5 is the current authorized scope.
+Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-multigame` for the future `Хаб українізаторів` / multi-game transition. v1.2.7 external release acceptance is complete; Stage 0 through Stage 6 are reviewed/accepted, and Stage 7 is the next phase but has not started.
 
 ## Architecture Summary
 
@@ -75,6 +75,11 @@ Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-mu
 - Stage 4 validation: focused GamePersistencePaths — 7 passed; ReleaseFeedCacheStore — 12 passed; LegacyBdoReleaseFeedCacheMigrator — 3 passed; LegacyBdoPersistenceMigrator — 8 passed; BdoGameSession — 4 passed; SelectedGameSessionHost — 2 passed; MainForm lifecycle — 23 passed; ReleaseFeedPoller — 30 passed; StartupOrchestration — 15 passed. Full Release suite — 988 passed / 0 failed / 0 skipped; Release build — 0 warnings / 0 errors. Stage 4 remains **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**; canonical cache path is `{root}\games\<stable-game-id>\cache\release-feed.json`, while the old global file is legacy-only.
 - v1.2.6 RC validation: normal CI #204 / run `34873696880` and RC #34 / run `34873972036` succeeded; RC artifact `BDO-UA-Client-v1.2.6-win-x64` contains four flat files, ZIP size `67,914,367` bytes, ZIP SHA-256 `cf999c7059c8c1eecb2ff68053feb59410c30c3956a1a8e214bd078240c1c435`, EXE SHA-256 `65dfb3d2e76e011e256e3d6f6c7d27994a8ac54f89d6e64dbb86e9e9328fcd35`, manifest schema 2 and version 1.2.6.
 
+## Stage 6 validation
+
+- Technical identity and repository-bridge focused coverage — 42 passed; relevant update/package/manifest/session/autostart/AppPaths/MainForm update coverage — 225 passed; release-note generator — passed; release-version resolver — 13 passed.
+- Full Release suite — 997 passed / 0 failed / 0 skipped; Release build — 0 warnings / 0 errors; `git diff --check` passed. Physical technical identities remain unchanged; Stage 6 is **REVIEWED / ACCEPTED** with external pre-commit review BLOCKER 0 / IMPORTANT 0.
+
 ## Important Invariants
 
 - API contract — `GET https://bdo-ua.com.ua/api/public/v1/releases`; актуальний release визначає сервер.
@@ -101,9 +106,9 @@ Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-mu
 
 - v1.2.3 release cycle is completed and archived.
 - Offline/degraded release-feed mode is completed, reviewed and accepted; `offline-degraded-reliability` is archived.
-- `game-boundary-refactoring` is archived; Stage 1 and Stage 2 are reviewed/accepted. `localization-hub-multigame` is the sole ACTIVE PRIMARY roadmap; Stage 0 is complete, Stage 1, Stage 2, Stage 3 and Stage 4 are reviewed/accepted, and Stage 5 is current.
+- `game-boundary-refactoring` is archived; Stage 1 and Stage 2 are reviewed/accepted. `localization-hub-multigame` is the sole ACTIVE PRIMARY roadmap; Stage 0 through Stage 6 are reviewed/accepted, and Stage 7 is current.
 - v1.2.5 release cycle completed; public Release verified and `NEXT.json` reset for the next cycle.
 - v15.64/v15.65 — **REVIEWED / ACCEPTED; OWNER VISUAL SMOKE ACCEPTED**: для трьох і більше режимів локалізації додано компактний minimum window width і збережено його під час semantic rebuild; single-mode global status width збережено.
 - v1.2.7 — **RELEASED / PUBLIC VERIFIED / RELEASE REVIEWED / ACCEPTED**: public Release ID `391117230` опубліковано на tag `v1.2.7`, який вказує на exact approved RC SHA `b21118d1ec8e6d0342fb0e47544e911fcb875739`; canonical ZIP і внутрішні hashes повторно перевірено, Owner native smoke exact RC прийнято.
-- `localization-hub-multigame` — **ACTIVE / PRIMARY**: Stage 0 complete; Stage 1 — **REVIEWED / ACCEPTED**; Stage 2 — **REVIEWED / ACCEPTED**; Stage 3 — **REVIEWED / ACCEPTED**; Stage 4 — **REVIEWED / ACCEPTED**; Stage 5 — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW + OWNER VISUAL SMOKE**.
-- Next action: external Architect review + Owner visual smoke for Stage 5; Stage 6 has not started.
+- `localization-hub-multigame` — **ACTIVE / PRIMARY**: Stage 0 complete; Stage 1 — **REVIEWED / ACCEPTED**; Stage 2 — **REVIEWED / ACCEPTED**; Stage 3 — **REVIEWED / ACCEPTED**; Stage 4 — **REVIEWED / ACCEPTED**; Stage 5 — **REVIEWED / ACCEPTED**; Stage 6 — **IMPLEMENTED / VALIDATED / PENDING PRE-COMMIT EXTERNAL ARCHITECT REVIEW**.
+- Next action: prepare and validate the Stage 7 bridge release; the actual repository rename remains an explicit Owner operational gate.

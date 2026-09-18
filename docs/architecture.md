@@ -118,6 +118,12 @@ BDO-PROGRAM/
 
 `Services/GameCatalog` містить explicit compile-time application catalog. Наразі він реєструє лише `black-desert-online` з `BdoGameDefinition`; `GameDescriptor` надає stable ID і display name. Stage 1 показує selected BDO descriptor у main shell. `Services/BdoGameSession` є concrete BDO runtime boundary, а `Services/SelectedGameSessionHost` володіє рівно однією активною session. Stage 3 додає bounded replacement lifecycle без generic game-session interface: старий poller/session work скасовується й drain-иться, handlers від'єднуються, після чого candidate session стає активною; generation guards блокують stale results.
 
+## Technical identity boundary
+
+`ApplicationTechnicalIdentity` централізує активні compatibility identities для поточного update/startup/storage protocol: legacy repository `merelyigor/bdo-ua-client`, майбутній bridge target `merelyigor/ua-localization-hub`, User-Agent `BDO-UA-Client`, фізичний EXE `BDO-UA-Client.exe`, legacy package naming, autostart value та `%LocalAppData%\\BDO-UA-Client`. Stage 6 не перейменовує жодну з цих фізичних ідентичностей і не змінює `origin`.
+
+`GitHubUpdateClient` виконує bounded ordered discovery: спочатку current repository, а future target — лише після legacy HTTP 404. Успішний legacy response, malformed JSON та інші HTTP failures не запускають fallback; asset URLs залишаються тими, які повернув GitHub.
+
 ## 2. Composition Root
 
 Весь граф залежностей створюється в `Program.cs` (Manual DI). DI-контейнер не використовується.

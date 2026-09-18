@@ -100,11 +100,11 @@ public sealed class UpdateSelectionPolicy
         }
         else
         {
-            var bundleName = $"BDO-UA-Client-v{best.Version}-win-x64.zip";
+            var bundleName = ApplicationTechnicalIdentity.BuildPackageFileName(best.Version.ToString());
             var bundleAssetCount = best.Release.Assets?.Count(a =>
                 string.Equals(a.Name, bundleName, StringComparison.Ordinal)) ?? 0;
             var hasDirectExe = best.Release.Assets?.Any(a =>
-                string.Equals(a.Name, "BDO-UA-Client.exe", StringComparison.Ordinal)) == true;
+                string.Equals(a.Name, ApplicationTechnicalIdentity.ExecutableFileName, StringComparison.Ordinal)) == true;
             if (bundleAssetCount != 1 || hasDirectExe || UpdatePackageService.FindExactlyOneAsset(best, bundleName) == null)
             {
                 _logger.Warning($"Update: candidate {best.TagName} lacks one valid canonical bundle asset; fail closed");

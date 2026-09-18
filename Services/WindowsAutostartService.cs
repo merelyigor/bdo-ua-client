@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Microsoft.Win32;
+using BdoClient;
 using BdoClient.Logging;
 
 namespace BdoClient.Services;
@@ -13,7 +14,7 @@ namespace BdoClient.Services;
 public sealed class WindowsAutostartService
 {
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string ValueName = "BDO-UA-Client";
+    private const string ValueName = ApplicationTechnicalIdentity.AutostartValueName;
     private const string BackgroundArgument = "--background";
 
     private readonly string _executablePath;

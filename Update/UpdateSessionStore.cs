@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using BdoClient;
 using BdoClient.Logging;
 using BdoClient.Services;
 using BdoClient.Storage;
@@ -248,7 +249,7 @@ public sealed class UpdateSessionStore
         if (session.ParentPid <= 0)
             return UpdateSessionLoadResult.Invalid;
 
-        const string expectedAssetName = "BDO-UA-Client.exe";
+        const string expectedAssetName = ApplicationTechnicalIdentity.ExecutableFileName;
         if (!string.Equals(session.PackageAssetName, expectedAssetName, StringComparison.Ordinal))
             return UpdateSessionLoadResult.Invalid;
 
@@ -310,7 +311,7 @@ public sealed class UpdateSessionStore
         if (session.ParentPid <= 0)
             return UpdateSessionLoadResult.Invalid;
 
-        const string expectedAssetName = "BDO-UA-Client.exe";
+        const string expectedAssetName = ApplicationTechnicalIdentity.ExecutableFileName;
         if (!string.Equals(session.PackageAssetName, expectedAssetName, StringComparison.Ordinal))
             return UpdateSessionLoadResult.Invalid;
 
@@ -485,7 +486,7 @@ public sealed class UpdateSessionStore
 
         var targetVersion = AppVersion.TryParseCoreVersion(session.TargetVersion);
         return targetVersion.HasValue
-            ? $"BDO-UA-Client-v{targetVersion.Value}-win-x64.zip"
+            ? ApplicationTechnicalIdentity.BuildPackageFileName(targetVersion.Value.ToString())
             : null;
     }
 

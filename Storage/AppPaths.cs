@@ -1,3 +1,5 @@
+using BdoClient;
+
 namespace BdoClient.Storage;
 
 public sealed class AppPaths
@@ -16,7 +18,7 @@ public sealed class AppPaths
     public string ApplicationConfigFile { get; }
     public string InstallationFile { get; }
 
-    public AppPaths() : this(Path.Combine(LocalAppData, "BDO-UA-Client")) { }
+    public AppPaths() : this(Path.Combine(LocalAppData, ApplicationTechnicalIdentity.LocalAppDataDirectoryName)) { }
 
     public AppPaths(string root)
     {

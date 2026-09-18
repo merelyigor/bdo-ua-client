@@ -4,8 +4,8 @@ Plan ID: `localization-hub-multigame`
 Status: ACTIVE
 Focus: PRIMARY
 Implementation authorization: **YES**
-Current phase: Stage 5 — Full visible rebrand
-Next action: external Architect review + Owner visual smoke
+Current phase: Stage 7 — Repository rename bridge release + rename
+Next action: prepare and validate the bridge release; repository rename remains an explicit Owner operational gate
 Dependencies: v1.2.7 — RELEASE REVIEWED / ACCEPTED
 
 ## Goal
@@ -102,15 +102,19 @@ Current state: **REVIEWED / ACCEPTED**. Release-feed cache ownership is now unde
 
 Make `Хаб українізаторів` the application-facing identity and update generic UI, tray, help, docs, README and product metadata while retaining selected-game BDO wording. Owner visual smoke required.
 
-Current state: **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW + OWNER VISUAL SMOKE**. Next action is external Architect review followed by Owner visual smoke. Stage 6 has not started.
+Current state: **REVIEWED / ACCEPTED**. External Architect review and Owner visual smoke are complete.
 
 ### Stage 6 — Technical application identity centralization / bridge preparation
 
 Centralize legacy/new repository, executable/package, User-Agent and autostart identities; preserve updater compatibility and avoid persistence-root migration. Self-update compatibility change: external pre-commit review.
 
+Current state: **REVIEWED / ACCEPTED**. External pre-commit Architect review completed with BLOCKER 0 and IMPORTANT 0. Active technical compatibility identities are centralized without changing physical executable, package, autostart or LocalAppData names. GitHub release discovery tries the current repository first and uses the approved future repository only after a legacy HTTP 404.
+
 ### Stage 7 — Repository rename bridge release + rename
 
 Ship the bridge-capable release, then wait for explicit Owner operational authorization to rename toward `merelyigor/ua-localization-hub`. Verify old/new URLs, redirects, history, origin, Actions, releases, API and old/new client update paths.
+
+Current state: **NOT STARTED**. Prepare and validate the bridge release first; the actual repository rename remains an explicit Owner operational gate.
 
 ### Stage 8 — Optional physical EXE/package/autostart migration
 
@@ -147,4 +151,4 @@ The roadmap depends on v1.2.7 release completion and explicit Owner activation. 
 
 ## Current progress
 
-Roadmap approved by Owner and activated after v1.2.7 external release acceptance. Stage 0 is complete and its dependency is satisfied. Stage 1 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 2 is **REVIEWED / ACCEPTED** after external pre-commit Architect review, commit and CI success. Stage 3 is **REVIEWED / ACCEPTED**; Stage 4 is **REVIEWED / ACCEPTED**; Stage 5 is **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW + OWNER VISUAL SMOKE**. Stage 6 has not started.
+Roadmap approved by Owner and activated after v1.2.7 external release acceptance. Stage 0 is complete and its dependency is satisfied. Stage 1 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 2 is **REVIEWED / ACCEPTED** after external pre-commit Architect review, commit and CI success. Stage 3 is **REVIEWED / ACCEPTED**; Stage 4 is **REVIEWED / ACCEPTED**; Stage 5 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 6 is **REVIEWED / ACCEPTED** after external pre-commit Architect review. Stage 7 is the next phase and has not started.
