@@ -83,17 +83,9 @@ public partial class MainForm : Form
     private bool _contentFitInProgress;
 
     public MainForm(
-        ConfigStore configStore,
         ApplicationConfigStore applicationConfigStore,
-        BdoUaApiClient apiClient,
-        GameDetector gameDetector,
-        BdoGameDefinition gameDefinition,
         GameCatalog gameCatalog,
-        LocalizationStateService stateService,
-        LocalizationCompatibilityService compatService,
-        LocalizationInstaller localizationInstaller,
-        BackupStore backupStore,
-        InstallationStateStore stateStore,
+        BdoGameSession gameSession,
         ILogger logger,
         AppVersionInfo appVersionInfo,
         GitHubUpdateClient gitHubClient,
@@ -103,24 +95,29 @@ public partial class MainForm : Form
         bool startInBackground,
         SingleInstanceCoordinator singleInstanceCoordinator)
     {
-        _configStore = configStore;
+        ArgumentNullException.ThrowIfNull(gameSession);
+        ArgumentNullException.ThrowIfNull(gameCatalog);
+        if (!string.Equals(gameSession.Descriptor.Id, gameCatalog.DefaultGame.Id, StringComparison.Ordinal))
+            throw new ArgumentException("Game catalog and session must identify the same game.", nameof(gameSession));
+
         _applicationConfigStore = applicationConfigStore;
-        _apiClient = apiClient;
-        _gameDetector = gameDetector;
-        _gameDefinition = gameDefinition ?? throw new ArgumentNullException(nameof(gameDefinition));
         _gameCatalog = gameCatalog ?? throw new ArgumentNullException(nameof(gameCatalog));
-        _selectedGame = _gameCatalog.DefaultGame;
-        _stateService = stateService;
-        _compatService = compatService;
-        _localizationInstaller = localizationInstaller;
-        _backupStore = backupStore;
-        _stateStore = stateStore;
+        _selectedGame = gameSession.Descriptor;
+        _configStore = gameSession.ConfigStore;
+        _apiClient = gameSession.ApiClient;
+        _gameDetector = gameSession.GameDetector;
+        _gameDefinition = gameSession.GameDefinition;
+        _stateService = gameSession.LocalizationStateService;
+        _compatService = gameSession.LocalizationCompatibilityService;
+        _localizationInstaller = gameSession.LocalizationInstaller;
+        _backupStore = gameSession.BackupStore;
+        _stateStore = gameSession.InstallationStateStore;
         _logger = logger;
         _appVersionInfo = appVersionInfo;
         _gitHubClient = gitHubClient;
         _selectionPolicy = selectionPolicy;
         _appPaths = appPaths;
-        _releaseFeedCacheStore = new ReleaseFeedCacheStore(appPaths, logger);
+        _releaseFeedCacheStore = gameSession.ReleaseFeedCacheStore;
         _autostartService = autostartService;
         _startInBackground = startInBackground;
         _singleInstanceCoordinator = singleInstanceCoordinator;
@@ -131,7 +128,7 @@ public partial class MainForm : Form
         _selfUpdatePreparation = new SelfUpdatePreparationService(_updateSessionStore, logger);
         _updateLifecycle = new UpdateLifecycleService(_updateSessionStore, appPaths, logger);
 
-        _poller = new ReleaseFeedPoller(_apiClient, _logger);
+        _poller = gameSession.ReleaseFeedPoller;
         _feedCoordinator = new FeedApplicationCoordinator(ApplyFeedPipelineAsync, _poller, _logger);
         _poller.OnFeedCandidate += OnReleaseFeedCandidate;
         _poller.OnFeedSuccess += OnReleaseFeedSuccess;

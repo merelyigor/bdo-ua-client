@@ -123,27 +123,10 @@ static class Program
         appPaths.EnsureGlobalDirectories();
 
         ILogger logger = new FileLogger(appPaths.LogsDir);
-        var gameDefinition = BdoGameDefinition.Default;
-        var gameCatalog = GameCatalog.Create(gameDefinition);
-        var gamePaths = appPaths.GetGamePersistencePaths(gameDefinition.Id);
-        new LegacyBdoPersistenceMigrator(appPaths, gamePaths, logger).MigrateIfNeeded();
-        gamePaths.EnsureDirectories();
-
-        var configStore = new ConfigStore(gamePaths, logger);
         var applicationConfigStore = new ApplicationConfigStore(appPaths, logger);
-        var stateStore = new InstallationStateStore(gamePaths, logger);
         var appVersionInfo = AppVersionInfo.Detect();
-        var httpClient = Api.BdoUaHttpClientConfiguration.CreateHttpClient(
-            appVersionInfo,
-            logger,
-            TimeSpan.FromSeconds(30));
-
-        var apiClient = new Api.BdoUaApiClient(httpClient, logger);
-        var localizationInstaller = new LocalizationInstaller(httpClient, appPaths, logger);
-        var backupStore = new BackupStore(gamePaths, logger, gameDefinition);
-        var gameDetector = new GameDetector(configStore, logger, gameDefinition);
-        var stateService = new LocalizationStateService(stateStore, logger, gameDefinition);
-        var compatService = new LocalizationCompatibilityService();
+        using var gameSession = BdoGameSession.CreateProduction(appPaths, logger, appVersionInfo);
+        var gameCatalog = GameCatalog.Create(gameSession.GameDefinition);
 
         logger.Info($"Application started. version={appVersionInfo.RawVersion}");
 
@@ -162,9 +145,7 @@ static class Program
         try
         {
             Application.Run(new MainForm(
-                configStore, applicationConfigStore, apiClient, gameDetector, gameDefinition, gameCatalog,
-                stateService, compatService,
-                localizationInstaller, backupStore, stateStore, logger,
+                applicationConfigStore, gameCatalog, gameSession, logger,
                 appVersionInfo, gitHubClient, selectionPolicy, appPaths,
                 autostartService, startInBackground, coordinator));
         }

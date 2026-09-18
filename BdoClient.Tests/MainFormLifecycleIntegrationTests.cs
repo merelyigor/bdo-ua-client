@@ -426,6 +426,7 @@ internal sealed class MainFormTestFixture : IDisposable
     private readonly Thread _uiThread;
     private Exception? _hostException;
     private MainForm? _form;
+    private BdoGameSession? _bdoSession;
     private bool _disposed;
 
     private MainFormTestFixture(
@@ -731,6 +732,7 @@ internal sealed class MainFormTestFixture : IDisposable
         }
 
         _singleInstanceCoordinator.Dispose();
+        _bdoSession?.Dispose();
         _bdoHttpClient.Dispose();
         _githubHttpClient.Dispose();
 
@@ -757,35 +759,20 @@ internal sealed class MainFormTestFixture : IDisposable
             Application.SetCompatibleTextRenderingDefault(false);
 
             var logger = new TestLogger();
-            var configStore = new ConfigStore(_appPaths, logger);
             var applicationConfigStore = new ApplicationConfigStore(_appPaths, logger);
-            var stateStore = new InstallationStateStore(_appPaths, logger);
-            var apiClient = new BdoUaApiClient(_bdoHttpClient, logger);
-            var localizationInstaller = new LocalizationInstaller(_bdoHttpClient, _appPaths, logger);
-            var gameDefinition = BdoGameDefinition.Default;
-            var gameCatalog = GameCatalog.Create(gameDefinition);
-            var backupStore = new BackupStore(_appPaths, logger, gameDefinition);
-            var gameDetector = new GameDetector(configStore, logger, gameDefinition);
-            var stateService = new LocalizationStateService(stateStore, logger, gameDefinition);
-            var compatService = new LocalizationCompatibilityService();
             var appVersionInfo = AppVersionInfo.FromRawVersion("1.2.2");
+            _bdoSession = BdoGameSession.CreateForTests(
+                _appPaths, logger, appVersionInfo, _bdoHttpClient);
+            var gameCatalog = GameCatalog.Create(_bdoSession.GameDefinition);
             var githubClient = new GitHubUpdateClient(_githubHttpClient, logger);
             var selectionPolicy = new UpdateSelectionPolicy(logger);
             var autostartService = new WindowsAutostartService(
                 Path.Combine(_root, "BDO-UA-Client.exe"), logger);
 
             _form = new MainForm(
-                configStore,
                 applicationConfigStore,
-                apiClient,
-                gameDetector,
-                gameDefinition,
                 gameCatalog,
-                stateService,
-                compatService,
-                localizationInstaller,
-                backupStore,
-                stateStore,
+                _bdoSession,
                 logger,
                 appVersionInfo,
                 githubClient,

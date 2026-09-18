@@ -83,6 +83,7 @@ BDO-PROGRAM/
 │   ├── LocalizationStatePresentation.cs — UI-тексти станів локалізації
 │   ├── ApiErrorPresentation.cs — ApiErrorKind → українські UI повідомлення
 │   ├── BdoGameDefinition.cs    — Explicit BDO identity, target, validation, detection facts and patch ownership
+│   ├── BdoGameSession.cs        — Concrete BDO runtime composition and bounded lifetime
 │   ├── AdsFilesPatchReader.cs  — Concrete BDO ads_files patch reader composed by BdoGameDefinition
 │   ├── ReleaseFeedPoller.cs    — Background polling /releases (15 с)
 │   ├── FeedChangeDetector.cs   — Семантичне порівняння feed-кандидатів
@@ -115,7 +116,7 @@ BDO-PROGRAM/
 
 ## Game catalog boundary
 
-`Services/GameCatalog` містить explicit compile-time application catalog. Наразі він реєструє лише `black-desert-online` з `BdoGameDefinition`; `GameDescriptor` надає stable ID і display name. Stage 1 показує selected BDO descriptor у main shell, але не реалізує runtime game switching або game-session abstraction.
+`Services/GameCatalog` містить explicit compile-time application catalog. Наразі він реєструє лише `black-desert-online` з `BdoGameDefinition`; `GameDescriptor` надає stable ID і display name. Stage 1 показує selected BDO descriptor у main shell. `Services/BdoGameSession` є єдиним concrete Stage 2 runtime boundary для BDO; runtime game switching і generic game-session interface ще не реалізовані.
 
 ## 2. Composition Root
 
@@ -131,36 +132,28 @@ Program.Main()
 │
 ├─ AppPaths                    — application-global шляхи (%LocalAppData%\BDO-UA-Client\)
 │   └─ EnsureGlobalDirectories() — logs/cache/updates
-├─ BdoGameDefinition.Default   — stable BDO game identity
-├─ LegacyBdoPersistenceMigrator — legacy BDO layout → canonical game scope
-├─ GamePersistencePaths         — games/black-desert-online/{config,state,backups}
-│   └─ EnsureDirectories()
-│
 ├─ FileLogger(appPaths)        — єдиний логер для всього застосунку
 │
-├─ ConfigStore(gamePaths, logger)
 ├─ ApplicationConfigStore(appPaths, logger)
-├─ InstallationStateStore(gamePaths, logger)
 ├─ AppVersionInfo.Detect()     — версія поточного EXE
 │
-├─ HttpClient                  — ОДИН екземпляр через BdoUaHttpClientConfiguration:
-│   ├─ BdoUaApiClient(httpClient, logger)
-│   └─ LocalizationInstaller(httpClient, appPaths, logger)
-│
-├─ GameDetector(configStore, logger, gameDefinition)
-├─ LocalizationStateService(stateStore, logger, gameDefinition)
-├─ LocalizationCompatibilityService()   — stateless, не потребує залежностей
+├─ BdoGameSession(appPaths, logger, appVersionInfo)
+│   ├─ BdoGameDefinition.Default + GameDescriptor
+│   ├─ LegacyBdoPersistenceMigrator + GamePersistencePaths
+│   ├─ ConfigStore / InstallationStateStore / BackupStore
+│   ├─ GameDetector / LocalizationStateService / LocalizationCompatibilityService
+│   ├─ shared BDO HttpClient → BdoUaApiClient + LocalizationInstaller
+│   ├─ ReleaseFeedCacheStore (global physical cache path)
+│   └─ ReleaseFeedPoller (session lifetime)
 │
 ├─ GitHub HttpClient           — ОКРЕМИЙ HttpClient (UseProxy = false):
 │   └─ GitHubUpdateClient → UpdateSelectionPolicy
 │
-└─ MainForm(configStore, apiClient, gameDetector, gameDefinition,
-            stateService, compatService,
-            localizationInstaller, backupStore, stateStore, logger,
-            appVersionInfo, gitHubClient, selectionPolicy, appPaths)
+└─ MainForm(applicationConfigStore, gameCatalog, bdoGameSession,
+            logger, appVersionInfo, gitHubClient, selectionPolicy, appPaths)
 ```
 
-MainForm всередині себе додатково створює: `UpdateSessionStore`, `UpdateManifestValidator`, `UpdatePackageService`, `SelfUpdatePreparationService`, `UpdateLifecycleService`, feed-сервіси (`ReleaseFeedPoller`, `FeedApplicationCoordinator`) та `StartupCoordinator`.
+MainForm всередині себе додатково створює application update services, `FeedApplicationCoordinator` та `StartupCoordinator`; BDO session/runtime composition і `ReleaseFeedPoller` належать `BdoGameSession`. MainForm не замінює session під час роботи процесу.
 
 ---
 
@@ -168,17 +161,16 @@ MainForm всередині себе додатково створює: `UpdateS
 
 ```
 MainForm
-├── ConfigStore ─────────────── GamePersistencePaths, ILogger
+├── BdoGameSession ──────────── concrete BDO runtime boundary
+│   ├── ConfigStore ─────────── GamePersistencePaths, ILogger
+│   ├── InstallationStateStore ─ GamePersistencePaths, ILogger
+│   ├── BackupStore ─────────── GamePersistencePaths, ILogger, BdoGameDefinition
+│   ├── GameDetector ────────── ConfigStore, ILogger, BdoGameDefinition
+│   ├── BdoUaApiClient ──────── shared BDO HttpClient, ILogger
+│   ├── LocalizationInstaller ─ shared BDO HttpClient, AppPaths, ILogger
+│   ├── LocalizationStateService / LocalizationCompatibilityService
+│   └── ReleaseFeedPoller / ReleaseFeedCacheStore
 ├── ApplicationConfigStore ──── AppPaths, ILogger (global settings)
-├── BdoUaApiClient ──────────── HttpClient, ILogger
-├── BdoGameDefinition ──────── BDO identity, target/validation, detection facts, patch reader
-├── GameDetector ────────────── ConfigStore, ILogger, BdoGameDefinition
-├── LocalizationStateService ── InstallationStateStore, ILogger, BdoGameDefinition
-├── LocalizationCompatibilityService (stateless)
-├── LocalizationInstaller ───── HttpClient, AppPaths, ILogger
-├── BackupStore ─────────────── GamePersistencePaths, ILogger, BdoGameDefinition
-├── InstallationStateStore ──── GamePersistencePaths, ILogger
-├── ReleaseFeedCacheStore ───── AppPaths, ILogger
 ├── GitHubUpdateClient ──────── GitHub HttpClient, ILogger
 ├── UpdateLifecycleService ──── GitHubUpdateClient, SelectionPolicy, PreparationService, ...
 └── ILogger (FileLogger)
@@ -237,7 +229,7 @@ FileLogger ── AppPaths.LogsDir
 
 ## 5. HttpClient instances
 
-Створюються в `Program.cs`, два окремі екземпляри:
+Створюються через composition root і BDO session, два окремі екземпляри:
 
 ```
 HttpClient #1 (BdoUaHttpClientConfiguration.CreateHttpClient)
@@ -256,4 +248,4 @@ HttpClient #2 (GitHub updater)
 - Уникнення socket exhaustion.
 - Спільний timeout та default headers.
 
-**Примітка:** `HttpClient` не dispose-иться окремо — живе весь час роботи застосунку.
+**Примітка:** BDO session володіє першим `HttpClient` і dispose-ить його після завершення MainForm; GitHub updater має окремий application-global екземпляр із поточним process lifetime.
