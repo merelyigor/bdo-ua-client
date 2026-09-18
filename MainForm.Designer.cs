@@ -9,6 +9,11 @@ partial class MainForm
     private Panel headerPanel = null!;
     private Label headerTitleLabel = null!;
     private Label headerSubtitleLabel = null!;
+    private Label targetProjectsCaptionLabel = null!;
+    private Label bdoTargetProjectLabel = null!;
+    private Label bdoTargetStatusLabel = null!;
+    private Label wwmTargetProjectLabel = null!;
+    private Label wwmTargetStatusLabel = null!;
     private Label gameSelectorLabel = null!;
     private ComboBox gameSelectorComboBox = null!;
     private Panel headerAccentLine = null!;
@@ -60,12 +65,23 @@ partial class MainForm
         for (var row = 0; row < 4; row++) mainLayoutPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         headerPanel = new Panel { Dock = DockStyle.Top, AutoSize = true, Margin = new Padding(0, 0, 0, 22), BackColor = Color.Transparent };
-        var headerLayout = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 2, RowCount = 4, BackColor = Color.Transparent };
+        var headerLayout = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 2, RowCount = 5, BackColor = Color.Transparent };
         headerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F)); headerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        for (var row = 0; row < 4; row++) headerLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        for (var row = 0; row < 5; row++) headerLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         headerTitleLabel = new Label { Text = ApplicationBrand.DisplayName, AutoSize = true, Font = new Font("Segoe UI", 20F, FontStyle.Bold), ForeColor = UiTheme.PrimaryText, Margin = new Padding(0) };
         headerSubtitleLabel = new Label { Text = ApplicationBrand.GenericSubtitle, AutoSize = true, Font = new Font("Segoe UI", 9.5F), ForeColor = UiTheme.SecondaryText, Margin = new Padding(0, 3, 0, 0) };
-        gameSelectorLabel = new Label { Text = "Гра", AutoSize = true, AccessibleName = "Вибір гри", ForeColor = UiTheme.SecondaryText, Margin = new Padding(0, 8, 8, 0) };
+        targetProjectsCaptionLabel = new Label { Text = ApplicationBrand.TargetProjectsCaption, AutoSize = true, AccessibleName = ApplicationBrand.TargetProjectsCaption, Font = new Font("Segoe UI", 9F, FontStyle.Bold), ForeColor = UiTheme.PrimaryText, Margin = new Padding(0, 8, 0, 2) };
+        bdoTargetProjectLabel = new Label { Text = ApplicationBrand.BdoTargetProject, AutoSize = true, AccessibleName = ApplicationBrand.BdoTargetProject, ForeColor = UiTheme.SecondaryText, Margin = new Padding(0, 0, 12, 0) };
+        bdoTargetStatusLabel = new Label { Text = ApplicationBrand.BdoTargetStatus, AutoSize = true, AccessibleName = $"{ApplicationBrand.BdoTargetProject}: {ApplicationBrand.BdoTargetStatus}", ForeColor = UiTheme.Success, Margin = new Padding(0) };
+        wwmTargetProjectLabel = new Label { Text = ApplicationBrand.WwmTargetProject, AutoSize = true, AccessibleName = ApplicationBrand.WwmTargetProject, ForeColor = UiTheme.SecondaryText, Margin = new Padding(0, 2, 12, 0) };
+        wwmTargetStatusLabel = new Label { Text = ApplicationBrand.WwmTargetStatus, AutoSize = true, AccessibleName = $"{ApplicationBrand.WwmTargetProject}: {ApplicationBrand.WwmTargetStatus}", ForeColor = UiTheme.Accent, Margin = new Padding(0, 2, 0, 0) };
+        var bdoTargetRow = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, BackColor = Color.Transparent, Margin = new Padding(0) };
+        bdoTargetRow.Controls.Add(bdoTargetProjectLabel); bdoTargetRow.Controls.Add(bdoTargetStatusLabel);
+        var wwmTargetRow = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, BackColor = Color.Transparent, Margin = new Padding(0) };
+        wwmTargetRow.Controls.Add(wwmTargetProjectLabel); wwmTargetRow.Controls.Add(wwmTargetStatusLabel);
+        var targetProjectsPanel = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, BackColor = Color.Transparent, Margin = new Padding(0) };
+        targetProjectsPanel.Controls.Add(targetProjectsCaptionLabel); targetProjectsPanel.Controls.Add(bdoTargetRow); targetProjectsPanel.Controls.Add(wwmTargetRow);
+        gameSelectorLabel = new Label { Text = "Активна гра", AutoSize = true, AccessibleName = "Вибір активної гри", ForeColor = UiTheme.SecondaryText, Margin = new Padding(0, 8, 8, 0) };
         gameSelectorComboBox = new ComboBox { AutoSize = true, DropDownStyle = ComboBoxStyle.DropDownList, Width = 220, AccessibleName = "Вибір гри", Margin = new Padding(0, 4, 0, 0) };
         var gameSelectorPanel = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, BackColor = Color.Transparent, Margin = new Padding(0) };
         gameSelectorPanel.Controls.Add(gameSelectorLabel); gameSelectorPanel.Controls.Add(gameSelectorComboBox);
@@ -87,7 +103,7 @@ partial class MainForm
         logsButton = new Button { Text = "", AutoSize = false, Size = new Size(32, 32), FlatStyle = FlatStyle.Flat, AccessibleName = "Відкрити папку журналів", Image = BuildLogsIcon(), ImageAlign = ContentAlignment.MiddleCenter, Margin = new Padding(0) };
         logsButton.FlatAppearance.BorderSize = 0;
         rightUtilityPanel.Controls.AddRange(new Control[] { updateButton, versionLabel, uninstallHelpLink, logsButton });
-        headerLayout.Controls.Add(headerTitleLabel, 0, 0); headerLayout.Controls.Add(headerSubtitleLabel, 0, 1); headerLayout.Controls.Add(gameSelectorPanel, 0, 2); headerLayout.Controls.Add(headerAccentLine, 0, 3); headerLayout.Controls.Add(rightUtilityPanel, 1, 0); headerPanel.Controls.Add(headerLayout);
+        headerLayout.Controls.Add(headerTitleLabel, 0, 0); headerLayout.Controls.Add(headerSubtitleLabel, 0, 1); headerLayout.Controls.Add(targetProjectsPanel, 0, 2); headerLayout.Controls.Add(gameSelectorPanel, 0, 3); headerLayout.Controls.Add(headerAccentLine, 0, 4); headerLayout.Controls.Add(rightUtilityPanel, 1, 0); headerPanel.Controls.Add(headerLayout);
         components = new System.ComponentModel.Container(); logsToolTip = new ToolTip(components); logsToolTip.SetToolTip(logsButton, "Відкрити папку журналів"); logsToolTip.SetToolTip(uninstallHelpLink, "Застосунок portable. Для видалення повністю вийдіть із програми та видаліть EXE.");
 
         gameGroupBox = new BdoSurfacePanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(20), Margin = new Padding(0, 0, 0, 24), SurfaceColor = UiTheme.SurfaceElevated };

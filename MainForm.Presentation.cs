@@ -30,9 +30,14 @@ public partial class MainForm
         modeGroupBox.BackColor = UiTheme.Background;
         modeGroupBox.ForeColor = UiTheme.PrimaryText;
         headerTitleLabel.ForeColor = UiTheme.PrimaryText;
-        headerTitleLabel.Text = "Хаб українізаторів";
-        headerSubtitleLabel.Text = "Українські локалізації для ігор";
+        headerTitleLabel.Text = ApplicationBrand.DisplayName;
+        headerSubtitleLabel.Text = ApplicationBrand.GenericSubtitle;
         headerSubtitleLabel.ForeColor = UiTheme.SecondaryText;
+        targetProjectsCaptionLabel.ForeColor = UiTheme.PrimaryText;
+        bdoTargetProjectLabel.ForeColor = UiTheme.SecondaryText;
+        bdoTargetStatusLabel.ForeColor = UiTheme.Success;
+        wwmTargetProjectLabel.ForeColor = UiTheme.SecondaryText;
+        wwmTargetStatusLabel.ForeColor = UiTheme.Accent;
         headerAccentLine.BackColor = UiTheme.Accent;
         gameSectionCaptionLabel.ForeColor = UiTheme.SecondaryText;
         modeSectionCaptionLabel.ForeColor = UiTheme.SecondaryText;

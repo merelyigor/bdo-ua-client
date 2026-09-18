@@ -370,6 +370,14 @@ public partial class MainForm : Form
         SetControlsDuringOperation(!value);
     }
     internal ComboBox GameSelector => gameSelectorComboBox;
+    internal string HeaderTitle => headerTitleLabel.Text;
+    internal string HeaderSubtitle => headerSubtitleLabel.Text;
+    internal string TargetProjectsCaption => targetProjectsCaptionLabel.Text;
+    internal string BdoTargetProject => bdoTargetProjectLabel.Text;
+    internal string BdoTargetStatus => bdoTargetStatusLabel.Text;
+    internal string WwmTargetProject => wwmTargetProjectLabel.Text;
+    internal string WwmTargetStatus => wwmTargetStatusLabel.Text;
+    internal string ActiveGameSelectorLabel => gameSelectorLabel.Text;
     internal string GameSectionCaption => gameSectionCaptionLabel.Text;
     internal string UninstallHelpText => uninstallHelpLink.Text;
     internal string TrayTooltipText => _notifyIcon.Text;

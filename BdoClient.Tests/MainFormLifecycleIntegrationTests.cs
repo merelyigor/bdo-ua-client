@@ -199,7 +199,14 @@ public sealed class MainFormLifecycleIntegrationTests
         Assert.True(startup.GitHubRequestCount >= 1);
         Assert.Equal("Хаб українізаторів", fixture.Form.Text);
         Assert.Equal("Хаб українізаторів", MainFormTestFixture.FindControlText(fixture.Form, text => text == "Хаб українізаторів"));
-        Assert.Equal("Українські локалізації для ігор", MainFormTestFixture.FindControlText(fixture.Form, text => text == "Українські локалізації для ігор"));
+        Assert.Equal("Хаб українізаторів", fixture.Form.HeaderTitle);
+        Assert.Equal("Українські локалізації для Black Desert Online та Where Winds Meet", fixture.Form.HeaderSubtitle);
+        Assert.Equal("Цільові проєкти", fixture.Form.TargetProjectsCaption);
+        Assert.Equal("Black Desert Online — BDO UA Translate", fixture.Form.BdoTargetProject);
+        Assert.Equal("Доступно", fixture.Form.BdoTargetStatus);
+        Assert.Equal("Where Winds Meet — Winds4UA (W4U)", fixture.Form.WwmTargetProject);
+        Assert.Equal("Інтеграція готується", fixture.Form.WwmTargetStatus);
+        Assert.Equal("Активна гра", fixture.Form.ActiveGameSelectorLabel);
         Assert.Single(fixture.Form.GameSelector.Items.Cast<GameDescriptor>());
         Assert.Equal("Black Desert Online", fixture.Form.GameSelector.Text);
         Assert.Equal("Black Desert Online", fixture.Form.GameSectionCaption);

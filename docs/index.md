@@ -24,9 +24,9 @@
 - **Платформа:** Windows x64, .NET 8, WinForms
 - **Пакування:** self-contained single-file (BDO-UA-Client.exe)
 - **Оновлення застосунку:** GitHub Releases `merelyigor/ua-localization-hub`, canonical ZIP transport (schema-2 manifest)
-- **Тести:** 907 автоматизованих тестів (за останнім Release validation)
-- **Стабільний реліз:** v1.2.2, опублікований з canonical ZIP self-update/release transport
-- **Плани:** усі approved implementation plans заархівовані; ACTIVE plan немає, наступна product roadmap ще не затверджена
+- **Тести:** 997 автоматизованих тестів (за останньою Release validation)
+- **Стабільний реліз:** v1.2.8, опублікований з canonical ZIP self-update/release transport
+- **Плани:** `localization-hub-multigame` — єдиний ACTIVE PRIMARY plan; поточна фаза Stage 8A, зовнішній Architect review та Owner visual smoke очікуються
 
 ## Пов'язані документи
 

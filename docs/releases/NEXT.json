@@ -1,10 +1,14 @@
 {
   "schema_version": 1,
-  "summary": "",
-  "new": [],
+  "summary": "Хаб тепер чітко показує, для яких ігор створюються інтеграції українізаторів.",
+  "new": [
+    "У головному вікні окремо показано Black Desert Online / BDO UA Translate як доступну інтеграцію та Where Winds Meet / Winds4UA (W4U) як заплановану."
+  ],
   "fixed": [],
   "reliability": [],
   "performance": [],
   "changes": [],
-  "limitations": []
+  "limitations": [
+    "Where Winds Meet / Winds4UA поки не можна встановлювати через Хаб — технічна інтеграція ще готується."
+  ]
 }
