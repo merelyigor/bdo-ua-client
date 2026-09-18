@@ -14,9 +14,12 @@ public sealed class GamePersistencePathsTests
         var secondGame = appPaths.GetGamePersistencePaths("second-game");
 
         Assert.Equal(Path.Combine(appPaths.Root, "games", "black-desert-online"), blackDesert.Root);
+        Assert.Equal(Path.Combine(blackDesert.Root, "cache"), blackDesert.CacheDir);
+        Assert.Equal(Path.Combine(blackDesert.CacheDir, "release-feed.json"), blackDesert.ReleaseFeedCacheFile);
         Assert.Equal(Path.Combine(blackDesert.Root, "config.json"), blackDesert.ConfigFile);
         Assert.Equal(Path.Combine(blackDesert.Root, "state", "installation.json"), blackDesert.InstallationFile);
         Assert.NotEqual(blackDesert.Root, secondGame.Root);
+        Assert.NotEqual(blackDesert.ReleaseFeedCacheFile, secondGame.ReleaseFeedCacheFile);
         Assert.NotEqual(blackDesert.InstallationFile, secondGame.InstallationFile);
         Assert.Equal(Path.Combine(appPaths.Root, "logs"), appPaths.LogsDir);
         Assert.Equal(Path.Combine(appPaths.Root, "cache"), appPaths.CacheDir);
@@ -54,6 +57,8 @@ public sealed class GamePersistencePathsTests
             });
 
             Assert.True(File.Exists(scope.ConfigFile));
+            Assert.True(Directory.Exists(scope.CacheDir));
+            Assert.StartsWith(scope.Root, scope.ReleaseFeedCacheFile, StringComparison.Ordinal);
             Assert.True(File.Exists(scope.InstallationFile));
             Assert.False(File.Exists(appPaths.ConfigFile));
             Assert.False(File.Exists(appPaths.InstallationFile));

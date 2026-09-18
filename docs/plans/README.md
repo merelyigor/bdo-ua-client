@@ -3,14 +3,14 @@
 ## Current focus
 
 **Primary:** `localization-hub-multigame`
-**Current phase:** Stage 3 — Safe game switching lifecycle
-**Next:** external Architect review of Stage 3 implementation, then Owner visual/lifecycle smoke if required
+**Current phase:** Stage 4 — Complete per-game runtime data isolation
+**Next:** external Architect review of Stage 4 implementation
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| PRIMARY | `localization-hub-multigame` | [active/localization-hub-multigame.md](active/localization-hub-multigame.md) | Stage 3 — Safe game switching lifecycle | External Architect review, then Owner smoke if required |
+| PRIMARY | `localization-hub-multigame` | [active/localization-hub-multigame.md](active/localization-hub-multigame.md) | Stage 4 — Complete per-game runtime data isolation | External Architect review |
 
 ## Backlog
 

@@ -16,7 +16,7 @@
 |---|---|---|
 | `Root` | `%LocalAppData%\BDO-UA-Client` | Коренева директорія |
 | `LogsDir` | `{root}\logs` | Лог-файли |
-| `CacheDir` | `{root}\cache` | Тимчасові завантаження |
+| `CacheDir` | `{root}\cache` | Тимчасові завантаження та legacy compatibility residue |
 | `UpdatesDir` | `{root}\updates` | Self-update сесії (staged candidate EXE, див. docs/update.md) |
 | `ApplicationConfigFile` | `{root}\application-config.json` | Application-global settings, зокрема autostart prompt state |
 | `StateDir`, `BackupsDir`, `ConfigFile`, `InstallationFile` | legacy root paths | Лише legacy BDO compatibility/migration |
@@ -45,6 +45,8 @@ public void EnsureGlobalDirectories()
 ```
 {root}\games\{stable-game-id}\
 ├── config.json
+├── cache\
+│   └── release-feed.json
 ├── state\installation.json
 └── backups\
     ├── original\
@@ -54,6 +56,9 @@ public void EnsureGlobalDirectories()
 Game id перевіряється як контрольований lowercase path segment. Тому різні stable ids не можуть ділити state, а user-controlled path traversal не проходить.
 
 `ConfigStore`, `InstallationStateStore` і `BackupStore` у production отримують саме цей scope. `ApplicationConfigStore` залишається на global `application-config.json`; app-global settings не дублюються в game scopes.
+`ReleaseFeedCacheStore` також отримує цей scope і читає/пише лише `{root}\games\{stable-game-id}\cache\release-feed.json`. Cache schema та display-only/degraded semantics не змінюються.
+
+Historical `{root}\cache\release-feed.json` є legacy BDO cache. Під час BDO composition він best-effort імпортується в canonical BDO scope лише якщо scoped cache відсутній; source не видаляється, а scoped cache authoritative. Synthetic/інші game scopes legacy BDO cache не читають.
 
 ## ApplicationConfigStore
 

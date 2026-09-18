@@ -33,7 +33,7 @@ public sealed class BdoGameSessionTests
             Assert.NotNull(session.LocalizationInstaller);
             Assert.NotNull(session.LocalizationStateService);
             Assert.NotNull(session.LocalizationCompatibilityService);
-            Assert.Equal(Path.Combine(paths.CacheDir, "release-feed.json"), session.ReleaseFeedCacheStore.CacheFile);
+            Assert.Equal(session.PersistencePaths.ReleaseFeedCacheFile, session.ReleaseFeedCacheStore.CacheFile);
         }
         finally
         {
@@ -83,6 +83,46 @@ public sealed class BdoGameSessionTests
             session.Dispose();
 
             Assert.True(handler.WasDisposed);
+        }
+        finally
+        {
+            DeleteRoot(root);
+        }
+    }
+
+    [Fact]
+    public void SyntheticSession_DoesNotMigrateHistoricalBdoStateOrFeedCache()
+    {
+        var root = CreateRoot();
+        try
+        {
+            var paths = new AppPaths(root);
+            Directory.CreateDirectory(paths.CacheDir);
+            File.WriteAllText(paths.ConfigFile, "{\"game_path\":\"C:\\\\Legacy\\\\BlackDesert\"}");
+            Directory.CreateDirectory(paths.StateDir);
+            File.WriteAllText(paths.InstallationFile, "legacy-state");
+            Directory.CreateDirectory(paths.BackupsDir);
+            File.WriteAllText(Path.Combine(paths.BackupsDir, "legacy-backup"), "legacy-backup");
+            File.WriteAllText(
+                Path.Combine(paths.CacheDir, "release-feed.json"),
+                "{\"schema_version\":1,\"saved_at_utc\":\"2026-09-18T10:00:00Z\",\"data\":{\"official_patch\":401,\"modes\":[]}}");
+
+            using var client = new HttpClient(new StubHandler());
+            using var session = BdoGameSession.CreateForTests(
+                paths,
+                new TestLogger(),
+                AppVersionInfo.FromRawVersion("1.2.7"),
+                client,
+                descriptor: new GameDescriptor("synthetic-game", "Synthetic Game"));
+
+            Assert.Equal("synthetic-game", session.PersistencePaths.GameId);
+            Assert.True(File.Exists(paths.ConfigFile));
+            Assert.True(File.Exists(paths.InstallationFile));
+            Assert.True(File.Exists(Path.Combine(paths.BackupsDir, "legacy-backup")));
+            Assert.True(File.Exists(Path.Combine(paths.CacheDir, "release-feed.json")));
+            Assert.False(File.Exists(session.PersistencePaths.ConfigFile));
+            Assert.False(File.Exists(session.PersistencePaths.InstallationFile));
+            Assert.False(File.Exists(session.PersistencePaths.ReleaseFeedCacheFile));
         }
         finally
         {

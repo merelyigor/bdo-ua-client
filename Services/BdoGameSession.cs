@@ -37,7 +37,12 @@ public sealed class BdoGameSession : IDisposable
         Descriptor = descriptor;
         PersistencePaths = appPaths.GetGamePersistencePaths(persistenceGameId);
 
-        new LegacyBdoPersistenceMigrator(appPaths, PersistencePaths, logger).MigrateIfNeeded();
+        if (IsCanonicalBdoScope(PersistencePaths))
+        {
+            new LegacyBdoPersistenceMigrator(appPaths, PersistencePaths, logger).MigrateIfNeeded();
+            new LegacyBdoReleaseFeedCacheMigrator(appPaths, PersistencePaths, logger)
+                .ImportIfNeeded();
+        }
         PersistencePaths.EnsureDirectories();
 
         ConfigStore = new ConfigStore(PersistencePaths, logger);
@@ -49,7 +54,7 @@ public sealed class BdoGameSession : IDisposable
         LocalizationStateService = new LocalizationStateService(
             InstallationStateStore, logger, GameDefinition);
         LocalizationCompatibilityService = new LocalizationCompatibilityService();
-        ReleaseFeedCacheStore = new ReleaseFeedCacheStore(appPaths, logger);
+        ReleaseFeedCacheStore = new ReleaseFeedCacheStore(PersistencePaths, logger);
         ReleaseFeedPoller = new ReleaseFeedPoller(ApiClient, logger);
     }
 
@@ -67,6 +72,9 @@ public sealed class BdoGameSession : IDisposable
     public ReleaseFeedCacheStore ReleaseFeedCacheStore { get; }
     public ReleaseFeedPoller ReleaseFeedPoller { get; }
     internal bool IsDisposed => _disposed;
+
+    private static bool IsCanonicalBdoScope(GamePersistencePaths paths) =>
+        string.Equals(paths.GameId, BdoGameDefinition.Default.Id, StringComparison.Ordinal);
 
     public static BdoGameSession CreateProduction(
         AppPaths appPaths,

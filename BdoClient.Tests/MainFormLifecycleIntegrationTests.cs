@@ -157,6 +157,30 @@ public sealed class MainFormLifecycleIntegrationTests
     }
 
     [Fact]
+    public async Task SwitchingOfflineToGameWithoutScopedCache_DoesNotDisplayBdoCache()
+    {
+        var handler = MainFormTestFixture.CreateFailureApiHandler(HttpStatusCode.ServiceUnavailable);
+        using var fixture = await MainFormTestFixture.StartAsync(
+            handler,
+            seedReleaseFeedCache: true,
+            includeSyntheticSecondGame: true);
+
+        await fixture.WaitForStartupAsync();
+        Assert.NotNull(MainFormTestFixture.FindFirstModeCard(fixture.Form));
+
+        await fixture.SelectGameAsync("synthetic-game");
+        await fixture.WaitForSwitchCompletionAsync();
+        await fixture.WaitForAsync(form =>
+            form.SelectedGame.Id == "synthetic-game"
+            && !form.IsSwitchInProgress);
+
+        Assert.Empty(MainFormTestFixture.FindModeCards(fixture.Form));
+        Assert.Equal(
+            fixture.AppPaths.GetGamePersistencePaths("synthetic-game").ReleaseFeedCacheFile,
+            fixture.Form.ActiveGameSession.ReleaseFeedCacheStore.CacheFile);
+    }
+
+    [Fact]
     public async Task Startup_ComposesMainFormAndCompletesWithSavedGame()
     {
         using var fixture = await MainFormTestFixture.StartAsync(
@@ -593,7 +617,9 @@ internal sealed class MainFormTestFixture : IDisposable
 
         if (seedReleaseFeedCache)
         {
-            var cacheStore = new ReleaseFeedCacheStore(_appPaths, new TestLogger());
+            var cacheStore = new ReleaseFeedCacheStore(
+                _appPaths.GetGamePersistencePaths("black-desert-online"),
+                new TestLogger());
             cacheStore.SaveAsync(CreateCachedFeed(),
                 new DateTimeOffset(2026, 9, 8, 12, 0, 0, TimeSpan.Zero))
                 .GetAwaiter().GetResult();

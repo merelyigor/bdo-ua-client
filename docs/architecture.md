@@ -143,7 +143,7 @@ Program.Main()
 │   ├─ ConfigStore / InstallationStateStore / BackupStore
 │   ├─ GameDetector / LocalizationStateService / LocalizationCompatibilityService
 │   ├─ shared BDO HttpClient → BdoUaApiClient + LocalizationInstaller
-│   ├─ ReleaseFeedCacheStore (global physical cache path)
+│   ├─ ReleaseFeedCacheStore (game-scoped physical cache path)
 │   └─ ReleaseFeedPoller (session lifetime)
 │
 ├─ GitHub HttpClient           — ОКРЕМИЙ HttpClient (UseProxy = false):
@@ -171,7 +171,7 @@ MainForm
 │   ├── BdoUaApiClient ──────── shared BDO HttpClient, ILogger
 │   ├── LocalizationInstaller ─ shared BDO HttpClient, AppPaths, ILogger
 │   ├── LocalizationStateService / LocalizationCompatibilityService
-│   └── ReleaseFeedPoller / ReleaseFeedCacheStore
+│   └── ReleaseFeedPoller / ReleaseFeedCacheStore (GamePersistencePaths-scoped cache)
 ├── ApplicationConfigStore ──── AppPaths, ILogger (global settings)
 ├── GitHubUpdateClient ──────── GitHub HttpClient, ILogger
 ├── UpdateLifecycleService ──── GitHubUpdateClient, SelectionPolicy, PreparationService, ...
@@ -194,6 +194,8 @@ FileLogger ── AppPaths.LogsDir
 ├── games/
 │   └── black-desert-online/
 │       ├── config.json             — BDO game_path
+│       ├── cache/
+│       │   └── release-feed.json   — BDO last-known feed, display-only
 │       ├── state/
 │       │   └── installation.json   — BDO localization state
 │       └── backups/
@@ -203,8 +205,7 @@ FileLogger ── AppPaths.LogsDir
 ├── logs/
 │   └── bdo-client-YYYY-MM-DD.log — щоденні логи з ротацією
 ├── cache/
-│   ├── release-feed.json          — нормалізований last-known feed, лише для cached read-only presentation
-│   └── *.tmp/*.download           — тимчасові завантажені файли
+│   └── *.tmp/*.download            — application-global transient downloads
 └── updates/                          — self-update сесії (Stage 13)
     └── {GUID}/                       — одна сесія оновлення
         ├── update-session.json       — стан сесії (див. docs/update.md)
@@ -212,7 +213,7 @@ FileLogger ── AppPaths.LogsDir
 ```
 
 **Примітки:**
-- release-feed.json записується лише після валідного live API response, має schema version і UTC timestamp. У ньому немає history, install_path_patterns або transient diagnostics.
+- Scoped `release-feed.json` записується лише після валідного live API response, має schema version і UTC timestamp. У ньому немає history, install_path_patterns або transient diagnostics.
 - Cached feed використовується тільки для карток і локального read-only state resolution. Install/update/switch/restore original вимагають нового live API response; помилка кешу не робить live startup невдалим.
 - `games/black-desert-online/` є canonical BDO persistence scope; шлях до гри,
   installation state та backups належать лише цьому scope.
@@ -224,7 +225,7 @@ FileLogger ── AppPaths.LogsDir
 - JSON formats і backup contents не змінюються: `installation.json` оновлюється
   лише після успішного встановлення, original snapshot не перезаписується,
   restore points залишаються попередніми версіями локалізації.
-- application config, logs, cache і updates залишаються application-global.
+- application config, logs і updates залишаються application-global; global cache directory збережено для transient downloads і legacy residue, але active release-feed ownership є game-scoped.
 - `updates/<GUID>/` — staged candidate нового EXE; current EXE не змінюється до повної верифікації.
 
 ---

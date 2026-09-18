@@ -214,30 +214,38 @@ public sealed class ReleaseFeedCacheStore
         PropertyNameCaseInsensitive = true
     };
 
-    private readonly AppPaths _paths;
+    private readonly GamePersistencePaths _paths;
     private readonly ILogger _logger;
 
-    public ReleaseFeedCacheStore(AppPaths paths, ILogger logger)
+    public ReleaseFeedCacheStore(GamePersistencePaths paths, ILogger logger)
     {
         _paths = paths ?? throw new ArgumentNullException(nameof(paths));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public string CacheFile => Path.Combine(_paths.CacheDir, "release-feed.json");
+    public string CacheFile => _paths.ReleaseFeedCacheFile;
 
     public FileLoadResult<ReleaseFeedCacheSnapshot> Load()
+        => LoadFile(CacheFile, _logger);
+
+    internal static FileLoadResult<ReleaseFeedCacheSnapshot> LoadFile(
+        string cacheFile,
+        ILogger logger)
     {
-        if (!File.Exists(CacheFile))
+        ArgumentException.ThrowIfNullOrWhiteSpace(cacheFile);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        if (!File.Exists(cacheFile))
             return FileLoadResult<ReleaseFeedCacheSnapshot>.Missing();
 
         try
         {
-            var json = File.ReadAllText(CacheFile);
+            var json = File.ReadAllText(cacheFile);
             var snapshot = JsonSerializer.Deserialize<ReleaseFeedCacheSnapshot>(json, JsonOptions);
             var validationError = ReleaseFeedCacheMapper.Validate(snapshot);
             if (validationError != null)
             {
-                _logger.Warning($"Release feed cache validation failed: {validationError}");
+                logger.Warning($"Release feed cache validation failed: {validationError}");
                 return FileLoadResult<ReleaseFeedCacheSnapshot>.Invalid(validationError);
             }
 
@@ -245,12 +253,12 @@ public sealed class ReleaseFeedCacheStore
         }
         catch (JsonException ex)
         {
-            _logger.Warning($"Release feed cache is invalid: {ex.Message}");
+            logger.Warning($"Release feed cache is invalid: {ex.Message}");
             return FileLoadResult<ReleaseFeedCacheSnapshot>.Invalid($"JSON error: {ex.Message}");
         }
         catch (Exception ex)
         {
-            _logger.Warning($"Failed to read release feed cache: {ex.Message}");
+            logger.Warning($"Failed to read release feed cache: {ex.Message}");
             return FileLoadResult<ReleaseFeedCacheSnapshot>.Invalid($"Read error: {ex.Message}");
         }
     }

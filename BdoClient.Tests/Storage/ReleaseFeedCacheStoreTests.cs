@@ -10,13 +10,15 @@ public sealed class ReleaseFeedCacheStoreTests : IDisposable
     private readonly string _root = Path.Combine(
         Path.GetTempPath(), "bdo-ua-release-feed-cache-tests", Guid.NewGuid().ToString("N"));
     private readonly AppPaths _paths;
+    private readonly GamePersistencePaths _scope;
     private readonly ReleaseFeedCacheStore _store;
 
     public ReleaseFeedCacheStoreTests()
     {
         _paths = new AppPaths(_root);
-        _paths.EnsureDirectories();
-        _store = new ReleaseFeedCacheStore(_paths, new TestLogger());
+        _scope = _paths.GetGamePersistencePaths("black-desert-online");
+        _scope.EnsureDirectories();
+        _store = new ReleaseFeedCacheStore(_scope, new TestLogger());
     }
 
     [Fact]
@@ -127,7 +129,7 @@ public sealed class ReleaseFeedCacheStoreTests : IDisposable
         var loaded = _store.Load();
         Assert.Equal(FileLoadStatus.Valid, loaded.Status);
         Assert.Equal(savedAt, loaded.Value!.SavedAtUtc);
-        Assert.Empty(Directory.GetFiles(_paths.CacheDir, "release-feed.*.tmp"));
+        Assert.Empty(Directory.GetFiles(_scope.CacheDir, "release-feed.*.tmp"));
     }
 
     [Fact]
@@ -150,29 +152,78 @@ public sealed class ReleaseFeedCacheStoreTests : IDisposable
         Assert.DoesNotContain("history", json);
     }
 
-    private static ReleasesResponse CreateFeed() => new()
+    [Fact]
+    public async Task DifferentGameScopes_IsolateCacheFilesAndValues()
+    {
+        var secondScope = _paths.GetGamePersistencePaths("synthetic-game");
+        secondScope.EnsureDirectories();
+        var secondStore = new ReleaseFeedCacheStore(secondScope, new TestLogger());
+
+        var firstFeed = CreateFeed(401, "mode-a");
+        var secondFeed = CreateFeed(402, "mode-b");
+        Assert.True(await _store.SaveAsync(firstFeed));
+        Assert.True(await secondStore.SaveAsync(secondFeed));
+
+        Assert.NotEqual(_store.CacheFile, secondStore.CacheFile);
+        Assert.Equal(401, _store.Load().Value!.Data!.OfficialPatch);
+        Assert.Equal("mode-b", secondStore.Load().Value!.Data!.Modes![0].Slug);
+
+        File.Delete(secondStore.CacheFile);
+        Assert.Equal(FileLoadStatus.Missing, secondStore.Load().Status);
+        Assert.Equal(FileLoadStatus.Valid, _store.Load().Status);
+        Assert.Equal(401, _store.Load().Value!.Data!.OfficialPatch);
+    }
+
+    [Fact]
+    public async Task FailedWriteInSecondScope_DoesNotLeaveTempInFirstScope()
+    {
+        var secondScope = _paths.GetGamePersistencePaths("synthetic-game");
+        secondScope.EnsureDirectories();
+        var secondStore = new ReleaseFeedCacheStore(secondScope, new TestLogger());
+        var invalid = CreateFeed(402, "mode-b");
+        invalid.Data!.Modes![0].Current!.Sha256 = "invalid";
+
+        Assert.False(await secondStore.SaveAsync(invalid));
+        Assert.Empty(Directory.GetFiles(_scope.CacheDir, "release-feed.*.tmp"));
+        Assert.Empty(Directory.GetFiles(secondScope.CacheDir, "release-feed.*.tmp"));
+    }
+
+    [Fact]
+    public async Task MissingSecondScopeCache_DoesNotReadFirstScopeCache()
+    {
+        var secondScope = _paths.GetGamePersistencePaths("synthetic-game");
+        secondScope.EnsureDirectories();
+        var secondStore = new ReleaseFeedCacheStore(secondScope, new TestLogger());
+
+        Assert.True(await _store.SaveAsync(CreateFeed(401, "mode-a")));
+
+        Assert.Equal(FileLoadStatus.Missing, secondStore.Load().Status);
+        Assert.Equal(FileLoadStatus.Valid, _store.Load().Status);
+    }
+
+    private static ReleasesResponse CreateFeed(int patch = 100, string slug = "mode-a") => new()
     {
         Success = true,
         Data = new ReleaseData
         {
-            OfficialPatch = 100,
+            OfficialPatch = patch,
             OfficialSourceUrl = "https://example.com/original.loc",
             Modes = new List<LocalizationMode>
             {
                 new()
                 {
-                    Slug = "mode-a",
+                    Slug = slug,
                     PublicName = "Mode A",
                     Description = "Description",
                     Audience = "Everyone",
                     Current = new CurrentRelease
                     {
-                        PublicId = "01MODEA",
+                        PublicId = $"01{slug.ToUpperInvariant()}",
                         Version = 2,
                         DownloadUrl = "https://example.com/mode-a.loc",
                         SizeBytes = 1024,
                         Sha256 = new string('a', 64),
-                        Patch = 100,
+                        Patch = patch,
                         CompatibleWithOfficialPatch = true,
                         PublishedAt = "2026-09-08T10:00:00Z"
                     }

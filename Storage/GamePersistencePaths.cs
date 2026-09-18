@@ -9,6 +9,8 @@ public sealed class GamePersistencePaths
     public string ApplicationRoot { get; }
     public string GameId { get; }
     public string Root { get; }
+    public string CacheDir { get; }
+    public string ReleaseFeedCacheFile { get; }
     public string StateDir { get; }
     public string BackupsDir { get; }
     public string OriginalBackupDir { get; }
@@ -26,6 +28,8 @@ public sealed class GamePersistencePaths
         ApplicationRoot = Path.GetFullPath(applicationRoot);
         GameId = gameId;
         Root = Path.Combine(ApplicationRoot, "games", GameId);
+        CacheDir = Path.Combine(Root, "cache");
+        ReleaseFeedCacheFile = Path.Combine(CacheDir, "release-feed.json");
         StateDir = Path.Combine(Root, "state");
         BackupsDir = Path.Combine(Root, "backups");
         OriginalBackupDir = Path.Combine(BackupsDir, "original");
@@ -37,6 +41,7 @@ public sealed class GamePersistencePaths
     public void EnsureDirectories()
     {
         Directory.CreateDirectory(Root);
+        Directory.CreateDirectory(CacheDir);
         Directory.CreateDirectory(StateDir);
         Directory.CreateDirectory(OriginalBackupDir);
         Directory.CreateDirectory(RestorePointsDir);
