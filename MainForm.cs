@@ -11,21 +11,22 @@ namespace BdoClient;
 
 public partial class MainForm : Form
 {
-    private readonly ConfigStore _configStore;
+    private ConfigStore _configStore = null!;
     private readonly ApplicationConfigStore _applicationConfigStore;
-    private readonly BdoUaApiClient _apiClient;
-    private readonly GameDetector _gameDetector;
-    private readonly BdoGameDefinition _gameDefinition;
+    private BdoUaApiClient _apiClient = null!;
+    private BdoGameSession _activeGameSession = null!;
+    private GameDetector _gameDetector = null!;
+    private BdoGameDefinition _gameDefinition = null!;
     private readonly GameCatalog _gameCatalog;
     private GameDescriptor _selectedGame;
-    private readonly LocalizationStateService _stateService;
-    private readonly LocalizationCompatibilityService _compatService;
-    private readonly LocalizationInstaller _localizationInstaller;
-    private readonly BackupStore _backupStore;
-    private readonly InstallationStateStore _stateStore;
+    private LocalizationStateService _stateService = null!;
+    private LocalizationCompatibilityService _compatService = null!;
+    private LocalizationInstaller _localizationInstaller = null!;
+    private BackupStore _backupStore = null!;
+    private InstallationStateStore _stateStore = null!;
     private readonly ILogger _logger;
-    private readonly ReleaseFeedPoller _poller;
-    private readonly FeedApplicationCoordinator _feedCoordinator;
+    private ReleaseFeedPoller _poller = null!;
+    private FeedApplicationCoordinator _feedCoordinator = null!;
     private readonly LocalizationNotificationTracker _localizationNotificationTracker = new();
     private readonly ApplicationUpdateNotificationTracker _applicationUpdateNotificationTracker = new();
     private readonly AppVersionInfo _appVersionInfo;
@@ -36,7 +37,16 @@ public partial class MainForm : Form
     private readonly UpdateSessionStore _updateSessionStore;
     private readonly SelfUpdatePreparationService _selfUpdatePreparation;
     private readonly UpdateLifecycleService _updateLifecycle;
-    private readonly ReleaseFeedCacheStore _releaseFeedCacheStore;
+    private ReleaseFeedCacheStore _releaseFeedCacheStore = null!;
+    private readonly SelectedGameSessionHost _sessionHost;
+    private readonly HashSet<Task> _sessionWork = new();
+    private readonly object _sessionWorkLock = new();
+    private CancellationTokenSource? _gameSessionCts;
+    private Action<ReleasesResponse>? _sessionFeedCandidateHandler;
+    private Action<ReleasesResponse>? _sessionFeedSuccessHandler;
+    private long _gameSessionGeneration;
+    private bool _suppressGameSelection;
+    private volatile bool _switchInProgress;
 
     private const string UninstallInstructions =
         "BDO-UA Client — portable-застосунок. Він не встановлюється через Windows Installer і не має окремого деінсталятора у Windows." +
@@ -85,7 +95,7 @@ public partial class MainForm : Form
     public MainForm(
         ApplicationConfigStore applicationConfigStore,
         GameCatalog gameCatalog,
-        BdoGameSession gameSession,
+        SelectedGameSessionHost sessionHost,
         ILogger logger,
         AppVersionInfo appVersionInfo,
         GitHubUpdateClient gitHubClient,
@@ -95,29 +105,20 @@ public partial class MainForm : Form
         bool startInBackground,
         SingleInstanceCoordinator singleInstanceCoordinator)
     {
-        ArgumentNullException.ThrowIfNull(gameSession);
+        ArgumentNullException.ThrowIfNull(sessionHost);
         ArgumentNullException.ThrowIfNull(gameCatalog);
-        if (!string.Equals(gameSession.Descriptor.Id, gameCatalog.DefaultGame.Id, StringComparison.Ordinal))
-            throw new ArgumentException("Game catalog and session must identify the same game.", nameof(gameSession));
+        if (!string.Equals(sessionHost.CurrentSession.Descriptor.Id, gameCatalog.DefaultGame.Id, StringComparison.Ordinal))
+            throw new ArgumentException("Game catalog and session must identify the same game.", nameof(sessionHost));
 
         _applicationConfigStore = applicationConfigStore;
         _gameCatalog = gameCatalog ?? throw new ArgumentNullException(nameof(gameCatalog));
-        _selectedGame = gameSession.Descriptor;
-        _configStore = gameSession.ConfigStore;
-        _apiClient = gameSession.ApiClient;
-        _gameDetector = gameSession.GameDetector;
-        _gameDefinition = gameSession.GameDefinition;
-        _stateService = gameSession.LocalizationStateService;
-        _compatService = gameSession.LocalizationCompatibilityService;
-        _localizationInstaller = gameSession.LocalizationInstaller;
-        _backupStore = gameSession.BackupStore;
-        _stateStore = gameSession.InstallationStateStore;
+        _sessionHost = sessionHost;
+        _selectedGame = sessionHost.CurrentSession.Descriptor;
         _logger = logger;
         _appVersionInfo = appVersionInfo;
         _gitHubClient = gitHubClient;
         _selectionPolicy = selectionPolicy;
         _appPaths = appPaths;
-        _releaseFeedCacheStore = gameSession.ReleaseFeedCacheStore;
         _autostartService = autostartService;
         _startInBackground = startInBackground;
         _singleInstanceCoordinator = singleInstanceCoordinator;
@@ -128,16 +129,12 @@ public partial class MainForm : Form
         _selfUpdatePreparation = new SelfUpdatePreparationService(_updateSessionStore, logger);
         _updateLifecycle = new UpdateLifecycleService(_updateSessionStore, appPaths, logger);
 
-        _poller = gameSession.ReleaseFeedPoller;
-        _feedCoordinator = new FeedApplicationCoordinator(ApplyFeedPipelineAsync, _poller, _logger);
-        _poller.OnFeedCandidate += OnReleaseFeedCandidate;
-        _poller.OnFeedSuccess += OnReleaseFeedSuccess;
-
         InitializeComponent();
         InitializeTray();
         rootScrollPanel.Resize += RootScrollPanel_Resize;
         ApplyTheme();
         InitializeGameSelector();
+        BindGameSession(sessionHost.CurrentSession, 1);
         WireEventHandlers();
         this.Shown += MainForm_Shown;
         HandleCreated += (_, _) =>
@@ -145,6 +142,205 @@ public partial class MainForm : Form
             WindowChromeHelper.ApplyDarkCaption(this);
             RegisterSecondaryActivationListener();
         };
+    }
+
+    private void BindGameSession(BdoGameSession session, long generation)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+
+        DetachSessionHandlers();
+        _activeGameSession = session;
+        _gameSessionGeneration = generation;
+        _gameSessionCts = new CancellationTokenSource();
+        _selectedGame = session.Descriptor;
+        _configStore = session.ConfigStore;
+        _apiClient = session.ApiClient;
+        _gameDetector = session.GameDetector;
+        _gameDefinition = session.GameDefinition;
+        _stateService = session.LocalizationStateService;
+        _compatService = session.LocalizationCompatibilityService;
+        _localizationInstaller = session.LocalizationInstaller;
+        _backupStore = session.BackupStore;
+        _stateStore = session.InstallationStateStore;
+        _releaseFeedCacheStore = session.ReleaseFeedCacheStore;
+        _poller = session.ReleaseFeedPoller;
+        _feedCoordinator = new FeedApplicationCoordinator(ApplyFeedPipelineAsync, _poller, _logger);
+        _sessionFeedCandidateHandler = candidate => QueueSessionFeedWork(session, generation, candidate, isCandidate: true);
+        _sessionFeedSuccessHandler = feed => QueueSessionFeedWork(session, generation, feed, isCandidate: false);
+        _poller.OnFeedCandidate += _sessionFeedCandidateHandler;
+        _poller.OnFeedSuccess += _sessionFeedSuccessHandler;
+
+        _suppressGameSelection = true;
+        try
+        {
+            gameSelectorComboBox.SelectedValue = _selectedGame.Id;
+        }
+        finally
+        {
+            _suppressGameSelection = false;
+        }
+    }
+
+    private void DetachSessionHandlers()
+    {
+        if (_sessionFeedCandidateHandler != null && _poller != null)
+            _poller.OnFeedCandidate -= _sessionFeedCandidateHandler;
+        if (_sessionFeedSuccessHandler != null && _poller != null)
+            _poller.OnFeedSuccess -= _sessionFeedSuccessHandler;
+        _sessionFeedCandidateHandler = null;
+        _sessionFeedSuccessHandler = null;
+    }
+
+    private bool IsCurrentGameSession(long generation, BdoGameSession? session = null)
+        => !_closing
+            && generation == _gameSessionGeneration
+            && (session == null || ReferenceEquals(session, _activeGameSession))
+            && _gameSessionCts is { IsCancellationRequested: false };
+
+    private void TrackSessionWork(Task task)
+    {
+        lock (_sessionWorkLock)
+            _sessionWork.Add(task);
+
+        _ = task.ContinueWith(completed =>
+        {
+            lock (_sessionWorkLock)
+                _sessionWork.Remove(completed);
+            if (completed.IsFaulted && completed.Exception != null)
+                _logger.Error($"Game session callback failed: {completed.Exception.GetBaseException().Message}");
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+    }
+
+    private async Task DrainSessionWorkAsync()
+    {
+        while (true)
+        {
+            Task[] pending;
+            lock (_sessionWorkLock)
+                pending = _sessionWork.ToArray();
+            if (pending.Length == 0)
+                return;
+            await Task.WhenAll(pending).ConfigureAwait(true);
+        }
+    }
+
+    private async Task SwitchGameAsync(GameDescriptor target)
+    {
+        if (_switchInProgress || _operationInProgress || _initializing || _closing)
+            return;
+
+        BdoGameSession? candidate = null;
+        var committed = false;
+        var previous = _activeGameSession;
+        var previousCts = _gameSessionCts;
+        try
+        {
+            _switchInProgress = true;
+            SetControlsDuringOperation(false);
+            candidate = _sessionHost.CreateCandidate(target);
+
+            previousCts?.Cancel();
+            DetachSessionHandlers();
+            DisposeLocalFileMonitor();
+            _localizationNotificationTracker.Reset();
+            ClearTransientGameState();
+
+            // Complete the old poller drain away from the UI synchronization context;
+            // the continuation below returns to WinForms before rebinding controls.
+            await Task.Run(previous.StopAsync);
+            await DrainSessionWorkAsync();
+            previousCts?.Dispose();
+
+            var replaced = _sessionHost.CommitCandidate(candidate);
+            committed = true;
+            candidate = null;
+            BindGameSession(replaced == previous ? _sessionHost.CurrentSession : replaced, _gameSessionGeneration + 1);
+            replaced.Dispose();
+
+            await PersistSelectedGameAsync(target);
+            _initializing = true;
+            try
+            {
+                await LoadCurrentGameSessionAsync(_gameSessionGeneration, _gameSessionCts!.Token, runGlobalStartup: false);
+            }
+            finally
+            {
+                _initializing = false;
+            }
+
+            if (!_closing && IsCurrentGameSession(_gameSessionGeneration, _activeGameSession))
+            {
+                _poller.Start(_apiResponse);
+                _poller.SetPollingMode(Visible ? ReleaseFeedPollingMode.Visible : ReleaseFeedPollingMode.Background);
+            }
+        }
+        catch (OperationCanceledException) when (_closing || !IsCurrentGameSession(_gameSessionGeneration, previous))
+        {
+            if (!committed)
+                _logger.Debug("Game switch was cancelled before the candidate session became active.");
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Game switch failed: {ex.Message}");
+            SetMessage($"Не вдалося перемкнути гру: {ex.Message}");
+            if (!committed)
+            {
+                _suppressGameSelection = true;
+                try { gameSelectorComboBox.SelectedValue = previous.Descriptor.Id; }
+                finally { _suppressGameSelection = false; }
+            }
+        }
+        finally
+        {
+            candidate?.Dispose();
+            _switchInProgress = false;
+            SetControlsDuringOperation(true);
+        }
+    }
+
+    private async Task PersistSelectedGameAsync(GameDescriptor descriptor)
+    {
+        var load = _applicationConfigStore.Load();
+        if (load.Status == FileLoadStatus.Invalid)
+        {
+            _logger.Warning("Application config invalid; selected game was not persisted during switch.");
+            return;
+        }
+
+        var config = load.Value ?? new ApplicationConfig();
+        config.SelectedGameId = descriptor.Id;
+        try
+        {
+            await Task.Run(() => _applicationConfigStore.SaveAsync(config));
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning($"Failed to persist selected game '{descriptor.Id}': {ex.Message}");
+        }
+    }
+
+    private void ClearTransientGameState()
+    {
+        _gameRoot = null;
+        _gameDetectionSource = null;
+        _gamePatchStatus = GamePatchStatus.Unknown;
+        _gamePatchRefreshFailed = false;
+        _apiResponse = null;
+        _apiLoadedSuccessfully = false;
+        _releaseFeedSource = ReleaseFeedSource.Unavailable;
+        _cachedFeedSavedAtUtc = null;
+        _apiErrorMessage = null;
+        _apiErrorKind = ApiErrorKind.None;
+        _lastResolvedState = LocalizationState.NotInstalled;
+        _lastInstalledModeSlug = null;
+        _lastInstalledPublicId = null;
+        _localFileCheckInProgress = false;
+        _localizationNotificationTracker.Reset();
+        ClearModeControls();
+        SetGameSearching();
+        ShowModeLoadingPlaceholder();
+        SetProgress(0);
+        SetMessage("Завантаження даних для обраної гри...");
     }
 
     internal GameDescriptor SelectedGame => _selectedGame;
@@ -170,6 +366,115 @@ public partial class MainForm : Form
         uninstallHelpLink.LinkClicked += UninstallHelpLink_LinkClicked;
         modesFlowPanel.Resize += ModesFlowPanel_Resize;
         this.FormClosing += MainForm_FormClosing;
+        gameSelectorComboBox.SelectedValueChanged += GameSelectorComboBox_SelectedValueChanged;
+    }
+
+    private void GameSelectorComboBox_SelectedValueChanged(object? sender, EventArgs e)
+    {
+        if (_suppressGameSelection || _initializing || _switchInProgress || _operationInProgress
+            || _closing || _updateHandoffInProgress)
+            return;
+
+        if (gameSelectorComboBox.SelectedValue is not string selectedId)
+            return;
+
+        var target = _gameCatalog.Resolve(selectedId);
+        if (string.Equals(target.Id, _activeGameSession.Descriptor.Id, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _ = SwitchGameAsync(target);
+    }
+
+    private void QueueSessionFeedWork(
+        BdoGameSession session,
+        long generation,
+        ReleasesResponse feed,
+        bool isCandidate)
+    {
+        var task = HandleSessionFeedAsync(session, generation, feed, isCandidate);
+        TrackSessionWork(task);
+    }
+
+    private async Task HandleSessionFeedAsync(
+        BdoGameSession session,
+        long generation,
+        ReleasesResponse feed,
+        bool isCandidate)
+    {
+        if (!IsCurrentGameSession(generation, session))
+            return;
+
+        try
+        {
+            if (InvokeRequired)
+            {
+                var completion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+                try
+                {
+                    BeginInvoke(new Action(async () =>
+                    {
+                        try
+                        {
+                            await HandleSessionFeedOnUiAsync(session, generation, feed, isCandidate);
+                            completion.TrySetResult(null);
+                        }
+                        catch (Exception ex)
+                        {
+                            completion.TrySetException(ex);
+                        }
+                    }));
+                }
+                catch (InvalidOperationException)
+                {
+                    return;
+                }
+                await completion.Task.ConfigureAwait(false);
+                return;
+            }
+
+            await HandleSessionFeedOnUiAsync(session, generation, feed, isCandidate);
+        }
+        catch (OperationCanceledException) when (!IsCurrentGameSession(generation, session))
+        {
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Feed session callback error: {ex.Message}");
+        }
+    }
+
+    private async Task HandleSessionFeedOnUiAsync(
+        BdoGameSession session,
+        long generation,
+        ReleasesResponse feed,
+        bool isCandidate)
+    {
+        if (!IsCurrentGameSession(generation, session))
+            return;
+
+        if (isCandidate)
+        {
+            await _feedCoordinator.OnCandidateAsync(feed);
+            return;
+        }
+
+        if (_releaseFeedSource == ReleaseFeedSource.Cached
+            && !FeedChangeDetector.HasSemanticChange(_apiResponse, feed))
+        {
+            _apiResponse = feed;
+            _apiLoadedSuccessfully = true;
+            _releaseFeedSource = ReleaseFeedSource.Live;
+            _cachedFeedSavedAtUtc = null;
+            _apiErrorMessage = null;
+            _apiErrorKind = ApiErrorKind.None;
+            _poller.AcceptFeed(feed);
+            await PersistLiveFeedAsync(feed);
+            if (IsCurrentGameSession(generation, session))
+            {
+                RefreshKnownGamePatchPresentation();
+                await RefreshStateAsync(generation, _gameSessionCts!.Token);
+            }
+        }
     }
 
     // --- Dynamic modes ---
@@ -224,6 +529,7 @@ public partial class MainForm : Form
         {
             PrepareTrayForShutdown();
             _updateCheckCts?.Cancel();
+            _gameSessionCts?.Cancel();
             _poller.Stop();
             return;
         }
@@ -247,6 +553,7 @@ public partial class MainForm : Form
                 _exitAfterOperation = false;
                 PrepareTrayForShutdown();
                 _updateCheckCts?.Cancel();
+                _gameSessionCts?.Cancel();
                 _poller.Stop();
                 return;
 

@@ -296,6 +296,12 @@ public partial class MainForm
     {
         detectGameButton.Enabled = enabled;
         browseGameButton.Enabled = enabled;
+        gameSelectorComboBox.Enabled = enabled
+            && !_switchInProgress
+            && !_initializing
+            && !_closing
+            && !_updateHandoffInProgress
+            && _gameCatalog.Games.Count > 1;
         foreach (var card in modesFlowPanel.Controls.OfType<LocalizationModeCard>())
             card.Enabled = enabled;
         if (_apiLoadedSuccessfully)

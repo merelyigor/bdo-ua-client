@@ -5,7 +5,7 @@ Status: ACTIVE
 Focus: PRIMARY
 Implementation authorization: **YES**
 Current phase: Stage 3 — Safe game switching lifecycle
-Next action: implement Stage 3 only
+Next action: external Architect review of Stage 3 implementation, then Owner visual/lifecycle smoke if required
 Dependencies: v1.2.7 — RELEASE REVIEWED / ACCEPTED
 
 ## Goal
@@ -90,6 +90,8 @@ Separate application-global services from selected-game composition/lifetime in 
 
 Implement controlled teardown/setup, mutation blocking, cancellation and stale-result protection; reset poller/monitor/notifications and test switching with a synthetic second-game fixture. Depends on Stage 2.
 
+Current state: **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**. The concrete `SelectedGameSessionHost` owns one active session, switching is blocked during startup/mutation/closing, old poller and tracked UI work are drained before commit, and generation/cancellation guards protect the new session from stale results. Stage 4 has not started.
+
 ### Stage 4 — Complete per-game runtime data isolation
 
 Move feed cache and any remaining game-specific global state under game scope while preserving global logs, updater and temp data. Prove no cross-game data bleed. Depends on the session boundary.
@@ -141,4 +143,4 @@ The roadmap depends on v1.2.7 release completion and explicit Owner activation. 
 
 ## Current progress
 
-Roadmap approved by Owner and activated after v1.2.7 external release acceptance. Stage 0 is complete and its dependency is satisfied. Stage 1 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 2 is **REVIEWED / ACCEPTED** after external pre-commit Architect review, commit and CI success. Stage 3 is the next authorized phase and has not started.
+Roadmap approved by Owner and activated after v1.2.7 external release acceptance. Stage 0 is complete and its dependency is satisfied. Stage 1 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 2 is **REVIEWED / ACCEPTED** after external pre-commit Architect review, commit and CI success. Stage 3 is **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**; Stage 4 has not started.

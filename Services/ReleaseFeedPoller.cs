@@ -74,6 +74,26 @@ public sealed class ReleaseFeedPoller : IDisposable
         WakeSchedulerWait();
     }
 
+    /// <summary>
+    /// Cancels the poller and waits until its loop, including an in-flight request,
+    /// has completed. No poller event can be raised after this task completes.
+    /// </summary>
+    public async Task StopAsync()
+    {
+        var loopTask = _loopTask;
+        Stop();
+
+        if (loopTask != null)
+            await loopTask.ConfigureAwait(false);
+
+        if (ReferenceEquals(_loopTask, loopTask))
+        {
+            _loopTask = null;
+            _cts?.Dispose();
+            _cts = null;
+        }
+    }
+
     public void Pause()
     {
         if (_disposed) return;
@@ -324,9 +344,25 @@ public sealed class ReleaseFeedPoller : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _cts?.Cancel();
-        WakeSchedulerWait();
-        _cts?.Dispose();
-        _loopTask = null;
+        Stop();
+
+        var loopTask = _loopTask;
+        if (loopTask == null || loopTask.IsCompleted)
+        {
+            _cts?.Dispose();
+            _cts = null;
+            _loopTask = null;
+        }
+        else
+        {
+            var cts = _cts;
+            _ = loopTask.ContinueWith(
+                _ => cts?.Dispose(),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+            _cts = null;
+            _loopTask = null;
+        }
     }
 }

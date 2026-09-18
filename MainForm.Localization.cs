@@ -211,6 +211,13 @@ public partial class MainForm
 
     private async void DetectGameButton_Click(object? sender, EventArgs e)
     {
+        if (_operationInProgress || _switchInProgress || _initializing || _closing)
+            return;
+
+        var generation = _gameSessionGeneration;
+        var session = _activeGameSession;
+        var cancellationToken = _gameSessionCts?.Token ?? default;
+        _operationInProgress = true;
         detectGameButton.Enabled = false;
         var previousGameRoot = _gameRoot;
         SetOperationState(OperationState.DetectingGame);
@@ -218,7 +225,9 @@ public partial class MainForm
         try
         {
             var patterns = _apiResponse?.Data?.InstallPathPatterns;
-            var result = await _gameDetector.DetectAsync(patterns);
+            var result = await _gameDetector.DetectAsync(patterns, cancellationToken);
+            if (!IsCurrentGameSession(generation, session))
+                return;
             if (result.IsFound && result.GamePath != null)
             {
                 _gameRoot = result.GamePath;
@@ -234,6 +243,8 @@ public partial class MainForm
         }
         catch (Exception ex)
         {
+            if (!IsCurrentGameSession(generation, session))
+                return;
             _logger.Error($"Detection error: {ex.Message}");
             if (previousGameRoot != null && _gameDetector.IsValidGamePath(previousGameRoot))
             {
@@ -250,6 +261,7 @@ public partial class MainForm
         }
         finally
         {
+            _operationInProgress = false;
             detectGameButton.Enabled = true;
             SetOperationState(OperationState.Idle);
         }
@@ -258,6 +270,12 @@ public partial class MainForm
 
     private async void BrowseGameButton_Click(object? sender, EventArgs e)
     {
+        if (_operationInProgress || _switchInProgress || _initializing || _closing)
+            return;
+
+        var generation = _gameSessionGeneration;
+        var session = _activeGameSession;
+        _operationInProgress = true;
         try
         {
             using var dialog = new FolderBrowserDialog
@@ -273,6 +291,8 @@ public partial class MainForm
             if (resolved.Status == ManualResolveStatus.Found && resolved.GamePath != null)
             {
                 var result = await _gameDetector.ValidateAndSaveManualPathAsync(resolved.GamePath);
+                if (!IsCurrentGameSession(generation, session))
+                    return;
                 if (result.IsFound && result.GamePath != null)
                 {
                     _gameRoot = result.GamePath;
@@ -296,8 +316,14 @@ public partial class MainForm
         }
         catch (Exception ex)
         {
+            if (!IsCurrentGameSession(generation, session))
+                return;
             _logger.Error($"Browse error: {ex.Message}");
             SetMessage($"Помилка вибору папки: {ex.Message}");
+        }
+        finally
+        {
+            _operationInProgress = false;
         }
     }
 
@@ -453,7 +479,10 @@ public partial class MainForm
 
     private async Task<bool> ApplyFeedPipelineAsync(ReleasesResponse candidate)
     {
-        if (_closing) return false;
+        var generation = _gameSessionGeneration;
+        var session = _activeGameSession;
+        var cancellationToken = _gameSessionCts?.Token ?? default;
+        if (!IsCurrentGameSession(generation, session)) return false;
 
         var previousSlug = GetSelectedModeSlug();
 
@@ -474,11 +503,14 @@ public partial class MainForm
         }
 
         RefreshKnownGamePatchPresentation();
-        await RefreshStateAsync();
+        await RefreshStateAsync(generation, cancellationToken);
+        if (!IsCurrentGameSession(generation, session)) return false;
         _releaseFeedSource = ReleaseFeedSource.Live;
         _cachedFeedSavedAtUtc = null;
-        await RefreshStateAsync();
+        await RefreshStateAsync(generation, cancellationToken);
+        if (!IsCurrentGameSession(generation, session)) return false;
         await PersistLiveFeedAsync(candidate);
+        if (!IsCurrentGameSession(generation, session)) return false;
         return true;
     }
 
@@ -502,8 +534,13 @@ public partial class MainForm
     }
 
 
-    private async Task RefreshStateAsync()
+    private async Task RefreshStateAsync(long? expectedGeneration = null, CancellationToken cancellationToken = default)
     {
+        var generation = expectedGeneration ?? _gameSessionGeneration;
+        var session = _activeGameSession;
+        if (expectedGeneration.HasValue && !IsCurrentGameSession(generation, session))
+            return;
+
         SetActionsEnabled(false);
 
         if (_gameRoot == null)
@@ -552,7 +589,10 @@ public partial class MainForm
         var gameLocPath = _gameDefinition.GetLocalizationFilePath(_gameRoot);
         LocalizationFileFingerprint.TryCapture(gameLocPath, out var capturedFingerprint, out var captureError);
         bool fingerprintCaptured = captureError == null;
-        var stateResult = await _stateService.ResolveAsync(installedModeCurrent, gameLocPath, gameRoot: _gameRoot);
+        var stateResult = await _stateService.ResolveAsync(
+            installedModeCurrent, gameLocPath, cancellationToken, gameRoot: _gameRoot);
+        if (expectedGeneration.HasValue && !IsCurrentGameSession(generation, session))
+            return;
         _lastResolvedState = stateResult.State;
         _lastInstalledModeSlug = installedModeSlug;
         _lastInstalledPublicId = installedPublicId;

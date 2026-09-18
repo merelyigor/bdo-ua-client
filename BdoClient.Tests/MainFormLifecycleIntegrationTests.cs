@@ -16,6 +16,24 @@ namespace BdoClient.Tests;
 public sealed class MainFormLifecycleIntegrationTests
 {
     [Fact]
+    public async Task SwitchingSyntheticGame_DrainsOldSessionAndPersistsSelection()
+    {
+        using var fixture = await MainFormTestFixture.StartAsync(
+            MainFormTestFixture.CreateSuccessfulApiHandler(),
+            includeSyntheticSecondGame: true);
+
+        await fixture.WaitForStartupAsync();
+        await fixture.WaitForAsync(form => form.GameSelector.Enabled);
+        var selectedAfterRequest = await fixture.SelectGameAsync("synthetic-game");
+        Assert.Equal("synthetic-game", selectedAfterRequest);
+        await Task.Delay(1000);
+        var config = new ApplicationConfigStore(fixture.AppPaths, new MainFormTestFixture.TestLogger()).Load();
+        Assert.Equal("synthetic-game", config.Value!.SelectedGameId);
+        await fixture.WaitForAsync(form => form.SelectedGame.Id == "synthetic-game");
+        Assert.Equal("Synthetic Game", fixture.Form.GameSelector.Text);
+    }
+
+    [Fact]
     public async Task Startup_ComposesMainFormAndCompletesWithSavedGame()
     {
         using var fixture = await MainFormTestFixture.StartAsync(
@@ -418,6 +436,7 @@ internal sealed class MainFormTestFixture : IDisposable
     private readonly MainFormTestHttpHandler _githubHandler;
     private readonly string _mutexName;
     private readonly string _eventName;
+    private readonly bool _includeSyntheticSecondGame;
     private readonly TaskCompletionSource<MainForm> _formReady =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource<object?> _hostCompleted =
@@ -427,6 +446,7 @@ internal sealed class MainFormTestFixture : IDisposable
     private Exception? _hostException;
     private MainForm? _form;
     private BdoGameSession? _bdoSession;
+    private SelectedGameSessionHost? _sessionHost;
     private bool _disposed;
 
     private MainFormTestFixture(
@@ -435,9 +455,11 @@ internal sealed class MainFormTestFixture : IDisposable
         bool exitWhenShown,
         bool seedReleaseFeedCache,
         int? gamePatch,
-        string? applicationConfigJson)
+        string? applicationConfigJson,
+        bool includeSyntheticSecondGame)
     {
         _bdoHandler = bdoHandler;
+        _includeSyntheticSecondGame = includeSyntheticSecondGame;
         _githubHandler = CreateSuccessfulGitHubHandler();
         _root = Path.Combine(Path.GetTempPath(), "bdo-ua-mainform-tests", Guid.NewGuid().ToString("N"));
         _appPaths = new AppPaths(Path.Combine(_root, "appdata"));
@@ -538,16 +560,36 @@ internal sealed class MainFormTestFixture : IDisposable
         await completion.Task.WaitAsync(Timeout);
     }
 
+    internal async Task<string?> SelectGameAsync(string id)
+    {
+        var completion = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        PostToUi(() =>
+        {
+            try
+            {
+                Form.GameSelector.SelectedValue = id;
+                completion.TrySetResult(Form.GameSelector.SelectedValue as string);
+            }
+            catch (Exception ex)
+            {
+                completion.TrySetException(ex);
+            }
+        });
+        return await completion.Task.WaitAsync(Timeout);
+    }
+
     internal static async Task<MainFormTestFixture> StartAsync(
         MainFormTestHttpHandler bdoHandler,
         bool startInBackground = false,
         bool exitWhenShown = false,
         bool seedReleaseFeedCache = false,
         int? gamePatch = null,
-        string? applicationConfigJson = null)
+        string? applicationConfigJson = null,
+        bool includeSyntheticSecondGame = false)
     {
         var fixture = new MainFormTestFixture(
-            bdoHandler, startInBackground, exitWhenShown, seedReleaseFeedCache, gamePatch, applicationConfigJson);
+            bdoHandler, startInBackground, exitWhenShown, seedReleaseFeedCache, gamePatch, applicationConfigJson,
+            includeSyntheticSecondGame);
         fixture._uiThread.Start();
 
         try
@@ -732,7 +774,7 @@ internal sealed class MainFormTestFixture : IDisposable
         }
 
         _singleInstanceCoordinator.Dispose();
-        _bdoSession?.Dispose();
+        _sessionHost?.Dispose();
         _bdoHttpClient.Dispose();
         _githubHttpClient.Dispose();
 
@@ -763,7 +805,18 @@ internal sealed class MainFormTestFixture : IDisposable
             var appVersionInfo = AppVersionInfo.FromRawVersion("1.2.2");
             _bdoSession = BdoGameSession.CreateForTests(
                 _appPaths, logger, appVersionInfo, _bdoHttpClient);
-            var gameCatalog = GameCatalog.Create(_bdoSession.GameDefinition);
+            var gameCatalog = _includeSyntheticSecondGame
+                ? new GameCatalog(new[]
+                {
+                    _bdoSession.Descriptor,
+                    new GameDescriptor("synthetic-game", "Synthetic Game")
+                })
+                : GameCatalog.Create(_bdoSession.GameDefinition);
+            _sessionHost = new SelectedGameSessionHost(
+                _bdoSession,
+                descriptor => BdoGameSession.CreateForTests(
+                    _appPaths, logger, appVersionInfo, new HttpClient(_bdoHandler), ownsHttpClient: true,
+                    descriptor));
             var githubClient = new GitHubUpdateClient(_githubHttpClient, logger);
             var selectionPolicy = new UpdateSelectionPolicy(logger);
             var autostartService = new WindowsAutostartService(
@@ -772,7 +825,7 @@ internal sealed class MainFormTestFixture : IDisposable
             _form = new MainForm(
                 applicationConfigStore,
                 gameCatalog,
-                _bdoSession,
+                _sessionHost,
                 logger,
                 appVersionInfo,
                 githubClient,

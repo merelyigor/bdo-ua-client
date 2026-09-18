@@ -8,7 +8,7 @@ BDO-UA Client — Windows .NET 8 WinForms застосунок для пошук
 
 Стабільний реліз: **v1.2.7**. Публічний stable release опубліковано з tag v1.2.7; canonical application bundle містить один ZIP-asset. Offline/degraded release-feed implementation завершено та прийнято зовнішнім Architect.
 
-Поточна наступна дія: `Stage 3 — Safe game switching lifecycle`.
+Поточна наступна дія: external Architect review of Stage 3 implementation, then Owner visual/lifecycle smoke if required.
 
 Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-multigame` for the future `Хаб українізаторів` / multi-game transition. v1.2.7 external release acceptance is complete; Stage 0 is complete, Stage 1 and Stage 2 are reviewed/accepted, and Stage 3 is the current authorized scope.
 
@@ -71,6 +71,7 @@ Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-mu
 - Stage 1 game-boundary validation: Release build — 0 warnings / 0 errors; full Release suite — 940 passed / 0 failed / 0 skipped; focused boundary/detection/install/restore/lifecycle suite — 216 passed; `git diff --check` passed.
 - Stage 2 persistence validation: focused migration/isolation suite — 15 passed; relevant install/restore/detection/state/MainForm lifecycle suites — 170 passed; Release build — 0 warnings / 0 errors; full Release suite — 957 passed / 0 failed / 0 skipped; `git diff --check` passed. MainForm off-screen background restore regression coverage and native secondary-activation validation passed.
 - Stage 2 runtime/session validation: focused session/MainForm suite — 20 passed; relevant runtime/storage/feed/install/restore/detection suites — 282 passed; Release build — 0 warnings / 0 errors; full Release suite — 971 passed / 0 failed / 0 skipped; `git diff --check` passed. External pre-commit Architect review accepted with BLOCKER 0 / IMPORTANT 0; implementation commit and CI completed successfully.
+- Stage 3 local validation: focused session/startup/poller/MainForm lifecycle suite — 65 passed / 0 failed / 0 skipped; full Release suite — 976 passed / 0 failed / 0 skipped; Release build — 0 warnings / 0 errors; `git diff --check` passed. Coverage includes concrete `SelectedGameSessionHost`, cancellation-aware startup, poller drain, generation guards and synthetic A→B→A session lifecycle.
 - v1.2.6 RC validation: normal CI #204 / run `34873696880` and RC #34 / run `34873972036` succeeded; RC artifact `BDO-UA-Client-v1.2.6-win-x64` contains four flat files, ZIP size `67,914,367` bytes, ZIP SHA-256 `cf999c7059c8c1eecb2ff68053feb59410c30c3956a1a8e214bd078240c1c435`, EXE SHA-256 `65dfb3d2e76e011e256e3d6f6c7d27994a8ac54f89d6e64dbb86e9e9328fcd35`, manifest schema 2 and version 1.2.6.
 
 ## Important Invariants
@@ -103,5 +104,5 @@ Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-mu
 - v1.2.5 release cycle completed; public Release verified and `NEXT.json` reset for the next cycle.
 - v15.64/v15.65 — **REVIEWED / ACCEPTED; OWNER VISUAL SMOKE ACCEPTED**: для трьох і більше режимів локалізації додано компактний minimum window width і збережено його під час semantic rebuild; single-mode global status width збережено.
 - v1.2.7 — **RELEASED / PUBLIC VERIFIED / RELEASE REVIEWED / ACCEPTED**: public Release ID `391117230` опубліковано на tag `v1.2.7`, який вказує на exact approved RC SHA `b21118d1ec8e6d0342fb0e47544e911fcb875739`; canonical ZIP і внутрішні hashes повторно перевірено, Owner native smoke exact RC прийнято.
-- `localization-hub-multigame` — **ACTIVE / PRIMARY**: Stage 0 complete; Stage 1 — **REVIEWED / ACCEPTED**; Stage 2 — **REVIEWED / ACCEPTED**; Stage 3 — Safe game switching lifecycle — is next and has not started.
-- Next action: `Stage 3 — Safe game switching lifecycle`.
+- `localization-hub-multigame` — **ACTIVE / PRIMARY**: Stage 0 complete; Stage 1 — **REVIEWED / ACCEPTED**; Stage 2 — **REVIEWED / ACCEPTED**; Stage 3 — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**; Stage 4 has not started.
+- Next action: external Architect review of Stage 3 implementation, then Owner visual/lifecycle smoke if required.

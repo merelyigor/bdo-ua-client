@@ -21,7 +21,9 @@ public sealed class BdoGameSession : IDisposable
         ILogger logger,
         AppVersionInfo appVersionInfo,
         HttpClient httpClient,
-        bool ownsHttpClient)
+        bool ownsHttpClient,
+        GameDescriptor descriptor,
+        string persistenceGameId)
     {
         ArgumentNullException.ThrowIfNull(appPaths);
         ArgumentNullException.ThrowIfNull(logger);
@@ -32,8 +34,8 @@ public sealed class BdoGameSession : IDisposable
         _ownsHttpClient = ownsHttpClient;
 
         GameDefinition = BdoGameDefinition.Default;
-        Descriptor = new GameDescriptor(GameDefinition.Id, GameDefinition.DisplayName);
-        PersistencePaths = appPaths.GetGamePersistencePaths(GameDefinition.Id);
+        Descriptor = descriptor;
+        PersistencePaths = appPaths.GetGamePersistencePaths(persistenceGameId);
 
         new LegacyBdoPersistenceMigrator(appPaths, PersistencePaths, logger).MigrateIfNeeded();
         PersistencePaths.EnsureDirectories();
@@ -64,6 +66,7 @@ public sealed class BdoGameSession : IDisposable
     public LocalizationCompatibilityService LocalizationCompatibilityService { get; }
     public ReleaseFeedCacheStore ReleaseFeedCacheStore { get; }
     public ReleaseFeedPoller ReleaseFeedPoller { get; }
+    internal bool IsDisposed => _disposed;
 
     public static BdoGameSession CreateProduction(
         AppPaths appPaths,
@@ -75,7 +78,10 @@ public sealed class BdoGameSession : IDisposable
 
         try
         {
-            return new BdoGameSession(appPaths, logger, appVersionInfo, httpClient, ownsHttpClient: true);
+            return new BdoGameSession(
+                appPaths, logger, appVersionInfo, httpClient, true,
+                new GameDescriptor(BdoGameDefinition.Default.Id, BdoGameDefinition.Default.DisplayName),
+                BdoGameDefinition.Default.Id);
         }
         catch
         {
@@ -89,10 +95,17 @@ public sealed class BdoGameSession : IDisposable
         ILogger logger,
         AppVersionInfo appVersionInfo,
         HttpClient httpClient,
-        bool ownsHttpClient = false)
+        bool ownsHttpClient = false,
+        GameDescriptor? descriptor = null)
     {
-        return new BdoGameSession(appPaths, logger, appVersionInfo, httpClient, ownsHttpClient);
+        var selectedDescriptor = descriptor
+            ?? new GameDescriptor(BdoGameDefinition.Default.Id, BdoGameDefinition.Default.DisplayName);
+        return new BdoGameSession(
+            appPaths, logger, appVersionInfo, httpClient, ownsHttpClient,
+            selectedDescriptor, selectedDescriptor.Id);
     }
+
+    public Task StopAsync() => ReleaseFeedPoller.StopAsync();
 
     public void Dispose()
     {

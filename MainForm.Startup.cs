@@ -13,51 +13,75 @@ public partial class MainForm
     private async void MainForm_Shown(object? sender, EventArgs e)
     {
         _initializing = true;
+        SetControlsDuringOperation(false);
         try
         {
             ResolveSelectedGame();
-            var configLoad = _configStore.Load();
-            var config = configLoad.Value ?? new Config();
+            await LoadCurrentGameSessionAsync(_gameSessionGeneration, _gameSessionCts!.Token, runGlobalStartup: true);
+        }
+        catch (Exception ex)
+        {
+            _logger.Error($"Startup error: {ex.Message}");
+            SetMessage($"Помилка запуску: {ex.Message}");
+        }
+        finally
+        {
+            _startupTimer?.Stop();
+            _startupTimer?.Dispose();
+            _startupTimer = null;
+            _initializing = false;
+            SetOperationState(OperationState.Idle);
+            SetControlsDuringOperation(true);
+            if (!_closing && IsCurrentGameSession(_gameSessionGeneration, _activeGameSession))
+                _poller.Start(_apiResponse);
+        }
+    }
 
-            SetOperationState(OperationState.LoadingApi);
-            SetGameSearching();
-            ShowModeLoadingPlaceholder();
-            SetMessage("Завантаження даних з сервера...\nПерший запит може зайняти до 30 секунд. Будь ласка, зачекайте.");
+    private async Task LoadCurrentGameSessionAsync(
+        long generation,
+        CancellationToken cancellationToken,
+        bool runGlobalStartup)
+    {
+        var configLoad = _configStore.Load();
+        var config = configLoad.Value ?? new Config();
 
-            // Timer to show elapsed time during startup
-            _startupStartTime = DateTime.Now;
-            _startupTimer = new System.Windows.Forms.Timer();
-            _startupTimer.Interval = 1000;
-            _startupTimer.Tick += (s, args) =>
-            {
-                var elapsed = (int)(DateTime.Now - _startupStartTime).TotalSeconds;
-                SetMessage($"Завантаження даних з сервера... ({elapsed} сек)\nПерший запит може зайняти до 30 секунд. Будь ласка, зачекайте.");
-            };
-            _startupTimer.Start();
+        SetOperationState(OperationState.LoadingApi);
+        SetGameSearching();
+        ShowModeLoadingPlaceholder();
+        SetMessage("Завантаження даних з сервера...\nПерший запит може зайняти до 30 секунд. Будь ласка, зачекайте.");
 
-            // Fire-and-forget warmup to pre-warm DNS/TLS cache
-            _ = _apiClient.WarmupConnectionAsync();
+        _startupStartTime = DateTime.Now;
+        _startupTimer = new System.Windows.Forms.Timer { Interval = 1000 };
+        _startupTimer.Tick += (s, args) =>
+        {
+            var elapsed = (int)(DateTime.Now - _startupStartTime).TotalSeconds;
+            SetMessage($"Завантаження даних з сервера... ({elapsed} сек)\nПерший запит може зайняти до 30 секунд. Будь ласка, зачекайте.");
+        };
+        _startupTimer.Start();
 
-            var coordinator = new StartupCoordinator(
-                () => _apiClient.GetReleasesAsync(),
-                (patterns) => _gameDetector.DetectAsync(patterns),
-                _logger);
+        _ = _apiClient.WarmupConnectionAsync(cancellationToken);
+        var coordinator = new StartupCoordinator(
+            token => _apiClient.GetReleasesAsync(token),
+            (patterns, token) => _gameDetector.DetectAsync(patterns, token),
+            _logger);
 
+        try
+        {
             var result = await coordinator.RunAsync(
                 onLocalDetectionComplete: localResult =>
                 {
+                    if (!IsCurrentGameSession(generation, _activeGameSession)) return;
                     if (localResult.GamePath != null)
                     {
                         _gameRoot = localResult.GamePath;
                         SetGameFound(localResult.GamePath, localResult.Source);
                     }
                     else
-                    {
                         SetGameNotFound("Локально гру не знайдено. Очікування даних сервера...");
-                    }
                 },
                 onApiComplete: apiResult =>
                 {
+                    if (!IsCurrentGameSession(generation, _activeGameSession)) return;
                     if (apiResult.Success && apiResult.Response != null)
                     {
                         _apiResponse = apiResult.Response;
@@ -80,8 +104,13 @@ public partial class MainForm
                 },
                 onFallbackStarted: () =>
                 {
-                    SetGameNotFound("Пошук гри за даними сервера...");
-                });
+                    if (IsCurrentGameSession(generation, _activeGameSession))
+                        SetGameNotFound("Пошук гри за даними сервера...");
+                },
+                cancellationToken: cancellationToken);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsCurrentGameSession(generation, _activeGameSession)) return;
 
             if (result.FinalGamePath != null)
             {
@@ -89,36 +118,22 @@ public partial class MainForm
                 SetGameFound(result.FinalGamePath, result.FinalGameSource);
             }
             else
-            {
                 SetGameNotFound("Гру не знайдено");
-            }
 
             if (result.ApiSuccess && result.ApiResponse != null)
-            {
                 await PersistLiveFeedAsync(result.ApiResponse);
-            }
             else
-            {
                 TryApplyCachedFeed();
-            }
 
-            await RefreshStateAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.Error($"Startup error: {ex.Message}");
-            SetMessage($"Помилка запуску: {ex.Message}");
+            await RefreshStateAsync(generation, cancellationToken);
         }
         finally
         {
             _startupTimer?.Stop();
             _startupTimer?.Dispose();
             _startupTimer = null;
-            _initializing = false;
-            SetOperationState(OperationState.Idle);
-            if (!_closing)
+            if (runGlobalStartup && !_closing && IsCurrentGameSession(generation, _activeGameSession))
             {
-                _poller.Start(_apiResponse);
                 await StartupUpdateLifecycleCoordinator.RunAsync(
                     RunStartupLifecycleMaintenanceAsync,
                     () => _closing,
@@ -140,6 +155,11 @@ public partial class MainForm
         var config = load.Value ?? new ApplicationConfig();
         var requestedId = config.SelectedGameId;
         _selectedGame = _gameCatalog.Resolve(requestedId);
+        if (!string.Equals(_selectedGame.Id, _activeGameSession.Descriptor.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.Warning($"Selected game '{_selectedGame.Id}' does not match the active session; keeping active session '{_activeGameSession.Descriptor.Id}'.");
+            _selectedGame = _activeGameSession.Descriptor;
+        }
         gameSelectorComboBox.SelectedValue = _selectedGame.Id;
 
         if (requestedId == null || !string.Equals(requestedId, _selectedGame.Id, StringComparison.OrdinalIgnoreCase))

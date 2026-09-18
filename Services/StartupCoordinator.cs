@@ -58,13 +58,23 @@ internal sealed class StartupCoordinatorResult
 
 internal sealed class StartupCoordinator
 {
-    private readonly Func<Task<ApiResult<ReleasesResponse>>> _loadApi;
-    private readonly Func<IReadOnlyList<InstallPathPattern>?, Task<DetectionResult>> _detectGame;
+    private readonly Func<CancellationToken, Task<ApiResult<ReleasesResponse>>> _loadApi;
+    private readonly Func<IReadOnlyList<InstallPathPattern>?, CancellationToken, Task<DetectionResult>> _detectGame;
     private readonly ILogger _logger;
 
     public StartupCoordinator(
         Func<Task<ApiResult<ReleasesResponse>>> loadApi,
         Func<IReadOnlyList<InstallPathPattern>?, Task<DetectionResult>> detectGame,
+        ILogger logger)
+        : this(_ => loadApi(), (patterns, _) => detectGame(patterns), logger)
+    {
+        ArgumentNullException.ThrowIfNull(loadApi);
+        ArgumentNullException.ThrowIfNull(detectGame);
+    }
+
+    public StartupCoordinator(
+        Func<CancellationToken, Task<ApiResult<ReleasesResponse>>> loadApi,
+        Func<IReadOnlyList<InstallPathPattern>?, CancellationToken, Task<DetectionResult>> detectGame,
         ILogger logger)
     {
         _loadApi = loadApi;
@@ -75,11 +85,13 @@ internal sealed class StartupCoordinator
     public async Task<StartupCoordinatorResult> RunAsync(
         Action<StartupGameResult>? onLocalDetectionComplete = null,
         Action<StartupApiResult>? onApiComplete = null,
-        Action? onFallbackStarted = null)
+        Action? onFallbackStarted = null,
+        CancellationToken cancellationToken = default)
     {
         var startupSw = Stopwatch.StartNew();
-        var apiTask = _loadApi();
-        var localTask = _detectGame(null);
+        cancellationToken.ThrowIfCancellationRequested();
+        var apiTask = _loadApi(cancellationToken);
+        var localTask = _detectGame(null, cancellationToken);
 
         bool localDone = false;
         bool apiDone = false;
@@ -93,6 +105,7 @@ internal sealed class StartupCoordinator
 
         while (!localDone || !apiDone)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!localDone && localTask.IsCompleted)
             {
                 localDone = true;
@@ -111,6 +124,10 @@ internal sealed class StartupCoordinator
                         _logger.Info("Startup local game detection not found");
                         onLocalDetectionComplete?.Invoke(new StartupGameResult(null, null));
                     }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
                 }
                 catch (Exception ex)
                 {
@@ -140,6 +157,10 @@ internal sealed class StartupCoordinator
                         onApiComplete?.Invoke(new StartupApiResult(false, null, apiErrorKind, apiErrorMessage));
                     }
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     apiErrorKind = ApiErrorKind.Unexpected;
@@ -150,7 +171,19 @@ internal sealed class StartupCoordinator
             }
 
             if (!localDone && !apiDone)
-                await Task.WhenAny(apiTask, localTask);
+            {
+                if (cancellationToken.CanBeCanceled)
+                {
+                    var cancellationTask = Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                    var completedTask = await Task.WhenAny(apiTask, localTask, cancellationTask);
+                    if (completedTask == cancellationTask)
+                        cancellationToken.ThrowIfCancellationRequested();
+                }
+                else
+                {
+                    await Task.WhenAny(apiTask, localTask);
+                }
+            }
             else if (!localDone)
                 await localTask;
             else if (!apiDone)
@@ -166,7 +199,7 @@ internal sealed class StartupCoordinator
                 onFallbackStarted?.Invoke();
                 try
                 {
-                    var fallbackResult = await _detectGame(patterns);
+                    var fallbackResult = await _detectGame(patterns, cancellationToken);
                     if (fallbackResult.IsFound && fallbackResult.GamePath != null)
                     {
                         gamePath = fallbackResult.GamePath;
@@ -177,6 +210,10 @@ internal sealed class StartupCoordinator
                     {
                         _logger.Info("Startup API-assisted detection not found");
                     }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
                 }
                 catch (Exception ex)
                 {

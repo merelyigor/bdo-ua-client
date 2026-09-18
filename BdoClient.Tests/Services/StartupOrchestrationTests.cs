@@ -310,6 +310,25 @@ public class StartupOrchestrationTests
         Assert.Equal(0, fallbackStarted);
     }
 
+    [Fact]
+    public async Task Cancellation_StopsPendingStartupWork()
+    {
+        var apiTask = new TaskCompletionSource<ApiResult<ReleasesResponse>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var detectionTask = new TaskCompletionSource<DetectionResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var coordinator = new StartupCoordinator(
+            loadApi: _ => apiTask.Task,
+            detectGame: (_, _) => detectionTask.Task,
+            logger: new TestLogger());
+        using var cancellation = new CancellationTokenSource();
+
+        var runTask = coordinator.RunAsync(cancellationToken: cancellation.Token);
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runTask);
+    }
+
     private sealed class TestLogger : ILogger
     {
         public void Debug(string message) { }

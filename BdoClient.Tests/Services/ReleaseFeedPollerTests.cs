@@ -729,6 +729,32 @@ public class ReleaseFeedPollerTests
     }
 
     [Fact]
+    public async Task StopAsync_CompletesAfterInFlightRequestAndEmitsNoLaterEvents()
+    {
+        var feed = CreateFeed(modeA: "id1");
+        var handler = new BlockingHandler(feed);
+        using var httpClient = new HttpClient(handler);
+        var logger = new RecordingLogger();
+        var apiClient = new BdoUaApiClient(httpClient, logger);
+        using var poller = new ReleaseFeedPoller(apiClient, logger, TimeSpan.FromSeconds(30));
+        var eventCount = 0;
+        poller.OnFeedSuccess += _ => Interlocked.Increment(ref eventCount);
+
+        poller.Start(feed);
+        poller.RequestImmediatePoll();
+        Assert.True(handler.WaitStarted(TimeSpan.FromSeconds(2)));
+
+        var stopTask = poller.StopAsync();
+        handler.Release();
+        await stopTask.WaitAsync(TimeSpan.FromSeconds(5));
+        var countAfterStop = eventCount;
+
+        await Task.Delay(150);
+        Assert.False(poller.IsRunning);
+        Assert.Equal(countAfterStop, eventCount);
+    }
+
+    [Fact]
     public async Task DisposeWhileWaiting_NoActivityAfter()
     {
         var feed = CreateFeed(modeA: "id1");

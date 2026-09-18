@@ -106,7 +106,9 @@ public partial class MainForm
 
     private void LocalFileMonitorTimer_Tick(object? sender, EventArgs e)
     {
-        _ = RunLocalFileCheckSafeAsync(allowVisible: false);
+        var task = RunLocalFileCheckSafeAsync(allowVisible: false, _gameSessionGeneration, _activeGameSession,
+            _gameSessionCts?.Token ?? default);
+        TrackSessionWork(task);
     }
 
     /// <summary>
@@ -114,11 +116,18 @@ public partial class MainForm
     /// exception that escapes before the inner checker's own try/catch (e.g. a synchronous
     /// failure during pre-await eligibility/capture), preventing an unobserved Task fault.
     /// </summary>
-    private async Task RunLocalFileCheckSafeAsync(bool allowVisible)
+    private async Task RunLocalFileCheckSafeAsync(
+        bool allowVisible,
+        long expectedGeneration,
+        BdoGameSession expectedSession,
+        CancellationToken cancellationToken)
     {
         try
         {
-            await CheckLocalFileForChangesAsync(allowVisible);
+            await CheckLocalFileForChangesAsync(allowVisible, expectedGeneration, expectedSession, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
@@ -132,8 +141,14 @@ public partial class MainForm
     /// feed application via the existing FeedApplicationCoordinator so the two never run
     /// a state refresh concurrently.
     /// </summary>
-    private async Task CheckLocalFileForChangesAsync(bool allowVisible)
+    private async Task CheckLocalFileForChangesAsync(
+        bool allowVisible,
+        long expectedGeneration,
+        BdoGameSession expectedSession,
+        CancellationToken cancellationToken)
     {
+        if (!IsCurrentGameSession(expectedGeneration, expectedSession))
+            return;
         if (_localFileCheckInProgress)
             return;
         if (_closing || IsDisposed || Disposing)
@@ -204,11 +219,13 @@ public partial class MainForm
             _feedCoordinator.BlockUpdates();
             try
             {
-                await RefreshStateAsync();
+                await RefreshStateAsync(expectedGeneration, cancellationToken);
+                if (!IsCurrentGameSession(expectedGeneration, expectedSession))
+                    return;
                 // Re-read after the asynchronous state resolution so a newer local game
                 // patch cannot be hidden by a refresh that started with an older value.
                 if (RefreshKnownGamePatchPresentation())
-                    await RefreshStateAsync();
+                    await RefreshStateAsync(expectedGeneration, cancellationToken);
                 await _feedCoordinator.ApplyPendingIfAnyAsync();
             }
             finally
@@ -257,6 +274,14 @@ public partial class MainForm
         if (_operationInProgress || _feedCoordinator.IsBlocked || _closing || IsDisposed || Disposing)
             return;
 
-        BeginInvoke(new Action(() => _ = RunLocalFileCheckSafeAsync(allowVisible: true)));
+        BeginInvoke(new Action(() =>
+        {
+            var task = RunLocalFileCheckSafeAsync(
+                allowVisible: true,
+                _gameSessionGeneration,
+                _activeGameSession,
+                _gameSessionCts?.Token ?? default);
+            TrackSessionWork(task);
+        }));
     }
 }

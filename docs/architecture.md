@@ -116,7 +116,7 @@ BDO-PROGRAM/
 
 ## Game catalog boundary
 
-`Services/GameCatalog` містить explicit compile-time application catalog. Наразі він реєструє лише `black-desert-online` з `BdoGameDefinition`; `GameDescriptor` надає stable ID і display name. Stage 1 показує selected BDO descriptor у main shell. `Services/BdoGameSession` є єдиним concrete Stage 2 runtime boundary для BDO; runtime game switching і generic game-session interface ще не реалізовані.
+`Services/GameCatalog` містить explicit compile-time application catalog. Наразі він реєструє лише `black-desert-online` з `BdoGameDefinition`; `GameDescriptor` надає stable ID і display name. Stage 1 показує selected BDO descriptor у main shell. `Services/BdoGameSession` є concrete BDO runtime boundary, а `Services/SelectedGameSessionHost` володіє рівно однією активною session. Stage 3 додає bounded replacement lifecycle без generic game-session interface: старий poller/session work скасовується й drain-иться, handlers від'єднуються, після чого candidate session стає активною; generation guards блокують stale results.
 
 ## 2. Composition Root
 
@@ -149,11 +149,12 @@ Program.Main()
 ├─ GitHub HttpClient           — ОКРЕМИЙ HttpClient (UseProxy = false):
 │   └─ GitHubUpdateClient → UpdateSelectionPolicy
 │
-└─ MainForm(applicationConfigStore, gameCatalog, bdoGameSession,
+├─ SelectedGameSessionHost(initial BDO session, production factory)
+└─ MainForm(applicationConfigStore, gameCatalog, sessionHost,
             logger, appVersionInfo, gitHubClient, selectionPolicy, appPaths)
 ```
 
-MainForm всередині себе додатково створює application update services, `FeedApplicationCoordinator` та `StartupCoordinator`; BDO session/runtime composition і `ReleaseFeedPoller` належать `BdoGameSession`. MainForm не замінює session під час роботи процесу.
+MainForm всередині себе додатково створює application update services, `FeedApplicationCoordinator` та `StartupCoordinator`; BDO session/runtime composition і `ReleaseFeedPoller` належать `BdoGameSession`. `SelectedGameSessionHost` замінює активну session тільки після скасування/drain старої; Stage 3 ще не надає production другого game module.
 
 ---
 
@@ -161,7 +162,8 @@ MainForm всередині себе додатково створює applicati
 
 ```
 MainForm
-├── BdoGameSession ──────────── concrete BDO runtime boundary
+├── SelectedGameSessionHost ─── one active concrete BDO runtime boundary
+│   └── BdoGameSession
 │   ├── ConfigStore ─────────── GamePersistencePaths, ILogger
 │   ├── InstallationStateStore ─ GamePersistencePaths, ILogger
 │   ├── BackupStore ─────────── GamePersistencePaths, ILogger, BdoGameDefinition

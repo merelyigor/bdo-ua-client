@@ -125,8 +125,18 @@ static class Program
         ILogger logger = new FileLogger(appPaths.LogsDir);
         var applicationConfigStore = new ApplicationConfigStore(appPaths, logger);
         var appVersionInfo = AppVersionInfo.Detect();
-        using var gameSession = BdoGameSession.CreateProduction(appPaths, logger, appVersionInfo);
-        var gameCatalog = GameCatalog.Create(gameSession.GameDefinition);
+        var gameDefinition = BdoGameDefinition.Default;
+        var gameCatalog = GameCatalog.Create(gameDefinition);
+        BdoGameSession CreateSession(GameDescriptor descriptor)
+        {
+            if (!string.Equals(descriptor.Id, gameDefinition.Id, StringComparison.Ordinal))
+                throw new InvalidOperationException($"Unsupported production game '{descriptor.Id}'.");
+
+            return BdoGameSession.CreateProduction(appPaths, logger, appVersionInfo);
+        }
+
+        var initialSession = CreateSession(gameCatalog.DefaultGame);
+        using var gameSessionHost = new SelectedGameSessionHost(initialSession, CreateSession);
 
         logger.Info($"Application started. version={appVersionInfo.RawVersion}");
 
@@ -145,7 +155,7 @@ static class Program
         try
         {
             Application.Run(new MainForm(
-                applicationConfigStore, gameCatalog, gameSession, logger,
+                applicationConfigStore, gameCatalog, gameSessionHost, logger,
                 appVersionInfo, gitHubClient, selectionPolicy, appPaths,
                 autostartService, startInBackground, coordinator));
         }
