@@ -1,4 +1,4 @@
-# Архітектура BDO-UA Client
+# Архітектура Хабу українізаторів
 
 ## 1. Структура каталогів
 
@@ -63,7 +63,7 @@ BDO-PROGRAM/
 │   ├── DynamicModePolicy.cs    — Політика динамічних режимів
 │   └── HashHelper.cs           — SHA-256 хешування та захищене копіювання файлів
 │
-├── Update/                     — Self-update клієнта (Stage 13, див. docs/update.md)
+├── Update/                     — Self-update застосунку (Stage 13, див. docs/update.md)
 │   ├── ApplicationCommandLine.cs — Парсинг --apply-update <session-id>
 │   ├── AppVersion.cs / AppVersionInfo.cs — Numeric версія та детекція поточної версії EXE
 │   ├── GitHubRelease.cs / GitHubResult.cs / GitHubUpdateClient.cs — Клієнт GitHub Releases (без токена)

@@ -53,16 +53,16 @@ public partial class MainForm : Form
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private const string UninstallInstructions =
-        "BDO-UA Client — portable-застосунок. Він не встановлюється через Windows Installer і не має окремого деінсталятора у Windows." +
+        "«Хаб українізаторів» — portable-застосунок. Він не встановлюється через Windows Installer і не має окремого деінсталятора у Windows." +
         "\n\n" +
         "Звичайне видалення:\n" +
         "1. Якщо увімкнено автозапуск, вимкніть його в меню трея «Запускати разом із Windows».\n" +
-        "2. Повністю завершіть клієнт: відкрийте меню трея та виберіть «Вихід». Натискання X лише ховає клієнт у трей.\n" +
+        "2. Повністю завершіть застосунок: відкрийте меню трея та виберіть «Вихід». Натискання X лише ховає застосунок у трей.\n" +
         "3. Видаліть файл BDO-UA-Client.exe." +
         "\n\n" +
-        "Повне очищення даних (необов’язково): після завершення клієнта можна видалити папку %LocalAppData%\\BDO-UA-Client. У ній можуть зберігатися конфігурація, логи, стан встановлення, тимчасові cache-файли, резервні копії та дані сесій оновлення. Видаляйте цю папку лише якщо хочете втратити ці дані." +
+        "Повне очищення даних (необов’язково): після завершення застосунку можна видалити папку %LocalAppData%\\BDO-UA-Client. У ній можуть зберігатися конфігурація, логи, стан встановлення, тимчасові cache-файли, резервні копії та дані сесій оновлення. Видаляйте цю папку лише якщо хочете втратити ці дані." +
         "\n\n" +
-        "Важливо: видалення клієнта або його даних не відновлює і не видаляє локалізацію у Black Desert Online. Якщо потрібно повернути оригінальну локалізацію гри, спочатку використайте в клієнті дію «Відновити оригінал», а вже потім завершіть і видаліть клієнт.";
+        "Важливо: видалення застосунку або його даних не відновлює і не видаляє локалізацію у Black Desert Online. Якщо потрібно повернути оригінальну локалізацію гри, спочатку використайте в застосунку дію «Відновити оригінал», а вже потім завершіть і видаліть застосунок.";
 
     private string? _gameRoot;
     private DetectionSource? _gameDetectionSource;
@@ -158,6 +158,7 @@ public partial class MainForm : Form
         _gameSessionGeneration = generation;
         _gameSessionCts = new CancellationTokenSource();
         _selectedGame = session.Descriptor;
+        gameSectionCaptionLabel.Text = _selectedGame.DisplayName;
         _configStore = session.ConfigStore;
         _apiClient = session.ApiClient;
         _gameDetector = session.GameDetector;
@@ -369,6 +370,9 @@ public partial class MainForm : Form
         SetControlsDuringOperation(!value);
     }
     internal ComboBox GameSelector => gameSelectorComboBox;
+    internal string GameSectionCaption => gameSectionCaptionLabel.Text;
+    internal string UninstallHelpText => uninstallHelpLink.Text;
+    internal string TrayTooltipText => _notifyIcon.Text;
 
     private void InitializeGameSelector()
     {
@@ -655,7 +659,7 @@ public partial class MainForm : Form
         MessageBox.Show(
             this,
             UninstallInstructions,
-            "Як видалити BDO-UA Client?",
+            $"Як видалити {ApplicationBrand.DisplayName}?",
             MessageBoxButtons.OK,
             MessageBoxIcon.Information);
     }

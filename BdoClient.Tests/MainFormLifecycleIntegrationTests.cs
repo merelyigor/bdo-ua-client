@@ -31,6 +31,7 @@ public sealed class MainFormLifecycleIntegrationTests
         await fixture.WaitForAsync(form =>
             form.SelectedGame.Id == "synthetic-game"
             && form.GameSelector.Text == "Synthetic Game"
+            && form.GameSectionCaption == "Synthetic Game"
             && !form.IsSwitchInProgress
             && form.ActivePersistenceRoot == fixture.AppPaths.GetGamePersistencePaths("synthetic-game").Root);
         var config = new ApplicationConfigStore(fixture.AppPaths, new MainFormTestFixture.TestLogger()).Load();
@@ -51,6 +52,7 @@ public sealed class MainFormLifecycleIntegrationTests
         await fixture.WaitForAsync(form =>
             form.SelectedGame.Id == "synthetic-game"
             && form.GameSelector.Text == "Synthetic Game"
+            && form.GameSectionCaption == "Synthetic Game"
             && !form.IsSwitchInProgress
             && form.ActivePersistenceRoot == fixture.AppPaths.GetGamePersistencePaths("synthetic-game").Root);
 
@@ -83,6 +85,7 @@ public sealed class MainFormLifecycleIntegrationTests
         await fixture.WaitForAsync(form =>
             form.SelectedGame.Id == "black-desert-online"
             && form.GameSelector.Text == "Black Desert Online"
+            && form.GameSectionCaption == "Black Desert Online"
             && !form.IsSwitchInProgress
             && form.ActivePersistenceRoot == fixture.AppPaths.GetGamePersistencePaths("black-desert-online").Root);
 
@@ -195,9 +198,13 @@ public sealed class MainFormLifecycleIntegrationTests
         Assert.True(startup.ApiRequestCount >= 1);
         Assert.True(startup.GitHubRequestCount >= 1);
         Assert.Equal("Хаб українізаторів", fixture.Form.Text);
+        Assert.Equal("Хаб українізаторів", MainFormTestFixture.FindControlText(fixture.Form, text => text == "Хаб українізаторів"));
         Assert.Equal("Українські локалізації для ігор", MainFormTestFixture.FindControlText(fixture.Form, text => text == "Українські локалізації для ігор"));
         Assert.Single(fixture.Form.GameSelector.Items.Cast<GameDescriptor>());
         Assert.Equal("Black Desert Online", fixture.Form.GameSelector.Text);
+        Assert.Equal("Black Desert Online", fixture.Form.GameSectionCaption);
+        Assert.Equal("Як видалити застосунок?", fixture.Form.UninstallHelpText);
+        Assert.Equal("Хаб українізаторів", fixture.Form.TrayTooltipText);
         Assert.False(fixture.Form.GameSelector.Enabled);
     }
 

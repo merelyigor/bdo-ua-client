@@ -1,17 +1,17 @@
-# Технічна документація BDO UA Client
+# Технічна документація Хабу українізаторів
 
 ## Навігація
 
 | Документ | Опис |
 |---|---|
 | [architecture.md](architecture.md) | Архітектура проєкту, структура каталогів |
-| [api.md](api.md) | API клієнт та моделі даних |
+| [api.md](api.md) | API застосунку та моделі даних |
 | [services.md](services.md) | Сервісний шар: детекція, встановлення, відновлення |
 | [storage.md](storage.md) | Конфігурація, стан, бекапи |
 | [ui.md](ui.md) | Користувацький інтерфейс |
 | [states.md](states.md) | Моделі станів: LocalizationState, OperationState |
 | [testing.md](testing.md) | Тестування |
-| [update.md](update.md) | Self-update клієнта (GitHub Releases, Stage 13) |
+| [update.md](update.md) | Self-update застосунку (GitHub Releases, Stage 13) |
 | [build.md](build.md) | Збірка, CI та реліз |
 | [Релізи](releases/README.md) | Процедура релізу та архів реліз-нотаток |
 | [Дизайн](design/BDO_THEME_PLAN.md) | BDO-тема UI (план та кольори) |
@@ -23,7 +23,7 @@
 
 - **Платформа:** Windows x64, .NET 8, WinForms
 - **Пакування:** self-contained single-file (BDO-UA-Client.exe)
-- **Оновлення клієнта:** GitHub Releases `merelyigor/bdo-ua-client`, canonical ZIP transport (schema-2 manifest)
+- **Оновлення застосунку:** GitHub Releases `merelyigor/bdo-ua-client`, canonical ZIP transport (schema-2 manifest)
 - **Тести:** 907 автоматизованих тестів (за останнім Release validation)
 - **Стабільний реліз:** v1.2.2, опублікований з canonical ZIP self-update/release transport
 - **Плани:** усі approved implementation plans заархівовані; ACTIVE plan немає, наступна product roadmap ще не затверджена

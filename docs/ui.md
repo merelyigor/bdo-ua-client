@@ -46,9 +46,9 @@
 - **gameSelectorComboBox** — native `DropDownList` selector «Гра»; production catalog currently contains only «Black Desert Online», so the selector is disabled until real game switching is implemented.
 - **headerAccentLine** — акцентна лінія 2px.
 - **rightUtilityPanel** (праворуч):
-  - **updateButton** — «Оновити до vX.Y.Z». Прихований за замовчуванням; з'являється, коли знайдено candidate оновлення клієнта. Стани обчислюються через `UpdateButtonState.Compute(...)`; під час localization-операцій оновлення заблоковане (взаємовиключність, AGENTS §41.9).
+  - **updateButton** — «Оновити до vX.Y.Z». Прихований за замовчуванням; з'являється, коли знайдено candidate оновлення застосунку. Стани обчислюються через `UpdateButtonState.Compute(...)`; під час localization-операцій оновлення заблоковане (взаємовиключність, AGENTS §41.9).
   - **versionLabel** — поточна версія застосунку.
-  - **uninstallHelpLink** — secondary link «Як видалити клієнт?», відкриває лише інформаційну підказку без змін EXE, AppData, реєстру чи файлів гри.
+  - **uninstallHelpLink** — secondary link «Як видалити застосунок?», відкриває лише інформаційну підказку без змін EXE, AppData, реєстру чи файлів гри.
   - **logsButton** — іконка 32×32, tooltip «Відкрити папку журналів».
 
 ---
@@ -78,8 +78,8 @@ API запит та локальна детекція запускаються �
 
 ### Degraded release feed
 
-Якщо /releases недоступний, клієнт використовує валідний last-known feed з
-%LocalAppData%\BDO-UA-Client\cache\release-feed.json, якщо він є. Картки режимів і
+Якщо /releases недоступний, застосунок використовує валідний last-known feed з
+%LocalAppData%\BDO-UA-Client\games\black-desert-online\cache\release-feed.json, якщо він є. Картки режимів і
 локальний стан залишаються доступними для перегляду, а під operation strip показується
 час збереження та повідомлення, що встановлення й оновлення очікують відновлення
 з'єднання. Cached feed не використовується для API-assisted detection і не дозволяє

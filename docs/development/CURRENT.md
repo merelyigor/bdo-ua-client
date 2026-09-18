@@ -4,13 +4,13 @@
 
 ## Project Purpose / Status
 
-BDO-UA Client — Windows .NET 8 WinForms застосунок для пошуку Black Desert Online, отримання українських локалізацій через `bdo-ua.com.ua`, безпечного встановлення, оновлення та відновлення файлів гри.
+Хаб українізаторів — Windows .NET 8 WinForms застосунок для роботи з українськими локалізаціями ігор. Поточна production-підтримка охоплює Black Desert Online через `bdo-ua.com.ua`, включно з безпечним встановленням, оновленням та відновленням файлів гри.
 
 Стабільний реліз: **v1.2.7**. Публічний stable release опубліковано з tag v1.2.7; canonical application bundle містить один ZIP-asset. Offline/degraded release-feed implementation завершено та прийнято зовнішнім Architect.
 
-Поточна наступна дія: external Architect review of Stage 4 implementation.
+Поточна наступна дія: external Architect review + Owner visual smoke для Stage 5 full visible rebrand.
 
-Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-multigame` for the future `Хаб українізаторів` / multi-game transition. v1.2.7 external release acceptance is complete; Stage 0 is complete, Stage 1, Stage 2 and Stage 3 are reviewed/accepted, and Stage 4 is the current authorized scope.
+Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-multigame` for the future `Хаб українізаторів` / multi-game transition. v1.2.7 external release acceptance is complete; Stage 0 is complete, Stage 1, Stage 2, Stage 3 and Stage 4 are reviewed/accepted, and Stage 5 is the current authorized scope.
 
 ## Architecture Summary
 
@@ -101,9 +101,9 @@ Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-mu
 
 - v1.2.3 release cycle is completed and archived.
 - Offline/degraded release-feed mode is completed, reviewed and accepted; `offline-degraded-reliability` is archived.
-- `game-boundary-refactoring` is archived; Stage 1 and Stage 2 are reviewed/accepted. `localization-hub-multigame` is the sole ACTIVE PRIMARY roadmap; Stage 0 is complete, Stage 1, Stage 2 and Stage 3 are reviewed/accepted, and Stage 4 is next.
+- `game-boundary-refactoring` is archived; Stage 1 and Stage 2 are reviewed/accepted. `localization-hub-multigame` is the sole ACTIVE PRIMARY roadmap; Stage 0 is complete, Stage 1, Stage 2, Stage 3 and Stage 4 are reviewed/accepted, and Stage 5 is current.
 - v1.2.5 release cycle completed; public Release verified and `NEXT.json` reset for the next cycle.
 - v15.64/v15.65 — **REVIEWED / ACCEPTED; OWNER VISUAL SMOKE ACCEPTED**: для трьох і більше режимів локалізації додано компактний minimum window width і збережено його під час semantic rebuild; single-mode global status width збережено.
 - v1.2.7 — **RELEASED / PUBLIC VERIFIED / RELEASE REVIEWED / ACCEPTED**: public Release ID `391117230` опубліковано на tag `v1.2.7`, який вказує на exact approved RC SHA `b21118d1ec8e6d0342fb0e47544e911fcb875739`; canonical ZIP і внутрішні hashes повторно перевірено, Owner native smoke exact RC прийнято.
-- `localization-hub-multigame` — **ACTIVE / PRIMARY**: Stage 0 complete; Stage 1 — **REVIEWED / ACCEPTED**; Stage 2 — **REVIEWED / ACCEPTED**; Stage 3 — **REVIEWED / ACCEPTED**; Stage 4 — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**; Stage 5 has not started.
-- Next action: external Architect review of Stage 4 implementation.
+- `localization-hub-multigame` — **ACTIVE / PRIMARY**: Stage 0 complete; Stage 1 — **REVIEWED / ACCEPTED**; Stage 2 — **REVIEWED / ACCEPTED**; Stage 3 — **REVIEWED / ACCEPTED**; Stage 4 — **REVIEWED / ACCEPTED**; Stage 5 — **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW + OWNER VISUAL SMOKE**.
+- Next action: external Architect review + Owner visual smoke for Stage 5; Stage 6 has not started.

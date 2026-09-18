@@ -56,7 +56,7 @@ public partial class MainForm
         _notifyIcon = new NotifyIcon(components!)
         {
             ContextMenuStrip = _trayMenu,
-            Text = "BDO UA Client",
+            Text = ApplicationBrand.DisplayName,
             Visible = false
         };
 
@@ -116,8 +116,8 @@ public partial class MainForm
         {
             _notifyIcon.ShowBalloonTip(
                 5000,
-                "BDO UA Client",
-                "Доступне оновлення української локалізації.",
+                ApplicationBrand.DisplayName,
+                $"Доступне оновлення української локалізації для {_selectedGame.DisplayName}.",
                 ToolTipIcon.Info);
         }
         catch (Exception ex)
@@ -142,8 +142,8 @@ public partial class MainForm
         {
             _notifyIcon.ShowBalloonTip(
                 5000,
-                "BDO UA Client",
-                $"Доступна нова версія BDO UA Client {candidateTag}. Відкрийте програму, щоб оновитися.",
+                ApplicationBrand.DisplayName,
+                $"Доступна нова версія «{ApplicationBrand.DisplayName}» {candidateTag}. Відкрийте застосунок, щоб оновитися.",
                 ToolTipIcon.Info);
         }
         catch (Exception ex)
@@ -328,7 +328,7 @@ public partial class MainForm
         }
 
         var result = MessageBox.Show(
-            "Запускати BDO UA Client разом із Windows?\nПрограма автоматично запускатиметься у фоновому режимі в області сповіщень.",
+            $"Запускати «{ApplicationBrand.DisplayName}» разом із Windows?\nЗастосунок автоматично запускатиметься у фоновому режимі в області сповіщень.",
             "Автозапуск",
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Question);

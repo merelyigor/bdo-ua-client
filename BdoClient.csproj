@@ -8,6 +8,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>BdoClient</RootNamespace>
     <AssemblyName>BdoClient</AssemblyName>
+    <AssemblyTitle>Хаб українізаторів</AssemblyTitle>
+    <Product>Хаб українізаторів</Product>
+    <Description>Windows-хаб для українських локалізацій ігор.</Description>
     <ApplicationIcon>assets\bdo-ua-icon.ico</ApplicationIcon>
   </PropertyGroup>
 

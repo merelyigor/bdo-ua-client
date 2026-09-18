@@ -1,4 +1,4 @@
-# Self-update клієнта (Stage 13)
+# Self-update Хабу українізаторів (Stage 13)
 
 Механізм оновлення самого застосунку. Джерело — публічні GitHub Releases репозиторію `merelyigor/bdo-ua-client`. Без custom backend, без GitHub token, без HTTP (тільки HTTPS).
 

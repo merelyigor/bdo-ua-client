@@ -3,14 +3,14 @@
 ## Current focus
 
 **Primary:** `localization-hub-multigame`
-**Current phase:** Stage 4 — Complete per-game runtime data isolation
-**Next:** external Architect review of Stage 4 implementation
+**Current phase:** Stage 5 — Full visible rebrand
+**Next:** external Architect review + Owner visual smoke
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| PRIMARY | `localization-hub-multigame` | [active/localization-hub-multigame.md](active/localization-hub-multigame.md) | Stage 4 — Complete per-game runtime data isolation | External Architect review |
+| PRIMARY | `localization-hub-multigame` | [active/localization-hub-multigame.md](active/localization-hub-multigame.md) | Stage 5 — Full visible rebrand | External Architect review + Owner visual smoke |
 
 ## Backlog
 

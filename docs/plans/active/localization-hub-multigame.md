@@ -4,8 +4,8 @@ Plan ID: `localization-hub-multigame`
 Status: ACTIVE
 Focus: PRIMARY
 Implementation authorization: **YES**
-Current phase: Stage 4 — Complete per-game runtime data isolation
-Next action: external Architect review of Stage 4 implementation
+Current phase: Stage 5 — Full visible rebrand
+Next action: external Architect review + Owner visual smoke
 Dependencies: v1.2.7 — RELEASE REVIEWED / ACCEPTED
 
 ## Goal
@@ -96,11 +96,13 @@ Current state: **REVIEWED / ACCEPTED**. The concrete `SelectedGameSessionHost` o
 
 Move feed cache and any remaining game-specific global state under game scope while preserving global logs, updater and temp data. Prove no cross-game data bleed. Depends on the session boundary.
 
-Current state: **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**. Release-feed cache ownership is now under `GamePersistencePaths`; the historical global BDO cache is imported best-effort only into the canonical BDO scope and retained as legacy residue. Stage 5 has not started.
+Current state: **REVIEWED / ACCEPTED**. Release-feed cache ownership is now under `GamePersistencePaths`; the historical global BDO cache is imported best-effort only into the canonical BDO scope and retained as legacy residue.
 
 ### Stage 5 — Full visible rebrand
 
 Make `Хаб українізаторів` the application-facing identity and update generic UI, tray, help, docs, README and product metadata while retaining selected-game BDO wording. Owner visual smoke required.
+
+Current state: **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW + OWNER VISUAL SMOKE**. Next action is external Architect review followed by Owner visual smoke. Stage 6 has not started.
 
 ### Stage 6 — Technical application identity centralization / bridge preparation
 
@@ -145,4 +147,4 @@ The roadmap depends on v1.2.7 release completion and explicit Owner activation. 
 
 ## Current progress
 
-Roadmap approved by Owner and activated after v1.2.7 external release acceptance. Stage 0 is complete and its dependency is satisfied. Stage 1 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 2 is **REVIEWED / ACCEPTED** after external pre-commit Architect review, commit and CI success. Stage 3 is **REVIEWED / ACCEPTED**; Stage 4 is **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**; Stage 5 has not started.
+Roadmap approved by Owner and activated after v1.2.7 external release acceptance. Stage 0 is complete and its dependency is satisfied. Stage 1 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 2 is **REVIEWED / ACCEPTED** after external pre-commit Architect review, commit and CI success. Stage 3 is **REVIEWED / ACCEPTED**; Stage 4 is **REVIEWED / ACCEPTED**; Stage 5 is **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW + OWNER VISUAL SMOKE**. Stage 6 has not started.

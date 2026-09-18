@@ -91,7 +91,7 @@ if ($sections.Count -eq 0) { $sections += "## Зміни`n`n- Технічне �
 
 $body = $sections -join "`n`n"
 $notes = @"
-# BDO UA Client $Version
+# Хаб українізаторів $Version
 
 Версія: $Version
 Тег: $Tag

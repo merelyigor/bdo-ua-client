@@ -14,7 +14,7 @@ internal sealed class UpdateApplyingForm : Form
     {
         _applyUpdate = applyUpdate ?? throw new ArgumentNullException(nameof(applyUpdate));
 
-        Text = "BDO UA Client — оновлення";
+        Text = $"{ApplicationBrand.DisplayName} — оновлення";
         ClientSize = new Size(480, 178);
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
