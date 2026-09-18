@@ -4,13 +4,13 @@
 
 **Primary:** `localization-hub-multigame`
 **Current phase:** Stage 7 — Repository rename bridge release + rename
-**Next:** Owner live self-update from exact public v1.2.7 to public v1.2.8; repository rename remains an explicit Owner operational gate
+**Next:** external Architect review of rename evidence, then bounded post-rename repository-reference normalization
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| PRIMARY | `localization-hub-multigame` | [active/localization-hub-multigame.md](active/localization-hub-multigame.md) | Stage 7 — Repository rename bridge release + rename | Owner live self-update from exact public v1.2.7 to public v1.2.8; repository rename remains Owner gate |
+| PRIMARY | `localization-hub-multigame` | [active/localization-hub-multigame.md](active/localization-hub-multigame.md) | Stage 7 — Repository rename bridge release + rename | External Architect review of rename evidence, then bounded post-rename reference normalization |
 
 ## Backlog
 

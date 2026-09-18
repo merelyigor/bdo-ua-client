@@ -8,9 +8,9 @@
 
 Стабільний реліз: **v1.2.8**. Публічний stable release опубліковано з tag v1.2.8; canonical application bundle містить один ZIP-asset. Offline/degraded release-feed implementation завершено та прийнято зовнішнім Architect.
 
-Поточна наступна дія: Owner live self-update from exact public v1.2.7 to public v1.2.8; repository rename remains an explicit Owner operational gate.
+Поточна наступна дія: external Architect review of rename evidence, then bounded post-rename repository-reference normalization.
 
-Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-multigame` for the future `Хаб українізаторів` / multi-game transition. v1.2.7 external release acceptance is complete; Stage 0 through Stage 6 are reviewed/accepted, and Stage 7B is publicly verified with the live legacy update still pending.
+Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-multigame` for the future `Хаб українізаторів` / multi-game transition. v1.2.7 external release acceptance is complete; Stage 0 through Stage 6 are reviewed/accepted, and Stage 7 repository rename evidence is operationally verified pending external Architect review of the next normalization task.
 
 ## Architecture Summary
 
@@ -92,6 +92,13 @@ Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-mu
 - Public asset ID `572906634`, `BDO-UA-Client-v1.2.8-win-x64.zip`, size `67,924,024` bytes, SHA-256 `33d4f7baacac5b5a38a28140295663e6b1f865b01231e8845e6b46f1f87bf6f2`; public re-download matches the accepted RC exactly.
 - Public ZIP повторно пройшов чотирифайлову, EXE, manifest, `SHA256SUMS.txt` та release-notes validation. Lifecycle: **RELEASED / PUBLIC VERIFIED / LIVE LEGACY UPDATE PENDING**; repository rename не авторизовано.
 
+## Stage 7 post-rename operational evidence
+
+- Repository `merelyigor/bdo-ua-client` перейменовано в `merelyigor/ua-localization-hub`; repository ID `1332444174` збережено. Description оновлено на актуальний Hub wording, local origin переключено на `https://github.com/merelyigor/ua-localization-hub.git`, а main/історія/tags/releases/Actions збережено.
+- Owner live public v1.2.7 → v1.2.8 self-update: **ACCEPTED**. Після rename exact shipping v1.2.8 успішно виконав update discovery: `GitHub update: fetched 17 releases from bdo-ua-client`, `Update: no eligible newer release found`, `Update check: no eligible update`; повторна перевірка також завершилася без помилки. Exact v1.2.7 після rename знайшов candidate v1.2.8.
+- Old repository page, Releases page, v1.2.8 URL і public asset redirect/resolve коректно; old API endpoint повертає GitHub move behavior до repository ID `1332444174`; old asset зберігає exact SHA-256 `33d4f7baacac5b5a38a28140295663e6b1f865b01231e8845e6b46f1f87bf6f2`.
+- Поточний стан: **REPOSITORY RENAMED / BRIDGE VERIFIED / POST-RENAME REFERENCE NORMALIZATION PENDING EXTERNAL ARCHITECT REVIEW**. Source/docs reference normalization не виконувалася.
+
 ## Important Invariants
 
 - API contract — `GET https://bdo-ua.com.ua/api/public/v1/releases`; актуальний release визначає сервер.
@@ -122,6 +129,6 @@ Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-mu
 - v1.2.5 release cycle completed; public Release verified and `NEXT.json` reset for the next cycle.
 - v15.64/v15.65 — **REVIEWED / ACCEPTED; OWNER VISUAL SMOKE ACCEPTED**: для трьох і більше режимів локалізації додано компактний minimum window width і збережено його під час semantic rebuild; single-mode global status width збережено.
 - v1.2.7 — **RELEASED / PUBLIC VERIFIED / RELEASE REVIEWED / ACCEPTED**: public Release ID `391117230` опубліковано на tag `v1.2.7`, який вказує на exact approved RC SHA `b21118d1ec8e6d0342fb0e47544e911fcb875739`; canonical ZIP і внутрішні hashes повторно перевірено, Owner native smoke exact RC прийнято.
-- v1.2.8 — **RELEASED / PUBLIC VERIFIED / LIVE LEGACY UPDATE PENDING**: public Release ID `391585430` опубліковано на tag `v1.2.8`, який вказує на exact RC SHA `7cb740d55bc7baeb5aa9f91365114e68bb88eff9`; public asset повторно завантажено й перевірено. Owner live v1.2.7 → v1.2.8 update ще не виконано; repository rename не авторизовано.
-- `localization-hub-multigame` — **ACTIVE / PRIMARY**: Stage 0 complete; Stage 1 — **REVIEWED / ACCEPTED**; Stage 2 — **REVIEWED / ACCEPTED**; Stage 3 — **REVIEWED / ACCEPTED**; Stage 4 — **REVIEWED / ACCEPTED**; Stage 5 — **REVIEWED / ACCEPTED**; Stage 6 — **REVIEWED / ACCEPTED**; Stage 7B — **BRIDGE RELEASE v1.2.8 PUBLISHED / PUBLIC VERIFIED / LIVE UPDATE PENDING**.
-- Next action: Owner live self-update from exact public v1.2.7 to public v1.2.8; the actual repository rename remains an explicit Owner operational gate.
+- v1.2.8 — **RELEASED / PUBLIC VERIFIED**: public Release ID `391585430` опубліковано на tag `v1.2.8`, який вказує на exact RC SHA `7cb740d55bc7baeb5aa9f91365114e68bb88eff9`; public asset повторно завантажено й перевірено. Owner live legacy update accepted.
+- `localization-hub-multigame` — **ACTIVE / PRIMARY**: Stage 0 complete; Stage 1 — **REVIEWED / ACCEPTED**; Stage 2 — **REVIEWED / ACCEPTED**; Stage 3 — **REVIEWED / ACCEPTED**; Stage 4 — **REVIEWED / ACCEPTED**; Stage 5 — **REVIEWED / ACCEPTED**; Stage 6 — **REVIEWED / ACCEPTED**; Stage 7 — **REPOSITORY RENAMED / BRIDGE VERIFIED / POST-RENAME REFERENCE NORMALIZATION PENDING EXTERNAL ARCHITECT REVIEW**.
+- Next action: external Architect review of rename evidence, then bounded post-rename repository-reference normalization.
