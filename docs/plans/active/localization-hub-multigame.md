@@ -5,12 +5,19 @@ Status: ACTIVE
 Focus: PRIMARY
 Implementation authorization: **YES**
 Current phase: Stage 7 — Repository rename bridge release + rename
-Next action: external Architect review of rename evidence, then bounded post-rename repository-reference normalization
+Next action: external final Architect review of committed Stage 7 normalization
 Dependencies: v1.2.7 — RELEASE REVIEWED / ACCEPTED
 
 ## Goal
 
 Перетворити BDO-UA Client на один Windows launcher/hub для кількох незалежних ігор із локалізаціями. Майбутня публічна назва застосунку — `Хаб українізаторів`. На початку production catalog містить лише Black Desert Online; друга гра не вигадується без реального продуктового та API-контракту.
+
+## Product targets
+
+- `Black Desert Online` — localization project `BDO UA Translate`, [bdo-ua.com.ua](https://bdo-ua.com.ua/), **INTEGRATED / AVAILABLE**.
+- `Where Winds Meet` — localization project `Winds4UA (W4U)`, [winds4ua.com.ua](https://winds4ua.com.ua/), **PLANNED / INTEGRATION PENDING**.
+
+Where Winds Meet is a known product target, not a registered runtime game. Its API, detection, install, patch, restore, backup and compatibility contract are not yet available and must not be invented.
 
 ## Context
 
@@ -50,7 +57,7 @@ Existing game-scoped config/state/backups remain isolated. Before multiple live 
 
 ### API boundary
 
-BDO API DTOs and `/releases` contract remain BDO implementation detail until a real Game B contract exists. At that point compare concrete APIs and extract only proven common application-facing semantics; do not invent universal DTOs or a feed framework.
+BDO API DTOs and `/releases` contract remain BDO implementation detail until the real Where Winds Meet / Winds4UA contract exists. At that point compare the concrete APIs and extract only proven common application-facing semantics; do not invent universal DTOs or a feed framework.
 
 ### Visible rebrand
 
@@ -64,13 +71,13 @@ Do not rename/migrate the LocalAppData root in the initial hub roadmap. Existing
 
 ### Repository and package rename
 
-The proposed repository target is `merelyigor/ua-localization-hub`. A bridge-compatible release must precede any actual GitHub rename, which is an explicit Owner operational gate. The bridge must retain legacy fallback so old clients can update; after rename verify history/identity, local `origin`, Actions, releases, redirects, API behavior and update discovery. Never create a replacement repository at the old slug.
+The repository is now canonical at `merelyigor/ua-localization-hub`; `merelyigor/bdo-ua-client` remains a legacy redirected compatibility slug and must never be reused. The bridge release retained legacy fallback so old clients could update; after rename history/identity, local `origin`, Actions, releases, redirects, API behavior and update discovery were verified.
 
 Visible rebrand and technical EXE/package/autostart rename are separate. First use the new display identity while retaining legacy physical names. Optional later rename requires updater support for both identities, add-new/verify/remove-old autostart migration, and an old-client update test. It must not be required for the first hub release.
 
 ### Second-game onboarding gate
 
-Before Game B implementation, Owner must supply actual game name/id, launchers and Steam App ID if applicable, registry/detection facts, validation markers, target files, patch/version detection, API endpoints and JSON schema, modes/releases, public ids/version/hash/size/download metadata, compatibility semantics, restore-original strategy, backup/rollback requirements and selector assets. No architecture decision for Game B is made from assumptions.
+Before Where Winds Meet implementation, Owner must supply actual stable game id, launchers and Steam App ID if applicable, registry/detection facts, validation markers, target files, patch/version detection, API endpoints and JSON schema, modes/releases, public ids/version/hash/size/download metadata, compatibility semantics, restore-original strategy, backup/rollback requirements and selector assets. No architecture decision for WWM is made from assumptions.
 
 ## Roadmap
 
@@ -80,7 +87,7 @@ Close v1.2.7 and obtain external release acceptance. Owner explicitly activates 
 
 ### Stage 1 — Hub shell + selected-game model
 
-Add the visible hub shell foundations, compile-time `GameCatalog` with BDO only, selector and persisted selection/fallback while preserving BDO behavior. No fake Game B network or filesystem behavior. Owner visual smoke required.
+Add the visible hub shell foundations, compile-time `GameCatalog` with BDO only, selector and persisted selection/fallback while preserving BDO behavior. No fake WWM network or filesystem behavior. Owner visual smoke required.
 
 ### Stage 2 — Game runtime/session architecture
 
@@ -108,25 +115,29 @@ Current state: **REVIEWED / ACCEPTED**. External Architect review and Owner visu
 
 Centralize legacy/new repository, executable/package, User-Agent and autostart identities; preserve updater compatibility and avoid persistence-root migration. Self-update compatibility change: external pre-commit review.
 
-Current state: **REVIEWED / ACCEPTED**. External pre-commit Architect review completed with BLOCKER 0 and IMPORTANT 0. Active technical compatibility identities are centralized without changing physical executable, package, autostart or LocalAppData names. GitHub release discovery tries the current repository first and uses the approved future repository only after a legacy HTTP 404.
+Current state: **REVIEWED / ACCEPTED**. External pre-commit Architect review completed with BLOCKER 0 and IMPORTANT 0. Active technical compatibility identities are centralized without changing physical executable, package, autostart or LocalAppData names. GitHub release discovery now tries the canonical repository first and uses the legacy compatibility slug only after a canonical HTTP 404.
 
 ### Stage 7 — Repository rename bridge release + rename
 
-Ship the bridge-capable release, then wait for explicit Owner operational authorization to rename toward `merelyigor/ua-localization-hub`. Verify old/new URLs, redirects, history, origin, Actions, releases, API and old/new client update paths.
+Ship the bridge-capable release, perform the explicit Owner-authorized rename to `merelyigor/ua-localization-hub`, then normalize active repository references. Verify old/new URLs, redirects, history, origin, Actions, releases, API and old/new client update paths.
 
-Current state: **REPOSITORY RENAMED / BRIDGE VERIFIED / POST-RENAME REFERENCE NORMALIZATION PENDING EXTERNAL ARCHITECT REVIEW**. Repository `merelyigor/bdo-ua-client` was renamed to canonical `merelyigor/ua-localization-hub` without changing repository ID `1332444174`; v1.2.8 tag, release, asset, history and Actions were preserved. Owner accepted live public v1.2.7 → v1.2.8 self-update, and shipping v1.2.8 update discovery after rename passed. Old page, release and asset redirects plus old API move behavior were verified; local origin and repository description were updated. Source/reference normalization is a separate reviewed task.
+Current state: **POST-RENAME NORMALIZATION PRE-COMMIT REVIEWED / ACCEPTED / PENDING FINAL EXTERNAL REVIEW**. External Architect review accepted the canonical source/docs normalization with BLOCKER `0` and IMPORTANT `0`; commit, push and CI are authorized. Repository `merelyigor/bdo-ua-client` was renamed to canonical `merelyigor/ua-localization-hub` without changing repository ID `1332444174`; v1.2.8 tag, release, asset, history and Actions were preserved. Active source/docs now use the canonical slug while the old slug remains the tested compatibility fallback.
 
-### Stage 8 — Optional physical EXE/package/autostart migration
+### Stage 8A — Explicit supported-project UI
+
+Future authorized stage: make the application visibly communicate both target projects without pretending that Where Winds Meet is runnable. Show Black Desert Online — BDO UA Translate as available and Where Winds Meet — Winds4UA (W4U) as integration planned. Do not register WWM in the runtime catalog or invent an API/install contract.
+
+### Stage 8B — Optional physical EXE/package/autostart migration
 
 Only if still desired: support legacy and new artifact identities, migrate autostart add-new/verify/remove-old, and test updates from a legacy EXE. Do not automatically rename LocalAppData.
 
-### Stage 9 — Second-game contract analysis
+### Stage 9 — Where Winds Meet integration contract analysis
 
-WAITING ON PRODUCT DATA. Perform read-only analysis of the actual second-game detection, API, install, patch, restore and backup contract. No assumptions or implementation.
+WAITING ON TECHNICAL INTEGRATION DATA. Perform read-only analysis of the actual Where Winds Meet / Winds4UA (W4U) detection, API, install, patch, restore and backup contract. No assumptions or implementation.
 
-### Stage 10 — Real second-game implementation
+### Stage 10 — Real Where Winds Meet implementation
 
-Register and implement the actual second game through the proven runtime boundary, then validate selector behavior, BDO ↔ Game B ↔ BDO lifecycle, cross-game isolation and game-file rollback safety.
+Register and implement Where Winds Meet / Winds4UA (W4U) through the proven runtime boundary only after Stage 9 supplies its real contract, then validate selector behavior, BDO ↔ WWM ↔ BDO lifecycle, cross-game isolation and game-file rollback safety.
 
 ## Acceptance criteria
 
@@ -137,18 +148,18 @@ Register and implement the actual second game through the proven runtime boundar
 - Game mutation retains backup, restore and rollback guarantees.
 - Repository rename, if Owner proceeds, preserves redirects, releases and old-client update compatibility.
 - Physical EXE rename, if performed, is bridge-compatible; LocalAppData is not destructively migrated without a separate decision.
-- A real second game can be onboarded without a global rewrite, and its actual BDO ↔ Game B lifecycle is tested.
+- Where Winds Meet can be onboarded without a global rewrite once its actual contract is known, and the BDO ↔ WWM ↔ BDO lifecycle is tested.
 
 ## Non-goals
 
-Не входять: Game B до появи реального контракту; plugins/reflection/MEF/DLL loading; DI container; database; dynamic registry; broad MVVM rewrite; invented universal API/schema; blanket namespace rename; automatic LocalAppData migration; unrelated refactoring; зміни v1.2.7 release scope.
+Не входять: Where Winds Meet до появи реального технічного контракту; plugins/reflection/MEF/DLL loading; DI container; database; dynamic registry; broad MVVM rewrite; invented universal API/schema; blanket namespace rename; automatic LocalAppData migration; unrelated refactoring; зміни v1.2.7 release scope.
 
 ## Risks / dependencies
 
-High-risk/pre-commit review is required for the runtime architecture boundary, updater/repository identity bridge, physical EXE/autostart migration, any persistence-root migration, and materially different Game B file mutation. Selector shell, visible rebrand and scoped cache isolation after the boundary may use normal Combined mode, with Owner visual smoke for UI. Repository rename is always an Owner operational gate.
+High-risk/pre-commit review is required for the runtime architecture boundary, updater/repository identity bridge, physical EXE/autostart migration, any persistence-root migration, and materially different WWM file mutation. Selector shell, visible rebrand and scoped cache isolation after the boundary may use normal Combined mode, with Owner visual smoke for UI. Repository rename is always an Owner operational gate.
 
-The roadmap depends on v1.2.7 release completion and explicit Owner activation. Stage 9 is blocked on real Game B product data.
+The roadmap depends on v1.2.7 release completion and explicit Owner activation. Stage 9 is blocked on real Where Winds Meet / Winds4UA technical integration data.
 
 ## Current progress
 
-Roadmap approved by Owner and activated after v1.2.7 external release acceptance. Stage 0 is complete and its dependency is satisfied. Stage 1 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 2 is **REVIEWED / ACCEPTED** after external pre-commit Architect review, commit and CI success. Stage 3 is **REVIEWED / ACCEPTED**; Stage 4 is **REVIEWED / ACCEPTED**; Stage 5 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 6 is **REVIEWED / ACCEPTED** after external pre-commit Architect review. Stage 7 is **REPOSITORY RENAMED / BRIDGE VERIFIED / POST-RENAME REFERENCE NORMALIZATION PENDING EXTERNAL ARCHITECT REVIEW**; Stage 8 has not started.
+Roadmap approved by Owner and activated after v1.2.7 external release acceptance. Stage 0 is complete and its dependency is satisfied. Stage 1 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 2 is **REVIEWED / ACCEPTED** after external pre-commit Architect review, commit and CI success. Stage 3 is **REVIEWED / ACCEPTED**; Stage 4 is **REVIEWED / ACCEPTED**; Stage 5 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 6 is **REVIEWED / ACCEPTED** after external pre-commit Architect review. Stage 7 is **POST-RENAME NORMALIZATION PRE-COMMIT REVIEWED / ACCEPTED / PENDING FINAL EXTERNAL REVIEW** with BLOCKER `0` and IMPORTANT `0`; commit, push and CI are authorized. Stage 8A and Stage 8B have not started; Stage 9 is **WAITING ON TECHNICAL INTEGRATION DATA** for Where Winds Meet / Winds4UA (W4U).

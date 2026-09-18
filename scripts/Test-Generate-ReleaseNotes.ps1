@@ -55,7 +55,7 @@ try {
     Assert-True "item ordering preserved" ($valid.Output.IndexOf("перша можливість") -lt $valid.Output.IndexOf("друга можливість"))
     Assert-True "asset and hash rendered" ($valid.Output.Contains("BDO-UA-Client-v1.2.2-win-x64.zip") -and $valid.Output.Contains(("b" * 64)))
     Assert-True "Hub heading rendered" ($valid.Output.Contains("# Хаб українізаторів 1.2.2") -and -not $valid.Output.Contains("# BDO UA Client 1.2.2"))
-    Assert-True "legacy technical install contract retained" ($valid.Output.Contains("BDO-UA-Client.exe") -and $valid.Output.Contains("https://github.com/merelyigor/bdo-ua-client"))
+    Assert-True "canonical repository links and legacy technical install contract retained" ($valid.Output.Contains("BDO-UA-Client.exe") -and $valid.Output.Contains("https://github.com/merelyigor/ua-localization-hub") -and -not $valid.Output.Contains("https://github.com/merelyigor/bdo-ua-client"))
     Assert-True "Ukrainian installation and links rendered" ($valid.Output.Contains("## Як встановити") -and $valid.Output.Contains("## Посилання") -and $valid.Output.Contains("SmartScreen"))
 
     $emptyPath = Join-Path $tempRoot "empty.json"

@@ -11,7 +11,7 @@ public sealed class GitHubRepositoryBridgeTests
     private const string ReleasesJson = "[{\"tag_name\":\"v1.2.8\",\"draft\":false,\"prerelease\":false,\"published_at\":\"2026-01-01T00:00:00Z\",\"assets\":[]}]";
 
     [Fact]
-    public async Task LegacySuccess_DoesNotQueryFutureRepository()
+    public async Task CanonicalSuccess_DoesNotQueryLegacyRepository()
     {
         var handler = new RoutingHandler(
             (_, _) => Task.FromResult(Response(HttpStatusCode.OK, ReleasesJson)));
@@ -20,12 +20,12 @@ public sealed class GitHubRepositoryBridgeTests
 
         Assert.True(result.IsSuccess);
         Assert.Single(handler.Requests);
-        Assert.Contains("/repos/merelyigor/bdo-ua-client/releases", handler.Requests[0].RequestUri!.AbsoluteUri);
+        Assert.Contains("/repos/merelyigor/ua-localization-hub/releases", handler.Requests[0].RequestUri!.AbsoluteUri);
         Assert.Equal("BDO-UA-Client", handler.Requests[0].Headers.UserAgent.ToString());
     }
 
     [Fact]
-    public async Task LegacyNotFound_QueriesFutureRepositoryOnce()
+    public async Task CanonicalNotFound_QueriesLegacyRepositoryOnce()
     {
         var handler = new RoutingHandler(
             (_, _) => Task.FromResult(Response(HttpStatusCode.NotFound)),
@@ -35,8 +35,8 @@ public sealed class GitHubRepositoryBridgeTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(2, handler.Requests.Count);
-        Assert.Contains("/repos/merelyigor/bdo-ua-client/releases", handler.Requests[0].RequestUri!.AbsoluteUri);
-        Assert.Contains("/repos/merelyigor/ua-localization-hub/releases", handler.Requests[1].RequestUri!.AbsoluteUri);
+        Assert.Contains("/repos/merelyigor/ua-localization-hub/releases", handler.Requests[0].RequestUri!.AbsoluteUri);
+        Assert.Contains("/repos/merelyigor/bdo-ua-client/releases", handler.Requests[1].RequestUri!.AbsoluteUri);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class GitHubRepositoryBridgeTests
     }
 
     [Fact]
-    public async Task LegacyServerError_DoesNotQueryFutureRepository()
+    public async Task CanonicalServerError_DoesNotQueryLegacyRepository()
     {
         var handler = new RoutingHandler((_, _) => Task.FromResult(Response(HttpStatusCode.InternalServerError)));
 
@@ -66,7 +66,7 @@ public sealed class GitHubRepositoryBridgeTests
     }
 
     [Fact]
-    public async Task LegacyMalformedJson_DoesNotQueryFutureRepository()
+    public async Task CanonicalMalformedJson_DoesNotQueryLegacyRepository()
     {
         var handler = new RoutingHandler((_, _) => Task.FromResult(Response(HttpStatusCode.OK, "not json")));
 

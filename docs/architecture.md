@@ -120,9 +120,9 @@ BDO-PROGRAM/
 
 ## Technical identity boundary
 
-`ApplicationTechnicalIdentity` централізує активні compatibility identities для поточного update/startup/storage protocol: legacy repository `merelyigor/bdo-ua-client`, майбутній bridge target `merelyigor/ua-localization-hub`, User-Agent `BDO-UA-Client`, фізичний EXE `BDO-UA-Client.exe`, legacy package naming, autostart value та `%LocalAppData%\\BDO-UA-Client`. Stage 6 не перейменовує жодну з цих фізичних ідентичностей і не змінює `origin`.
+`ApplicationTechnicalIdentity` централізує активні compatibility identities для поточного update/startup/storage protocol: canonical repository `merelyigor/ua-localization-hub`, legacy fallback `merelyigor/bdo-ua-client`, User-Agent `BDO-UA-Client`, фізичний EXE `BDO-UA-Client.exe`, legacy package naming, autostart value та `%LocalAppData%\\BDO-UA-Client`. Repository rename уже виконано без зміни фізичних compatibility identities.
 
-`GitHubUpdateClient` виконує bounded ordered discovery: спочатку current repository, а future target — лише після legacy HTTP 404. Успішний legacy response, malformed JSON та інші HTTP failures не запускають fallback; asset URLs залишаються тими, які повернув GitHub.
+`GitHubUpdateClient` виконує bounded ordered discovery: спочатку canonical repository, а legacy fallback — лише після canonical HTTP 404. Успішний canonical response, malformed JSON та інші HTTP failures не запускають fallback; asset URLs залишаються тими, які повернув GitHub.
 
 ## 2. Composition Root
 

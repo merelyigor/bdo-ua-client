@@ -9,16 +9,25 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/merelyigor/bdo-ua-client/actions/workflows/ci.yml"><img src="https://github.com/merelyigor/bdo-ua-client/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/merelyigor/ua-localization-hub/actions/workflows/ci.yml"><img src="https://github.com/merelyigor/ua-localization-hub/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
 ---
 
 ## Про проект
 
-**Хаб українізаторів** — це Windows-хаб для встановлення та керування українськими локалізаціями ігор. Наразі підтримується [Black Desert Online](https://www.blackdesertonline.com/); майбутні ігри додаватимуться окремими етапами після визначення їхніх реальних контрактів.
+**Хаб українізаторів** — це Windows-хаб для встановлення та керування українськими локалізаціями ігор. Наразі функціонально інтегровано [Black Desert Online](https://www.blackdesertonline.com/); [Where Winds Meet](https://www.wherewindsmeetgame.com/) є наступною ціллю інтеграції, але ще не підтримується застосунком.
 
-Застосунок працює разом з [проектом українізації BDO](https://bdo-ua.com.ua/) та отримує актуальні релізи локалізації через публічний API. Режими локалізації та їх версії визначаються сервером — застосунок не містить захардкоджених списків.
+Застосунок працює разом із [BDO UA Translate](https://bdo-ua.com.ua/) та отримує актуальні релізи локалізації через публічний API. Режими локалізації та їх версії визначаються сервером — застосунок не містить захардкоджених списків.
+
+### Цільові проєкти локалізації
+
+| Гра | Проєкт | Статус |
+|---|---|---|
+| Black Desert Online | [BDO UA Translate](https://bdo-ua.com.ua/) | Доступно та інтегровано |
+| Where Winds Meet | [Winds4UA (W4U)](https://winds4ua.com.ua/) | Інтеграція запланована |
+
+Where Winds Meet / Winds4UA (W4U) ще не можна встановити через Хаб. Дата доступності не визначена; інтеграція залежить від окремого технічного контракту.
 
 Проєкт є волонтерським та підтримується спільнотою.
 
@@ -49,7 +58,7 @@
 
 ## Завантаження
 
-Офіційні збірки Хабу українізаторів публікуються на сторінці **[GitHub Releases](https://github.com/merelyigor/bdo-ua-client/releases)**.
+Офіційні збірки Хабу українізаторів публікуються на сторінці **[GitHub Releases](https://github.com/merelyigor/ua-localization-hub/releases)**.
 
 Завантажте canonical ZIP-архів:
 
@@ -77,7 +86,7 @@ Public release містить один GitHub-generated application ZIP. Усе�
 
 ### Як запустити
 
-1. Завантажте canonical ZIP тільки з офіційної сторінки [GitHub Releases](https://github.com/merelyigor/bdo-ua-client/releases) репозиторію `merelyigor/bdo-ua-client`.
+1. Завантажте canonical ZIP тільки з офіційної сторінки [GitHub Releases](https://github.com/merelyigor/ua-localization-hub/releases) репозиторію `merelyigor/ua-localization-hub`.
 2. Розпакуйте **BDO-UA-Client.exe**.
 3. Запустіть **BDO-UA-Client.exe**.
 4. Якщо з'явилось вікно SmartScreen, натисніть **"Докладніше"**.

@@ -6,7 +6,7 @@ public sealed class ApplicationTechnicalIdentityTests
     public void CurrentCompatibilityIdentitiesRemainUnchanged()
     {
         Assert.Equal("merelyigor/bdo-ua-client", ApplicationTechnicalIdentity.LegacyRepositorySlug);
-        Assert.Equal("merelyigor/ua-localization-hub", ApplicationTechnicalIdentity.FutureRepositorySlug);
+        Assert.Equal("merelyigor/ua-localization-hub", ApplicationTechnicalIdentity.CanonicalRepositorySlug);
         Assert.Equal("BDO-UA-Client.exe", ApplicationTechnicalIdentity.ExecutableFileName);
         Assert.Equal("BDO-UA-Client", ApplicationTechnicalIdentity.UserAgent);
         Assert.Equal("BDO-UA-Client", ApplicationTechnicalIdentity.AutostartValueName);
@@ -29,6 +29,6 @@ public sealed class ApplicationTechnicalIdentityTests
             ApplicationTechnicalIdentity.BuildReleasesApiUrl(ApplicationTechnicalIdentity.LegacyRepositoryName));
         Assert.Equal(
             "https://api.github.com/repos/merelyigor/ua-localization-hub/releases?per_page=100",
-            ApplicationTechnicalIdentity.BuildReleasesApiUrl(ApplicationTechnicalIdentity.FutureRepositoryName));
+            ApplicationTechnicalIdentity.BuildReleasesApiUrl(ApplicationTechnicalIdentity.CanonicalRepositoryName));
     }
 }

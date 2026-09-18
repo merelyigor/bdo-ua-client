@@ -722,7 +722,7 @@ BDO-UA-Client/
 
 ## §41 🔄 Оновлення клієнта
 
-§41.1 Джерело оновлень — публічні GitHub Releases репозиторію `merelyigor/bdo-ua-client`. Не використовувати bdo-ua.com.ua, custom backend, або GitHub token.
+§41.1 Джерело оновлень — публічні GitHub Releases канонічного репозиторію `merelyigor/ua-localization-hub`; legacy slug `merelyigor/bdo-ua-client` дозволений лише як compatibility fallback. Не використовувати bdo-ua.com.ua, custom backend, або GitHub token.
 
 §41.2 Перевірка оновлень — автоматична у background одразу після startup lifecycle maintenance і приблизно кожні 5 хвилин, поки процес працює, включно з tray/background. Restore та tray `Перевірити зараз` можуть запросити негайну перевірку. Запити single-flight, не перекриваються, не блокують UI, game detection або API loading і не завантажують/встановлюють оновлення автоматично.
 

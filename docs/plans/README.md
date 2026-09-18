@@ -4,13 +4,13 @@
 
 **Primary:** `localization-hub-multigame`
 **Current phase:** Stage 7 — Repository rename bridge release + rename
-**Next:** external Architect review of rename evidence, then bounded post-rename repository-reference normalization
+**Next:** external final Architect review of committed Stage 7 normalization
 
 ## Active plans
 
 | Focus | ID | Plan | Current phase | Next |
 |---|---|---|---|---|
-| PRIMARY | `localization-hub-multigame` | [active/localization-hub-multigame.md](active/localization-hub-multigame.md) | Stage 7 — Repository rename bridge release + rename | External Architect review of rename evidence, then bounded post-rename reference normalization |
+| PRIMARY | `localization-hub-multigame` | [active/localization-hub-multigame.md](active/localization-hub-multigame.md) | Stage 7 — Repository rename bridge release + rename | External final Architect review of committed Stage 7 normalization |
 
 ## Backlog
 

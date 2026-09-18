@@ -8,8 +8,8 @@ namespace BdoClient;
 internal static class ApplicationTechnicalIdentity
 {
     public const string RepositoryOwner = "merelyigor";
+    public const string CanonicalRepositoryName = "ua-localization-hub";
     public const string LegacyRepositoryName = "bdo-ua-client";
-    public const string FutureRepositoryName = "ua-localization-hub";
     public const string UserAgent = "BDO-UA-Client";
     public const string ExecutableFileName = "BDO-UA-Client.exe";
     public const string AutostartValueName = "BDO-UA-Client";
@@ -18,8 +18,8 @@ internal static class ApplicationTechnicalIdentity
     public const string LogFilePrefix = "bdo-ua-client";
     public const string ReplacementWorkspaceDirectoryName = ".bdo-ua-client-update";
 
+    public const string CanonicalRepositorySlug = RepositoryOwner + "/" + CanonicalRepositoryName;
     public const string LegacyRepositorySlug = RepositoryOwner + "/" + LegacyRepositoryName;
-    public const string FutureRepositorySlug = RepositoryOwner + "/" + FutureRepositoryName;
 
     public static string BuildReleasesApiUrl(string repositoryName)
         => $"https://api.github.com/repos/{RepositoryOwner}/{repositoryName}/releases?per_page=100";

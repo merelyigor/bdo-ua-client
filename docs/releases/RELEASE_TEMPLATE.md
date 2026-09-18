@@ -39,7 +39,7 @@ Internal EXE SHA-256:
 1. Завантажте `{{ASSET_NAME}}` з цієї сторінки
 2. Розпакуйте з архіву `BDO-UA-Client.exe`
 3. Запустіть `BDO-UA-Client.exe`
-4. Якщо Windows SmartScreen покаже попередження — натисніть "Докладніше" → "Виконати" (деталі: [README](https://github.com/merelyigor/bdo-ua-client#windows-smartscreen))
+4. Якщо Windows SmartScreen покаже попередження — натисніть "Докладніше" → "Виконати" (деталі: [README](https://github.com/merelyigor/ua-localization-hub#windows-smartscreen))
 
 ## Відомі проблеми / обмеження
 
@@ -48,9 +48,9 @@ Internal EXE SHA-256:
 ## Посилання
 
 - [bdo-ua.com.ua](https://bdo-ua.com.ua/)
-- [Репозиторій](https://github.com/merelyigor/bdo-ua-client)
-- [Інструкція](https://github.com/merelyigor/bdo-ua-client#readme)
-- [Технічна документація](https://github.com/merelyigor/bdo-ua-client/blob/main/docs/index.md)
+- [Репозиторій](https://github.com/merelyigor/ua-localization-hub)
+- [Інструкція](https://github.com/merelyigor/ua-localization-hub#readme)
+- [Технічна документація](https://github.com/merelyigor/ua-localization-hub/blob/main/docs/index.md)
 
 ---
 

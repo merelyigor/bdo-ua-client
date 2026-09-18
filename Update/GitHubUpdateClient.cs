@@ -42,8 +42,8 @@ public sealed class GitHubUpdateClient
         {
             var repositories = new[]
             {
-                ApplicationTechnicalIdentity.LegacyRepositoryName,
-                ApplicationTechnicalIdentity.FutureRepositoryName
+                ApplicationTechnicalIdentity.CanonicalRepositoryName,
+                ApplicationTechnicalIdentity.LegacyRepositoryName
             };
 
             for (var repositoryIndex = 0; repositoryIndex < repositories.Length; repositoryIndex++)
@@ -62,7 +62,7 @@ public sealed class GitHubUpdateClient
 
                 if (response.StatusCode == HttpStatusCode.NotFound && repositoryIndex == 0)
                 {
-                    _logger.Warning($"GitHub update: legacy repository {ApplicationTechnicalIdentity.LegacyRepositorySlug} was not found; trying bridge target {ApplicationTechnicalIdentity.FutureRepositorySlug}");
+                    _logger.Warning($"GitHub update: canonical repository {ApplicationTechnicalIdentity.CanonicalRepositorySlug} was not found; trying legacy fallback {ApplicationTechnicalIdentity.LegacyRepositorySlug}");
                     continue;
                 }
 
