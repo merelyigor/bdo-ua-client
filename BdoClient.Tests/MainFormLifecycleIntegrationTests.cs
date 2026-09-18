@@ -24,13 +24,136 @@ public sealed class MainFormLifecycleIntegrationTests
 
         await fixture.WaitForStartupAsync();
         await fixture.WaitForAsync(form => form.GameSelector.Enabled);
+        var oldSession = fixture.Form.ActiveGameSession;
         var selectedAfterRequest = await fixture.SelectGameAsync("synthetic-game");
         Assert.Equal("synthetic-game", selectedAfterRequest);
-        await Task.Delay(1000);
+        await fixture.WaitForSwitchCompletionAsync();
+        await fixture.WaitForAsync(form =>
+            form.SelectedGame.Id == "synthetic-game"
+            && form.GameSelector.Text == "Synthetic Game"
+            && !form.IsSwitchInProgress
+            && form.ActivePersistenceRoot == fixture.AppPaths.GetGamePersistencePaths("synthetic-game").Root);
         var config = new ApplicationConfigStore(fixture.AppPaths, new MainFormTestFixture.TestLogger()).Load();
         Assert.Equal("synthetic-game", config.Value!.SelectedGameId);
-        await fixture.WaitForAsync(form => form.SelectedGame.Id == "synthetic-game");
+        Assert.Equal(fixture.AppPaths.GetGamePersistencePaths("synthetic-game").Root, fixture.Form.ActivePersistenceRoot);
+        Assert.False(oldSession.ReleaseFeedPoller.IsRunning);
+    }
+
+    [Fact]
+    public async Task Startup_PersistedSyntheticGameActivatesRegisteredSession()
+    {
+        using var fixture = await MainFormTestFixture.StartAsync(
+            MainFormTestFixture.CreateSuccessfulApiHandler(),
+            applicationConfigJson: "{\"selected_game_id\":\"synthetic-game\"}",
+            includeSyntheticSecondGame: true);
+
+        await fixture.WaitForStartupAsync();
+        await fixture.WaitForAsync(form =>
+            form.SelectedGame.Id == "synthetic-game"
+            && form.GameSelector.Text == "Synthetic Game"
+            && !form.IsSwitchInProgress
+            && form.ActivePersistenceRoot == fixture.AppPaths.GetGamePersistencePaths("synthetic-game").Root);
+
+        var config = new ApplicationConfigStore(fixture.AppPaths, new MainFormTestFixture.TestLogger()).Load();
+        Assert.Equal("synthetic-game", fixture.Form.SelectedGame.Id);
         Assert.Equal("Synthetic Game", fixture.Form.GameSelector.Text);
+        Assert.Equal("synthetic-game", config.Value!.SelectedGameId);
+        Assert.Equal(fixture.AppPaths.GetGamePersistencePaths("synthetic-game").Root, fixture.Form.ActivePersistenceRoot);
+    }
+
+    [Fact]
+    public async Task SwitchingSyntheticGameAndBack_RestoresBdoScopeAndSelection()
+    {
+        using var fixture = await MainFormTestFixture.StartAsync(
+            MainFormTestFixture.CreateSuccessfulApiHandler(),
+            includeSyntheticSecondGame: true);
+
+        await fixture.WaitForStartupAsync();
+        await fixture.WaitForAsync(form => form.GameSelector.Enabled);
+
+        await fixture.SelectGameAsync("synthetic-game");
+        await fixture.WaitForSwitchCompletionAsync();
+        await fixture.WaitForAsync(form =>
+            form.SelectedGame.Id == "synthetic-game"
+            && !form.IsSwitchInProgress
+            && form.ActivePersistenceRoot == fixture.AppPaths.GetGamePersistencePaths("synthetic-game").Root);
+
+        await fixture.SelectGameAsync("black-desert-online");
+        await fixture.WaitForSwitchCompletionAsync();
+        await fixture.WaitForAsync(form =>
+            form.SelectedGame.Id == "black-desert-online"
+            && form.GameSelector.Text == "Black Desert Online"
+            && !form.IsSwitchInProgress
+            && form.ActivePersistenceRoot == fixture.AppPaths.GetGamePersistencePaths("black-desert-online").Root);
+
+        var config = new ApplicationConfigStore(fixture.AppPaths, new MainFormTestFixture.TestLogger()).Load();
+        Assert.Equal("black-desert-online", config.Value!.SelectedGameId);
+        Assert.Equal(fixture.AppPaths.GetGamePersistencePaths("black-desert-online").Root, fixture.Form.ActivePersistenceRoot);
+        Assert.DoesNotContain("synthetic-game", fixture.Form.ActivePersistenceRoot, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StaleOldSessionFeedCannotOverwriteNewSession()
+    {
+        using var fixture = await MainFormTestFixture.StartAsync(
+            MainFormTestFixture.CreateSuccessfulApiHandler(),
+            includeSyntheticSecondGame: true);
+
+        await fixture.WaitForStartupAsync();
+        await fixture.WaitForAsync(form => form.GameSelector.Enabled);
+        var oldSession = fixture.Form.ActiveGameSession;
+        var oldGeneration = fixture.Form.GameSessionGeneration;
+
+        await fixture.SelectGameAsync("synthetic-game");
+        await fixture.WaitForSwitchCompletionAsync();
+        await fixture.WaitForAsync(form =>
+            form.SelectedGame.Id == "synthetic-game"
+            && !form.IsSwitchInProgress
+            && form.ActivePersistenceRoot == fixture.AppPaths.GetGamePersistencePaths("synthetic-game").Root);
+
+        await fixture.Form.DeliverSessionFeedForTestAsync(
+            oldSession,
+            oldGeneration,
+            new ReleasesResponse
+            {
+                Success = true,
+                Data = new ReleaseData { OfficialPatch = 999, Modes = new List<LocalizationMode>() }
+            });
+
+        await fixture.WaitForAsync(form =>
+            form.SelectedGame.Id == "synthetic-game"
+            && form.ActivePersistenceRoot == fixture.AppPaths.GetGamePersistencePaths("synthetic-game").Root);
+        Assert.Equal("Synthetic Game", fixture.Form.GameSelector.Text);
+    }
+
+    [Fact]
+    public async Task SelectorIsBlockedDuringOperationAndRecoversAfterwards()
+    {
+        using var fixture = await MainFormTestFixture.StartAsync(
+            MainFormTestFixture.CreateSuccessfulApiHandler(),
+            includeSyntheticSecondGame: true);
+
+        await fixture.WaitForStartupAsync();
+        await fixture.WaitForAsync(form => form.GameSelector.Enabled);
+        await fixture.SetOperationInProgressAsync(true);
+        try
+        {
+            Assert.False(fixture.Form.GameSelector.Enabled);
+            var selected = await fixture.SelectGameAsync("synthetic-game");
+            Assert.Equal("black-desert-online", selected);
+            Assert.Equal("black-desert-online", fixture.Form.SelectedGame.Id);
+            Assert.Equal(fixture.AppPaths.GetGamePersistencePaths("black-desert-online").Root, fixture.Form.ActivePersistenceRoot);
+
+            var config = new ApplicationConfigStore(fixture.AppPaths, new MainFormTestFixture.TestLogger()).Load();
+            Assert.Equal("black-desert-online", config.Value!.SelectedGameId);
+        }
+        finally
+        {
+            await fixture.SetOperationInProgressAsync(false);
+        }
+
+        await fixture.WaitForAsync(form => form.GameSelector.Enabled);
+        Assert.False(fixture.Form.IsOperationInProgress);
     }
 
     [Fact]
@@ -485,6 +608,15 @@ internal sealed class MainFormTestFixture : IDisposable
             _appPaths.ConfigFile,
             JsonSerializer.Serialize(new Config { GamePath = GameRoot }));
 
+        if (includeSyntheticSecondGame)
+        {
+            var syntheticPaths = _appPaths.GetGamePersistencePaths("synthetic-game");
+            syntheticPaths.EnsureDirectories();
+            File.WriteAllText(
+                syntheticPaths.ConfigFile,
+                JsonSerializer.Serialize(new Config { GamePath = GameRoot }));
+        }
+
         _bdoHttpClient = new HttpClient(_bdoHandler);
         _githubHttpClient = new HttpClient(_githubHandler);
 
@@ -576,6 +708,24 @@ internal sealed class MainFormTestFixture : IDisposable
             }
         });
         return await completion.Task.WaitAsync(Timeout);
+    }
+
+    internal async Task SetOperationInProgressAsync(bool value)
+    {
+        var completion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        PostToUi(() =>
+        {
+            try
+            {
+                Form.SetOperationInProgressForTest(value);
+                completion.TrySetResult(null);
+            }
+            catch (Exception ex)
+            {
+                completion.TrySetException(ex);
+            }
+        });
+        await completion.Task.WaitAsync(Timeout);
     }
 
     internal static async Task<MainFormTestFixture> StartAsync(
@@ -713,8 +863,16 @@ internal sealed class MainFormTestFixture : IDisposable
             }
         }
 
+        var form = await _formReady.Task.WaitAsync(Timeout);
+        await form.WaitForStartupCompletionForTestAsync().WaitAsync(Timeout);
         PostToUi(Check);
         await completion.Task.WaitAsync(Timeout);
+    }
+
+    internal async Task WaitForSwitchCompletionAsync()
+    {
+        var form = await _formReady.Task.WaitAsync(Timeout);
+        await form.WaitForSwitchCompletionForTestAsync().WaitAsync(Timeout);
     }
 
     internal void SignalSecondaryActivation()

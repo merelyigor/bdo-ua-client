@@ -90,7 +90,7 @@ Separate application-global services from selected-game composition/lifetime in 
 
 Implement controlled teardown/setup, mutation blocking, cancellation and stale-result protection; reset poller/monitor/notifications and test switching with a synthetic second-game fixture. Depends on Stage 2.
 
-Current state: **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**. The concrete `SelectedGameSessionHost` owns one active session, switching is blocked during startup/mutation/closing, old poller and tracked UI work are drained before commit, and generation/cancellation guards protect the new session from stale results. Stage 4 has not started.
+Current state: **IMPLEMENTED / VALIDATED / PENDING EXTERNAL REVIEW**. The concrete `SelectedGameSessionHost` owns one active session, switching is blocked during startup/mutation/closing, old poller and tracked UI work are drained before commit, and generation/cancellation guards protect the new session from stale results. The corrective coverage also proves persisted known-game startup activation, deterministic switch completion, synthetic A→B→A restoration, stale old-session feed rejection and selector blocking during mutation. Stage 4 has not started.
 
 ### Stage 4 — Complete per-game runtime data isolation
 

@@ -47,6 +47,10 @@ public partial class MainForm : Form
     private long _gameSessionGeneration;
     private bool _suppressGameSelection;
     private volatile bool _switchInProgress;
+    private TaskCompletionSource<object?> _switchCompletion =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource<object?> _startupCompletion =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private const string UninstallInstructions =
         "BDO-UA Client — portable-застосунок. Він не встановлюється через Windows Installer і не має окремого деінсталятора у Windows." +
@@ -107,8 +111,9 @@ public partial class MainForm : Form
     {
         ArgumentNullException.ThrowIfNull(sessionHost);
         ArgumentNullException.ThrowIfNull(gameCatalog);
-        if (!string.Equals(sessionHost.CurrentSession.Descriptor.Id, gameCatalog.DefaultGame.Id, StringComparison.Ordinal))
-            throw new ArgumentException("Game catalog and session must identify the same game.", nameof(sessionHost));
+        if (!gameCatalog.Games.Any(game =>
+                string.Equals(game.Id, sessionHost.CurrentSession.Descriptor.Id, StringComparison.OrdinalIgnoreCase)))
+            throw new ArgumentException("Game catalog and session must identify a registered game.", nameof(sessionHost));
 
         _applicationConfigStore = applicationConfigStore;
         _gameCatalog = gameCatalog ?? throw new ArgumentNullException(nameof(gameCatalog));
@@ -236,6 +241,7 @@ public partial class MainForm : Form
         try
         {
             _switchInProgress = true;
+            _switchCompletion = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
             SetControlsDuringOperation(false);
             candidate = _sessionHost.CreateCandidate(target);
 
@@ -245,9 +251,7 @@ public partial class MainForm : Form
             _localizationNotificationTracker.Reset();
             ClearTransientGameState();
 
-            // Complete the old poller drain away from the UI synchronization context;
-            // the continuation below returns to WinForms before rebinding controls.
-            await Task.Run(previous.StopAsync);
+            await previous.StopAsync();
             await DrainSessionWorkAsync();
             previousCts?.Dispose();
 
@@ -293,6 +297,7 @@ public partial class MainForm : Form
         finally
         {
             candidate?.Dispose();
+            _switchCompletion.TrySetResult(null);
             _switchInProgress = false;
             SetControlsDuringOperation(true);
         }
@@ -311,7 +316,7 @@ public partial class MainForm : Form
         config.SelectedGameId = descriptor.Id;
         try
         {
-            await Task.Run(() => _applicationConfigStore.SaveAsync(config));
+            await _applicationConfigStore.SaveAsync(config);
         }
         catch (Exception ex)
         {
@@ -344,6 +349,25 @@ public partial class MainForm : Form
     }
 
     internal GameDescriptor SelectedGame => _selectedGame;
+    internal string ActivePersistenceRoot => _activeGameSession.PersistencePaths.Root;
+    internal BdoGameSession ActiveGameSession => _activeGameSession;
+    internal long GameSessionGeneration => _gameSessionGeneration;
+    internal bool IsSwitchInProgress => _switchInProgress;
+    internal bool IsOperationInProgress => _operationInProgress;
+    internal Task WaitForSwitchCompletionForTestAsync() => _switchCompletion.Task;
+    internal Task WaitForStartupCompletionForTestAsync() => _startupCompletion.Task;
+
+    internal Task DeliverSessionFeedForTestAsync(
+        BdoGameSession session,
+        long generation,
+        ReleasesResponse feed)
+        => HandleSessionFeedAsync(session, generation, feed, isCandidate: false);
+
+    internal void SetOperationInProgressForTest(bool value)
+    {
+        _operationInProgress = value;
+        SetControlsDuringOperation(!value);
+    }
     internal ComboBox GameSelector => gameSelectorComboBox;
 
     private void InitializeGameSelector()
@@ -371,9 +395,16 @@ public partial class MainForm : Form
 
     private void GameSelectorComboBox_SelectedValueChanged(object? sender, EventArgs e)
     {
-        if (_suppressGameSelection || _initializing || _switchInProgress || _operationInProgress
-            || _closing || _updateHandoffInProgress)
+        if (_suppressGameSelection)
             return;
+
+        if (_initializing || _switchInProgress || _operationInProgress
+            || _closing || _updateHandoffInProgress)
+        {
+            if (!_closing)
+                RestoreGameSelectorToActiveSession();
+            return;
+        }
 
         if (gameSelectorComboBox.SelectedValue is not string selectedId)
             return;
@@ -383,6 +414,19 @@ public partial class MainForm : Form
             return;
 
         _ = SwitchGameAsync(target);
+    }
+
+    private void RestoreGameSelectorToActiveSession()
+    {
+        _suppressGameSelection = true;
+        try
+        {
+            gameSelectorComboBox.SelectedValue = _activeGameSession.Descriptor.Id;
+        }
+        finally
+        {
+            _suppressGameSelection = false;
+        }
     }
 
     private void QueueSessionFeedWork(

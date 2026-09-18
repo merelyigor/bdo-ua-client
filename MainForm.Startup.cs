@@ -16,7 +16,7 @@ public partial class MainForm
         SetControlsDuringOperation(false);
         try
         {
-            ResolveSelectedGame();
+            await ResolveSelectedGameAsync();
             await LoadCurrentGameSessionAsync(_gameSessionGeneration, _gameSessionCts!.Token, runGlobalStartup: true);
         }
         catch (Exception ex)
@@ -34,6 +34,7 @@ public partial class MainForm
             SetControlsDuringOperation(true);
             if (!_closing && IsCurrentGameSession(_gameSessionGeneration, _activeGameSession))
                 _poller.Start(_apiResponse);
+            _startupCompletion.TrySetResult(null);
         }
     }
 
@@ -143,26 +144,32 @@ public partial class MainForm
         }
     }
 
-    private void ResolveSelectedGame()
+    private Task ResolveSelectedGameAsync()
     {
         var load = _applicationConfigStore.Load();
         if (load.Status == FileLoadStatus.Invalid)
         {
             _logger.Warning("Application config invalid; using default game selection.");
-            return;
+            return Task.CompletedTask;
         }
 
         var config = load.Value ?? new ApplicationConfig();
         var requestedId = config.SelectedGameId;
-        _selectedGame = _gameCatalog.Resolve(requestedId);
-        if (!string.Equals(_selectedGame.Id, _activeGameSession.Descriptor.Id, StringComparison.OrdinalIgnoreCase))
-        {
-            _logger.Warning($"Selected game '{_selectedGame.Id}' does not match the active session; keeping active session '{_activeGameSession.Descriptor.Id}'.");
-            _selectedGame = _activeGameSession.Descriptor;
-        }
-        gameSelectorComboBox.SelectedValue = _selectedGame.Id;
+        var selectedGame = _gameCatalog.Resolve(requestedId);
+        var knownSelection = !string.IsNullOrWhiteSpace(requestedId)
+            && _gameCatalog.Games.Any(game =>
+                string.Equals(game.Id, requestedId, StringComparison.OrdinalIgnoreCase));
 
-        if (requestedId == null || !string.Equals(requestedId, _selectedGame.Id, StringComparison.OrdinalIgnoreCase))
+        if (knownSelection
+            && !string.Equals(selectedGame.Id, _activeGameSession.Descriptor.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            ActivateInitialGameSession(selectedGame);
+        }
+
+        _selectedGame = _activeGameSession.Descriptor;
+        RestoreGameSelectorToActiveSession();
+
+        if (!knownSelection)
         {
             if (!string.IsNullOrWhiteSpace(requestedId))
                 _logger.Warning($"Unknown selected game '{requestedId}'; using default game '{_selectedGame.Id}'.");
@@ -176,6 +183,36 @@ public partial class MainForm
             {
                 _logger.Warning($"Failed to persist selected game '{_selectedGame.Id}': {ex.Message}");
             }
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private void ActivateInitialGameSession(GameDescriptor selectedGame)
+    {
+        var previous = _activeGameSession;
+        var previousCts = _gameSessionCts;
+        BdoGameSession? candidate = null;
+
+        try
+        {
+            candidate = _sessionHost.CreateCandidate(selectedGame);
+            previousCts?.Cancel();
+            DetachSessionHandlers();
+            DisposeLocalFileMonitor();
+            _localizationNotificationTracker.Reset();
+            ClearTransientGameState();
+
+            _sessionHost.CommitCandidate(candidate);
+            candidate = null;
+            BindGameSession(_sessionHost.CurrentSession, _gameSessionGeneration + 1);
+            previousCts?.Dispose();
+            previous.Dispose();
+        }
+        catch
+        {
+            candidate?.Dispose();
+            throw;
         }
     }
 
