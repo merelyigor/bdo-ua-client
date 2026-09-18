@@ -5,7 +5,7 @@ Status: ACTIVE
 Focus: PRIMARY
 Implementation authorization: **YES**
 Current phase: Stage 7 — Repository rename bridge release + rename
-Next action: prepare and validate the bridge release; repository rename remains an explicit Owner operational gate
+Next action: Owner smoke exact v1.2.8 RC, then Architect GO/NO-GO for publication; repository rename remains an explicit Owner operational gate
 Dependencies: v1.2.7 — RELEASE REVIEWED / ACCEPTED
 
 ## Goal
@@ -114,7 +114,7 @@ Current state: **REVIEWED / ACCEPTED**. External pre-commit Architect review com
 
 Ship the bridge-capable release, then wait for explicit Owner operational authorization to rename toward `merelyigor/ua-localization-hub`. Verify old/new URLs, redirects, history, origin, Actions, releases, API and old/new client update paths.
 
-Current state: **NOT STARTED**. Prepare and validate the bridge release first; the actual repository rename remains an explicit Owner operational gate.
+Current state: **BRIDGE RC READY / OWNER NATIVE SMOKE PENDING**. RC v1.2.8 was produced from exact accepted Stage 6 source SHA `7cb740d55bc7baeb5aa9f91365114e68bb88eff9`; structural v1.2.7 compatibility preflight passed. Live v1.2.7 → v1.2.8 update verification remains a post-publication gate. Repository rename is not authorized and has not started.
 
 ### Stage 8 — Optional physical EXE/package/autostart migration
 
@@ -151,4 +151,4 @@ The roadmap depends on v1.2.7 release completion and explicit Owner activation. 
 
 ## Current progress
 
-Roadmap approved by Owner and activated after v1.2.7 external release acceptance. Stage 0 is complete and its dependency is satisfied. Stage 1 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 2 is **REVIEWED / ACCEPTED** after external pre-commit Architect review, commit and CI success. Stage 3 is **REVIEWED / ACCEPTED**; Stage 4 is **REVIEWED / ACCEPTED**; Stage 5 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 6 is **REVIEWED / ACCEPTED** after external pre-commit Architect review. Stage 7 is the next phase and has not started.
+Roadmap approved by Owner and activated after v1.2.7 external release acceptance. Stage 0 is complete and its dependency is satisfied. Stage 1 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 2 is **REVIEWED / ACCEPTED** after external pre-commit Architect review, commit and CI success. Stage 3 is **REVIEWED / ACCEPTED**; Stage 4 is **REVIEWED / ACCEPTED**; Stage 5 is **REVIEWED / ACCEPTED** after external Architect review and Owner visual smoke. Stage 6 is **REVIEWED / ACCEPTED** after external pre-commit Architect review. Stage 7A is **BRIDGE RC READY / OWNER NATIVE SMOKE PENDING**; Stage 7 publication and repository rename remain gated and have not started.

@@ -8,9 +8,9 @@
 
 Стабільний реліз: **v1.2.7**. Публічний stable release опубліковано з tag v1.2.7; canonical application bundle містить один ZIP-asset. Offline/degraded release-feed implementation завершено та прийнято зовнішнім Architect.
 
-Поточна наступна дія: prepare and validate the Stage 7 bridge release; repository rename remains an explicit Owner operational gate.
+Поточна наступна дія: Owner smoke exact v1.2.8 RC, then Architect GO/NO-GO for publication; repository rename remains an explicit Owner operational gate.
 
-Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-multigame` for the future `Хаб українізаторів` / multi-game transition. v1.2.7 external release acceptance is complete; Stage 0 through Stage 6 are reviewed/accepted, and Stage 7 is the next phase but has not started.
+Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-multigame` for the future `Хаб українізаторів` / multi-game transition. v1.2.7 external release acceptance is complete; Stage 0 through Stage 6 are reviewed/accepted, and Stage 7A has a validated bridge RC pending Owner native smoke and publication review.
 
 ## Architecture Summary
 
@@ -80,6 +80,12 @@ Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-mu
 - Technical identity and repository-bridge focused coverage — 42 passed; relevant update/package/manifest/session/autostart/AppPaths/MainForm update coverage — 225 passed; release-note generator — passed; release-version resolver — 13 passed.
 - Full Release suite — 997 passed / 0 failed / 0 skipped; Release build — 0 warnings / 0 errors; `git diff --check` passed. Physical technical identities remain unchanged; Stage 6 is **REVIEWED / ACCEPTED** with external pre-commit review BLOCKER 0 / IMPORTANT 0.
 
+## Stage 7A bridge RC validation
+
+- RC #36 / run `35353772206` succeeded from exact accepted Stage 6 source SHA `7cb740d55bc7baeb5aa9f91365114e68bb88eff9`; artifact ID `10550809226`, `BDO-UA-Client-v1.2.8-win-x64`.
+- The exact Actions artifact contains four flat files. ZIP size is `67,924,024` bytes and SHA-256 is `33d4f7baacac5b5a38a28140295663e6b1f865b01231e8845e6b46f1f87bf6f2`; EXE size is `162,458,694` bytes and SHA-256 is `bb4ce07897b4ca916e746cf41071deddcd1a9e6daa50623bfba3b5785dfc33e4`. FileVersion is `1.2.8.0`, ProductVersion is `1.2.8`, and Hub product metadata is preserved.
+- Schema-2 manifest, `SHA256SUMS.txt`, and generated release notes validate against version `1.2.8`, tag `v1.2.8`, exact source SHA, run ID, legacy EXE name and current repository links. Historical v1.2.7 updater compatibility preflight passed 59 focused tests; live v1.2.7 → v1.2.8 update remains impossible until publication.
+
 ## Important Invariants
 
 - API contract — `GET https://bdo-ua.com.ua/api/public/v1/releases`; актуальний release визначає сервер.
@@ -110,5 +116,5 @@ Owner approved and explicitly activated the PRIMARY roadmap `localization-hub-mu
 - v1.2.5 release cycle completed; public Release verified and `NEXT.json` reset for the next cycle.
 - v15.64/v15.65 — **REVIEWED / ACCEPTED; OWNER VISUAL SMOKE ACCEPTED**: для трьох і більше режимів локалізації додано компактний minimum window width і збережено його під час semantic rebuild; single-mode global status width збережено.
 - v1.2.7 — **RELEASED / PUBLIC VERIFIED / RELEASE REVIEWED / ACCEPTED**: public Release ID `391117230` опубліковано на tag `v1.2.7`, який вказує на exact approved RC SHA `b21118d1ec8e6d0342fb0e47544e911fcb875739`; canonical ZIP і внутрішні hashes повторно перевірено, Owner native smoke exact RC прийнято.
-- `localization-hub-multigame` — **ACTIVE / PRIMARY**: Stage 0 complete; Stage 1 — **REVIEWED / ACCEPTED**; Stage 2 — **REVIEWED / ACCEPTED**; Stage 3 — **REVIEWED / ACCEPTED**; Stage 4 — **REVIEWED / ACCEPTED**; Stage 5 — **REVIEWED / ACCEPTED**; Stage 6 — **IMPLEMENTED / VALIDATED / PENDING PRE-COMMIT EXTERNAL ARCHITECT REVIEW**.
-- Next action: prepare and validate the Stage 7 bridge release; the actual repository rename remains an explicit Owner operational gate.
+- `localization-hub-multigame` — **ACTIVE / PRIMARY**: Stage 0 complete; Stage 1 — **REVIEWED / ACCEPTED**; Stage 2 — **REVIEWED / ACCEPTED**; Stage 3 — **REVIEWED / ACCEPTED**; Stage 4 — **REVIEWED / ACCEPTED**; Stage 5 — **REVIEWED / ACCEPTED**; Stage 6 — **REVIEWED / ACCEPTED**; Stage 7A — **BRIDGE RC READY / OWNER NATIVE SMOKE PENDING**.
+- Next action: Owner smoke exact v1.2.8 RC, then Architect GO/NO-GO for publication; the actual repository rename remains an explicit Owner operational gate.
